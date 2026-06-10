@@ -1,0 +1,85 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout title="Logs Percakapan">
+  <div class="max-w-[1200px] mx-auto w-full flex-1 flex flex-col min-h-0">
+
+    <div class="mb-6 shrink-0">
+      <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Logs & Moderasi</h1>
+      <p class="text-body text-[16px] text-muted">Pantau interaksi siswa dengan asisten AI dan awasi anomali percakapan.</p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 shrink-0" id="log-summary-container">
+    </div>
+
+    <div class="bg-surface-card border border-hairline rounded-[16px] p-4 mb-6 shadow-sm shrink-0 flex flex-wrap gap-4 items-center">
+        <div class="relative flex-1 min-w-[250px]">
+          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+            <i class="fa-solid fa-search text-muted"></i>
+          </div>
+          <input type="text" id="filter-search" placeholder="Cari pesan / keyword log..." class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] pl-10 pr-4 py-2.5 text-[14px] text-ink focus:outline-none focus:border-ink transition-colors">
+        </div>
+
+        <select id="filter-project" class="bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-2.5 text-[14px] text-ink focus:outline-none min-w-[150px] cursor-pointer">
+          <option value="">Semua Project</option>
+        </select>
+
+        <input type="date" id="filter-date" class="w-full md:w-auto bg-white border border-hairline rounded-[8px] px-3 py-2 text-[13px] focus:border-primary outline-none text-ink text-muted" title="Filter berdasarkan tanggal">
+
+        <select id="filter-mod" class="bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-2.5 text-[14px] text-ink focus:outline-none min-w-[150px] cursor-pointer">
+          <option value="">Semua Alert</option>
+          <option value="hate_speech">SARA / Hate Speech</option>
+          <option value="profanity">Kata Kasar</option>
+          <option value="mental_health">Sinyal Stres / Burnout</option>
+        </select>
+    </div>
+
+    <div class="w-full flex flex-col bg-surface-card border border-hairline rounded-[16px] shadow-sm min-h-[400px] flex-1 mb-4 overflow-hidden shrink-0">
+      <div class="p-4 border-b border-hairline bg-canvas-soft flex items-center justify-between shrink-0">
+        <h3 class="font-serif text-lg text-ink font-medium">Daftar Sesi Aktivitas</h3>
+        <span class="bg-white border border-hairline-strong px-2.5 py-0.5 rounded-full text-xs font-medium text-muted" id="total-session-count">0 Sesi</span>
+      </div>
+
+      <div id="session-list" class="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-canvas content-start">
+         <div class="col-span-full flex h-full items-center justify-center text-muted py-20">
+            <i class="fa-solid fa-spinner fa-spin text-2xl"></i>
+         </div>
+      </div>
+
+      <div class="p-4 border-t border-hairline bg-canvas-soft flex justify-between items-center shrink-0">
+        <button id="btn-prev-page" class="w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+        <span id="page-info" class="text-[13px] text-muted-soft font-medium tracking-wide">1 / 1</span>
+        <button id="btn-next-page" class="w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+      </div>
+    </div>
+
+    <div class="h-6 md:h-10 w-full shrink-0 block pointer-events-none"></div>
+
+    <div id="chat-overlay" class="fixed inset-0 bg-ink/40 backdrop-blur-sm z-[55] invisible opacity-0 transition-all duration-300 cursor-pointer"></div>
+
+    <div id="chat-overlay" class="fixed inset-0 bg-ink/40 backdrop-blur-sm z-[55] invisible opacity-0 transition-all duration-300 cursor-pointer"></div>
+
+    <div id="chat-workspace" class="fixed bottom-0 inset-x-0 h-[85vh] translate-y-full md:inset-y-0 md:right-0 md:left-auto md:w-[550px] md:h-full md:translate-x-full md:translate-y-0 flex flex-col bg-surface-card border-t md:border-t-0 md:border-l border-hairline rounded-t-[24px] md:rounded-t-none md:rounded-l-[24px] shadow-2xl transition-transform duration-300 ease-in-out z-[60] overflow-hidden">
+
+      <div id="detail-content" class="hidden flex-1 flex flex-col h-full">
+
+        <div class="p-5 border-b border-hairline bg-white shrink-0 flex items-center gap-4">
+          <button id="btn-close-chat" class="text-ink w-8 h-8 flex items-center justify-center hover:bg-canvas-soft rounded-full transition-colors shrink-0" title="Tutup">
+            <i class="fa-solid fa-xmark text-xl"></i>
+          </button>
+
+          <div class="flex-1 min-w-0">
+            <h3 id="det-student-name" class="font-serif text-lg md:text-xl text-ink font-medium truncate">Nama Siswa</h3>
+            <p id="det-project-class" class="text-[13px] text-muted truncate">Nama Kelas</p>
+          </div>
+        </div>
+
+        <div id="chat-timeline" class="flex-1 overflow-y-auto p-6 space-y-6 bg-canvas scroll-smooth">
+        </div>
+      </div>
+    </div>
+
+  </div>
+  <script src="../../scripts/pages/logs.page.js"></script>
+</DashboardLayout>

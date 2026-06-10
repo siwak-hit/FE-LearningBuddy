@@ -1,0 +1,220 @@
+---
+import Modal from '../common/Modal.astro';
+import SourcePdfHighlighter from '../source/SourcePdfHighlighter.jsx';
+const { API_BASE } = Astro.props;
+---
+
+<style is:global>
+  /* FIX: Class untuk menutup sidebar secara mulus di desktop */
+  @media (min-width: 768px) {
+    .desktop-collapsed {
+      width: 0 !important;
+      min-width: 0 !important;
+      max-width: 0 !important;
+      opacity: 0 !important;
+      border-right-width: 0 !important;
+      overflow: hidden !important;
+    }
+  }
+</style>
+
+<div class="h-screen flex bg-canvas overflow-hidden font-sans relative w-full">
+
+  <div
+    id="context-backdrop"
+    class="hidden md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-30 opacity-0 transition-opacity duration-300"
+  ></div>
+
+  <!-- Sidebar: Pastikan ada transition-all dan duration-300 agar efek mengecilnya halus -->
+  <aside
+    id="context-sidebar"
+    class="fixed md:relative inset-y-0 left-0 z-40 w-[86%] max-w-[380px] md:w-[320px] lg:w-[380px] shrink-0 h-full bg-canvas-soft border-r border-hairline flex flex-col transform -translate-x-full md:translate-x-0 transition-all duration-300 ease-out overflow-hidden"
+  >
+    <div class="p-6 md:p-8 border-b border-hairline shrink-0 w-full md:w-[320px] lg:w-[380px]">
+      <div class="flex items-center justify-between mb-8">
+        <button id="btn-back" class="text-muted hover:text-ink flex items-center text-[15px] font-medium transition-colors">
+          <i class="fa-solid fa-arrow-left mr-2"></i> Kembali ke VClass
+        </button>
+
+        <button
+          id="btn-close-context"
+          type="button"
+          class="md:hidden w-9 h-9 rounded-full bg-surface-card border border-hairline flex items-center justify-center text-muted hover:text-ink transition-colors"
+        >
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px] mb-3">Preview Konteks</div>
+      <h2 id="context-title" class="font-serif font-light text-3xl text-ink leading-tight tracking-tight mb-2">Memuat Halaman...</h2>
+      <p class="text-[15px] text-muted-soft">Pilih teks elemen yang ingin kamu tanyakan. Visual hanya perkiraan jika tersedia.</p>
+    </div>
+
+    <div id="element-list" class="flex-1 overflow-y-auto p-5 md:p-6 space-y-3 w-full md:w-[320px] lg:w-[380px]"></div>
+  </aside>
+
+  <main class="flex-1 h-full flex flex-col bg-canvas relative min-w-0 transition-all duration-300">
+    <div id="onboarding-modal" class="hidden absolute inset-0 bg-canvas/95 backdrop-blur-md z-50 flex flex-col items-center justify-center p-6 text-center">
+      <div id="onboarding-slides" class="max-w-md w-full relative">
+        </div>
+    </div>
+
+    <header class="h-20 border-b border-hairline flex items-center justify-between px-4 md:px-8 shrink-0 bg-surface-card z-10 shadow-sm">
+      <div class="flex items-center gap-3 min-w-0">
+        <!-- Tombol Burger: Hapus class md:hidden agar selalu tampil -->
+        <button
+          id="btn-open-context"
+          type="button"
+          class="w-10 h-10 rounded-full bg-surface-strong border border-hairline flex items-center justify-center text-ink shrink-0 hover:bg-hairline-strong transition-colors"
+        >
+          <i class="fa-solid fa-bars"></i>
+        </button>
+
+        <div class="min-w-0">
+          <h1 id="chat-title" class="font-medium text-ink text-[16px] truncate">AI Learning Buddy</h1>
+          <p id="chat-subtitle" class="text-[14px] text-muted truncate">Asisten Belajar Virtual</p>
+        </div>
+      </div>
+
+      <button id="btn-session-info" class="bg-surface-card border border-hairline text-[12px] font-semibold uppercase tracking-wider text-ink px-4 py-2 rounded-full hover:bg-surface-strong transition-colors shrink-0">
+        Sesi: <span id="chat-count">0</span>/3
+      </button>
+    </header>
+
+    <div id="chat-area" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-canvas">
+      <div class="flex items-start gap-3 md:gap-4">
+        <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shrink-0 text-[15px] shadow-sm">
+          <i class="fa-solid fa-robot"></i>
+        </div>
+        <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[85%] text-[15px] text-body shadow-[0_4px_16px_rgba(0,0,0,0.04)] leading-relaxed">
+          Halo! Aku sudah membaca halaman <b><span id="welcome-context-title"></span></b>. Ada bagian materi yang ingin didiskusikan?
+        </div>
+      </div>
+    </div>
+
+    <div class="shrink-0 p-4 md:p-6 lg:p-8 bg-gradient-to-t from-canvas via-canvas to-transparent border-t border-hairline/50">
+      <div id="selected-bar" class="hidden items-center justify-between bg-surface-strong border border-hairline-strong rounded-xl px-4 py-3 mb-4 shadow-sm">
+        <div class="text-[14px] text-ink font-medium truncate flex-1" id="selected-text">@element dipilih</div>
+        <button id="btn-clear-selected" type="button" class="text-muted hover:text-semantic-error ml-4 px-1 transition-colors">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+
+      <div id="suggestion-wrapper" class="pb-4 transition-all duration-300">
+        <div class="flex gap-2 overflow-x-auto no-scrollbar" id="suggestion-chips"></div>
+      </div>
+
+      <form id="chat-form" class="flex gap-3 relative bg-surface-card border border-hairline-strong rounded-[24px] p-2 shadow-sm focus-within:border-ink transition-colors">
+        <input
+          type="text"
+          id="chat-input"
+          placeholder="Tanya sesuatu atau pilih elemen..."
+          class="flex-1 bg-transparent px-4 md:px-5 py-2 text-[15px] text-ink focus:outline-none min-w-0"
+          autocomplete="off"
+        >
+        <button
+          type="submit"
+          id="btn-send"
+          class="w-12 h-12 shrink-0 bg-primary text-white rounded-full flex items-center justify-center hover:bg-primary-active transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+        >
+          <i class="fa-solid fa-arrow-up"></i>
+        </button>
+      </form>
+    </div>
+
+    <div id="cooldown-overlay" class="hidden absolute inset-0 bg-canvas/90 backdrop-blur-md flex flex-col items-center justify-center z-20">
+      <div class="text-ink text-3xl mb-4"><i class="fa-solid fa-hourglass-half fa-spin"></i></div>
+      <div class="font-serif font-light text-3xl text-ink mb-2">Batas Sesi Tercapai</div>
+      <div class="text-[15px] text-muted mb-8">Mohon tunggu <span id="timer-display" class="font-semibold text-ink">03:00</span> untuk melanjutkan.</div>
+      <button id="btn-reload" class="hidden bg-primary text-white rounded-full px-8 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm">
+        Muat Ulang Halaman
+      </button>
+    </div>
+
+    <!-- LAYAR KUNCI SARA -->
+    <div id="lockdown-overlay" class="hidden absolute inset-0 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center z-30 p-6 text-center">
+      <div class="text-semantic-error text-4xl mb-4"><i class="fa-solid fa-lock"></i></div>
+      <h3 class="font-serif font-light text-2xl text-ink mb-2">Chat Terkunci</h3>
+      <p class="text-[14px] text-muted mb-6">Akses diblokir karena pelanggaran pedoman. Minta Unlock Key ke instruktur.</p>
+
+      <div class="w-full max-w-[280px] text-left">
+        <label class="block text-[12px] font-semibold text-muted mb-1">Nama Panggilan (Wajib)</label>
+        <input type="text" id="unlock-name-input" class="w-full bg-canvas border border-hairline-strong rounded-xl px-4 py-2.5 text-[15px] focus:outline-none focus:border-primary mb-4 text-ink" placeholder="Masukkan nama kamu..." autocomplete="off">
+
+        <label class="block text-[12px] font-semibold text-muted mb-1">Unlock Key Guru</label>
+        <input type="text" id="unlock-key-input" class="w-full bg-canvas border border-semantic-error rounded-xl px-4 py-2.5 text-center text-[15px] focus:outline-none mb-5 text-ink" placeholder="Misal: GURU-1234" autocomplete="off">
+
+        <button id="btn-unlock-chat" class="w-full bg-semantic-error text-white rounded-xl px-4 py-2.5 text-[15px] font-medium hover:bg-red-700 transition-colors">Verifikasi & Buka Akses</button>
+      </div>
+    </div>
+  </main>
+</div>
+
+<Modal id="modal-session-info" title="Informasi Sesi">
+  <div class="text-body text-[15px] leading-relaxed">
+    <p class="mb-4">Mode external dibatasi maksimal <b class="text-ink">3 dialog berurut</b>.</p>
+    <p>Jika lebih dari itu, percakapan akan dijeda selama 3 menit agar server tetap ringan dan responsif.</p>
+  </div>
+  <div class="mt-8 flex justify-end">
+    <button type="button" class="btn-close-modal bg-primary text-white rounded-full px-6 py-2.5 text-[15px] font-medium hover:bg-primary-active transition-colors">Saya Mengerti</button>
+  </div>
+</Modal>
+
+<Modal id="modal-confirm-back" title="Tinggalkan Percakapan?">
+  <div class="text-body text-[15px] leading-relaxed">
+    <p>Jika Anda keluar dari halaman AI, log percakapan ini akan <b class="text-ink">hilang</b>.</p>
+    <p class="mt-4 text-[14px] p-4 bg-surface-strong border border-hairline rounded-xl">
+      💡 <b>Tips:</b> Disarankan kembali ke tab VClass sebelumnya, lalu pindah halaman di sana dan klik tombol AI lagi.
+    </p>
+  </div>
+  <div class="mt-8 flex flex-col sm:flex-row gap-3">
+    <button type="button" class="btn-close-modal flex-1 border border-hairline-strong text-ink rounded-full py-2.5 text-[15px] font-medium hover:bg-surface-strong transition-colors">Tetap di sini</button>
+    <button type="button" id="btn-confirm-leave" class="flex-1 bg-semantic-error text-white rounded-full py-2.5 text-[15px] font-medium hover:bg-red-700 transition-colors">Keluar ke VClass</button>
+  </div>
+</Modal>
+
+<div id="source-viewer-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] invisible opacity-0 pointer-events-none transition-all duration-300"></div>
+
+<div id="source-viewer-drawer" class="fixed z-[10000] bg-white shadow-2xl transition-all duration-300 flex flex-col
+  top-0 right-[-100%] h-full w-[450px] lg:w-[500px]
+  max-sm:right-0 max-sm:bottom-[-100%] max-sm:top-auto max-sm:w-full max-sm:h-[90vh] max-sm:rounded-t-2xl
+  [&.is-open]:right-0 max-sm:[&.is-open]:bottom-0 max-sm:[&.is-open]:top-auto">
+
+  <div class="px-5 py-4 border-b border-hairline flex justify-between items-center bg-surface-card shrink-0 max-sm:rounded-t-2xl">
+    <div class="min-w-0">
+      <h3 class="font-semibold text-[15px] text-ink truncate" id="source-viewer-title">Materi Referensi</h3>
+      <div class="text-[12px] text-muted-soft mt-0.5" id="source-viewer-page">Halaman -</div>
+    </div>
+    <div class="flex items-center gap-2 shrink-0">
+      <a href="#" target="_blank" id="btn-fallback-link" class="hidden w-8 h-8 rounded-full bg-canvas border border-hairline items-center justify-center text-muted hover:text-ink transition-colors" title="Buka di Tab Baru">
+        <i class="fa-solid fa-external-link-alt text-[13px]"></i>
+      </a>
+      <button id="btn-close-source-viewer" class="w-8 h-8 rounded-full bg-canvas border border-hairline flex items-center justify-center text-muted hover:text-red-500 transition-colors">
+        <i class="fa-solid fa-xmark"></i>
+      </button>
+    </div>
+  </div>
+
+  <div id="source-viewer-quote-container" class="bg-amber-50/50 border-b border-amber-100 p-4 shrink-0 hidden">
+    <div class="flex items-center justify-between mb-2">
+      <div class="text-[11px] font-bold text-amber-700 uppercase tracking-wider"><i class="fa-solid fa-quote-left mr-1"></i> Kutipan Relevan</div>
+      <button id="btn-toggle-quote" class="text-[11px] text-amber-700 hover:underline font-medium">Sembunyikan</button>
+    </div>
+    <div id="source-viewer-quote" class="text-[13px] text-body leading-relaxed border-l-2 border-amber-300 pl-3"></div>
+  </div>
+
+  <div id="pdf-scroll-area" class="flex-1 relative overflow-hidden bg-[#f3f4f6]">
+    <SourcePdfHighlighter client:only="react" />
+  </div>
+
+  <div id="source-viewer-empty" class="hidden flex-1 flex-col items-center justify-center p-8 text-center bg-canvas">
+    <div class="w-16 h-16 rounded-full bg-surface-strong flex items-center justify-center mb-4">
+      <i id="empty-icon" class="fa-solid fa-file-pdf text-2xl text-muted"></i>
+    </div>
+    <h4 id="empty-title" class="text-[15px] font-semibold text-ink mb-2">Format Tidak Didukung</h4>
+    <p id="empty-desc" class="text-[13px] text-muted-soft mb-6">File ini tidak dapat dirender langsung di halaman.</p>
+    <a href="#" target="_blank" id="btn-empty-fallback" class="bg-primary text-white rounded-full px-6 py-2.5 text-[13px] font-medium hover:bg-primary-active transition-colors inline-flex items-center gap-2">
+      <span>Buka di Tab Baru</span><i class="fa-solid fa-arrow-right"></i>
+    </a>
+  </div>
+</div>

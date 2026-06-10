@@ -1,0 +1,90 @@
+---
+const { API_BASE } = Astro.props;
+---
+
+<div class="relative min-h-screen flex flex-col bg-canvas z-0">
+  <div class="absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full bg-gradient-to-tr from-[#a7e5d3]/30 to-[#c8b8e0]/30 blur-[120px] -z-10 pointer-events-none"></div>
+
+  <header
+    data-buddy-el="navbar"
+    class="bg-canvas/80 backdrop-blur-md border-b border-hairline h-16 flex items-center px-8 md:px-12 justify-between sticky top-0 z-10"
+  >
+    <div class="font-serif font-light tracking-tight text-ink text-2xl">
+      VClass <span class="font-sans font-normal text-muted text-[15px] ml-2 tracking-normal">| Sekolah Nusantara</span>
+    </div>
+    <div class="hidden md:flex gap-8 text-[15px] font-medium text-body">
+      <a href="#" class="hover:text-ink transition-colors">Dashboard</a>
+      <a href="#" class="hover:text-ink transition-colors">My Courses</a>
+      <div class="w-8 h-8 bg-surface-strong rounded-full border border-hairline flex items-center justify-center text-muted">
+        <i class="fa-solid fa-user"></i>
+      </div>
+    </div>
+  </header>
+
+  <main class="flex-1 max-w-5xl mx-auto w-full p-8 md:p-16">
+    <div data-buddy-el="heroCourse" class="mb-16">
+      <h1 class="text-4xl md:text-5xl font-serif font-light text-ink mb-4 tracking-tight leading-tight">
+        Informatika Kelas 8
+      </h1>
+      <p class="text-body text-lg max-w-2xl leading-relaxed">
+        Pelajari dasar-dasar algoritma, logika pemrograman, dan visual coding melalui pendekatan interaktif.
+      </p>
+    </div>
+
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      <div
+        data-buddy-el="materiFlowchart"
+        class="bg-surface-card border border-hairline rounded-2xl p-8 hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-shadow"
+      >
+        <div class="w-12 h-12 bg-surface-strong rounded-full flex items-center justify-center mb-6 text-ink">
+          <i class="fa-solid fa-sitemap"></i>
+        </div>
+        <h3 class="text-xl font-medium text-ink mb-2">Materi Flowchart</h3>
+        <p class="text-[15px] text-muted">Pemahaman alur logika dengan diagram.</p>
+      </div>
+
+      <div
+        data-buddy-el="materiAlgoritma"
+        class="bg-surface-card border border-hairline rounded-2xl p-8 hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-shadow"
+      >
+        <div class="w-12 h-12 bg-surface-strong rounded-full flex items-center justify-center mb-6 text-ink">
+          <i class="fa-solid fa-code"></i>
+        </div>
+        <h3 class="text-xl font-medium text-ink mb-2">Materi Algoritma</h3>
+        <p class="text-[15px] text-muted">Langkah logis penyelesaian masalah.</p>
+      </div>
+
+      <div
+        data-buddy-el="materiScratch"
+        class="bg-surface-card border border-hairline rounded-2xl p-8 hover:shadow-[0_4px_16px_rgba(0,0,0,0.04)] transition-shadow"
+      >
+        <div class="w-12 h-12 bg-surface-strong rounded-full flex items-center justify-center mb-6 text-ink">
+          <i class="fa-solid fa-cat"></i>
+        </div>
+        <h3 class="text-xl font-medium text-ink mb-2">Materi Scratch</h3>
+        <p class="text-[15px] text-muted">Pemrograman visual berbasis blok.</p>
+      </div>
+
+      <div
+        data-buddy-el="uploadTugas"
+        class="bg-surface-strong border border-hairline-strong rounded-2xl p-8 flex flex-col items-center justify-center text-center border-dashed"
+      >
+        <i class="fa-solid fa-cloud-arrow-up text-3xl text-muted mb-4"></i>
+        <h3 class="text-xl font-medium text-ink mb-2">Upload Tugas</h3>
+        <p class="text-[15px] text-muted">Kumpulkan PDF di sini.</p>
+      </div>
+    </div>
+  </main>
+</div>
+
+<button
+  id="open-ai-page"
+  class="fixed bottom-8 right-8 h-14 px-5 rounded-full shadow-lg flex items-center gap-3 justify-center text-white text-[15px] font-semibold hover:scale-105 active:scale-95 transition-all z-50 opacity-0 group"
+  style="background-color: #292524;"
+  aria-label="Buka AI Learning Buddy"
+>
+  <span class="w-9 h-9 rounded-full bg-white/18 border border-white/25 flex items-center justify-center text-lg shadow-inner">
+    <i class="fa-solid fa-robot"></i>
+  </span>
+  <span class="leading-none">AI Buddy</span>
+</button>

@@ -1,0 +1,566 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import DocumentUploadForm from '../../components/forms/DocumentUploadForm.astro';
+import KnowledgeFaqForm from '../../components/forms/KnowledgeFaqForm.astro';
+import ActivityInstructionForm from '../../components/forms/ActivityInstructionForm.astro';
+import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.jsx';
+---
+
+<DashboardLayout title="Knowledge Base">
+  <style>
+    .hide-scrollbar::-webkit-scrollbar { display: none; }
+    .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
+  </style>
+
+
+  <div class="max-w-[1200px] mx-auto w-full flex flex-col relative pb-12">
+    <div class="mb-8 shrink-0">
+      <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Knowledge Base</h1>
+      <p class="text-body text-[16px]">Kelola sumber pengetahuan AI (Materi, FAQ, dan Instruksi) untuk memastikan respon asisten yang akurat.</p>
+    </div>
+
+    <div class="bg-surface-card border border-hairline rounded-[16px] p-6 mb-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 shrink-0">
+      <div class="flex items-center gap-4 w-full md:w-auto">
+        <div class="w-12 h-12 bg-canvas-soft rounded-full border border-hairline flex items-center justify-center text-muted shrink-0">
+          <i class="fa-solid fa-folder-open text-lg"></i>
+        </div>
+        <div class="flex-1 w-full">
+          <p class="text-[13px] text-muted-soft font-medium uppercase tracking-wider mb-1">Project Aktif</p>
+          <div class="relative w-full md:w-64">
+            <select id="project-selector" class="w-full appearance-none bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-2.5 text-[15px] font-medium text-ink focus:outline-none focus:border-ink cursor-pointer shadow-sm">
+              <option value="">Memuat Project...</option>
+            </select>
+            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-muted">
+              <i class="fa-solid fa-chevron-down text-[13px]"></i>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="text-[13px] text-muted-soft bg-canvas-soft px-4 py-2 rounded-full border border-hairline whitespace-nowrap">
+        <i class="fa-solid fa-circle-info mr-1"></i> AI merespon berdasarkan data di bawah ini.
+      </div>
+    </div>
+
+    <div id="empty-state-project" class="hidden bg-surface-card border border-hairline text-body p-6 rounded-[16px] text-center mb-8">
+      <i class="fa-solid fa-circle-exclamation text-semantic-error text-2xl mb-2"></i>
+      <p>Belum ada project. Silakan buat project di Dashboard terlebih dahulu.</p>
+    </div>
+
+    <div id="knowledge-workspace" class="hidden flex flex-col mt-4">
+
+      <!-- ============================= -->
+      <!-- KB VALIDATION CORE SECTION -->
+      <!-- ============================= -->
+      <section id="kb-validation-core" class="bg-surface-card border border-hairline rounded-[16px] p-5 md:p-6 mb-6 shadow-sm shrink-0">
+        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+          <div class="flex items-start gap-4">
+            <div class="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+              <i class="fa-solid fa-shield-halved text-lg"></i>
+            </div>
+
+            <div>
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <h2 class="font-serif text-xl md:text-2xl text-ink">
+                  Validasi Knowledge Base
+                </h2>
+
+                <span id="kb-core-status-badge" class="text-[12px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted">
+                  Memuat...
+                </span>
+              </div>
+
+              <p class="text-[14px] text-body max-w-2xl">
+                Cek kesiapan data AI sebelum dipakai siswa. Testing detail bisa dibuka lewat panel khusus agar halaman utama tetap rapi.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              id="btn-refresh-kb-validation"
+              class="bg-white border border-hairline-strong text-ink px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-canvas-soft transition-colors"
+            >
+              <i class="fa-solid fa-rotate-right mr-1.5"></i>
+              Refresh
+            </button>
+
+            <button
+              type="button"
+              id="btn-open-kb-test-panel"
+              class="bg-primary text-white px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition-colors shadow-sm"
+            >
+              <i class="fa-solid fa-flask-vial mr-1.5"></i>
+              Uji Knowledge Base
+            </button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5">
+          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4">
+            <p class="text-[12px] text-muted-soft mb-1">Materi</p>
+            <p id="kb-core-documents-count" class="font-serif text-2xl text-ink">0</p>
+          </div>
+
+          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4">
+            <p class="text-[12px] text-muted-soft mb-1">Indexed</p>
+            <p id="kb-core-indexed-count" class="font-serif text-2xl text-ink">0</p>
+          </div>
+
+          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4">
+            <p class="text-[12px] text-muted-soft mb-1">FAQ</p>
+            <p id="kb-core-faq-count" class="font-serif text-2xl text-ink">0</p>
+          </div>
+
+          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4">
+            <p class="text-[12px] text-muted-soft mb-1">Instruksi</p>
+            <p id="kb-core-activity-count" class="font-serif text-2xl text-ink">0</p>
+          </div>
+
+          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4 col-span-2 md:col-span-1">
+            <p class="text-[12px] text-muted-soft mb-1">Chunks</p>
+            <p id="kb-core-chunk-count" class="font-serif text-2xl text-ink">0</p>
+          </div>
+        </div>
+
+        <div id="kb-core-warning-preview" class="mt-4">
+          <div class="text-[13px] text-muted-soft">
+            Validasi akan muncul setelah project dimuat.
+          </div>
+        </div>
+      </section>
+
+      <div class="flex border-b border-hairline mb-6 overflow-x-auto hide-scrollbar gap-2 shrink-0">
+        <button type="button" class="kb-tab-btn whitespace-nowrap px-6 py-3 border-b-2 border-primary text-ink font-medium transition-colors" data-target="tab-materi"><i class="fa-solid fa-file-pdf mr-2 text-muted-soft"></i>Materi (RAG)</button>
+        <button type="button" class="kb-tab-btn whitespace-nowrap px-6 py-3 border-b-2 border-transparent text-muted hover:text-ink transition-colors" data-target="tab-faq"><i class="fa-solid fa-circle-question mr-2 text-muted-soft"></i>FAQ Umum</button>
+        <button type="button" class="kb-tab-btn whitespace-nowrap px-6 py-3 border-b-2 border-transparent text-muted hover:text-ink transition-colors" data-target="tab-instruksi"><i class="fa-solid fa-list-check mr-2 text-muted-soft"></i>Instruksi Aktivitas</button>
+        <button type="button" class="kb-tab-btn whitespace-nowrap px-6 py-3 border-b-2 border-transparent text-muted hover:text-ink transition-colors" data-target="tab-template"><i class="fa-solid fa-code mr-2 text-muted-soft"></i>Konteks HTML</button>
+      </div>
+
+      <div id="tab-materi" class="kb-tab-pane flex flex-col min-h-[600px]">
+        <div class="bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
+          <div class="p-5 border-b border-hairline flex justify-between items-center bg-white shrink-0">
+            <h2 class="font-serif text-xl text-ink">Daftar Materi</h2>
+            <div class="flex items-center gap-3">
+              <button class="btn-refresh text-muted hover:text-ink transition-colors w-8 h-8 rounded-full bg-canvas-soft flex items-center justify-center" data-type="documents" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
+              <button class="btn-open-drawer bg-primary text-white px-4 py-2 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm" data-form="doc">
+                <i class="fa-solid fa-plus mr-1"></i> Tambah Materi
+              </button>
+            </div>
+          </div>
+          <div class="p-0 overflow-y-auto flex-1 bg-white content-start">
+            <table class="w-full text-left border-collapse bg-white">
+              <thead class="sticky top-0 bg-canvas-soft z-10 shadow-sm">
+                <tr class="border-b border-hairline text-[13px] text-muted-soft uppercase font-medium tracking-wider">
+                  <th class="py-3 px-6">Judul & Topik</th>
+                  <th class="py-3 px-6 text-center">Status</th>
+                  <th class="py-3 px-6 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="list-documents" class="text-[14px] text-body">
+                <tr><td colspan="3" class="text-center py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat materi...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-4 border-t border-hairline flex justify-between items-center bg-canvas-soft shrink-0">
+            <span class="text-[13px] text-muted-soft" id="info-page-documents">Halaman 1 dari 1</span>
+            <div class="flex gap-2">
+              <button class="btn-prev w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="documents"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+              <button class="btn-next w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="documents"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <div id="tab-faq" class="kb-tab-pane hidden flex-col min-h-[600px]">
+        <div class="bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
+          <div class="p-5 border-b border-hairline flex justify-between items-center bg-white shrink-0">
+            <h2 class="font-serif text-xl text-ink">Daftar FAQ</h2>
+            <div class="flex items-center gap-3">
+              <button class="btn-refresh text-muted hover:text-ink transition-colors w-8 h-8 rounded-full bg-canvas-soft flex items-center justify-center" data-type="faqs" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
+              <button class="btn-open-drawer bg-primary text-white px-4 py-2 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm" data-form="faq">
+                <i class="fa-solid fa-plus mr-1"></i> Tambah FAQ
+              </button>
+            </div>
+          </div>
+          <div class="p-0 overflow-y-auto flex-1 bg-white content-start">
+            <table class="w-full text-left border-collapse bg-white">
+              <thead class="sticky top-0 bg-canvas-soft z-10 shadow-sm">
+                <tr class="border-b border-hairline text-[13px] text-muted-soft uppercase font-medium tracking-wider">
+                  <th class="py-3 px-6">Tanya Jawab</th>
+                  <th class="py-3 px-6 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="list-faqs" class="text-[14px] text-body">
+                <tr><td colspan="2" class="text-center py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat FAQ...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-4 border-t border-hairline flex justify-between items-center bg-canvas-soft shrink-0">
+            <span class="text-[13px] text-muted-soft" id="info-page-faqs">Halaman 1 dari 1</span>
+            <div class="flex gap-2">
+              <button class="btn-prev w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="faqs"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+              <button class="btn-next w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="faqs"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-instruksi" class="kb-tab-pane hidden flex-col min-h-[600px]">
+        <div class="bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
+          <div class="p-5 border-b border-hairline flex justify-between items-center bg-white shrink-0">
+            <h2 class="font-serif text-xl text-ink">Daftar Instruksi Aktivitas</h2>
+            <div class="flex items-center gap-3">
+              <button class="btn-refresh text-muted hover:text-ink transition-colors w-8 h-8 rounded-full bg-canvas-soft flex items-center justify-center" data-type="activities" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
+              <button class="btn-open-drawer bg-primary text-white px-4 py-2 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm" data-form="act">
+                <i class="fa-solid fa-plus mr-1"></i> Tambah Instruksi
+              </button>
+            </div>
+          </div>
+          <div class="p-0 overflow-y-auto flex-1 bg-white content-start">
+            <table class="w-full text-left border-collapse bg-white">
+              <thead class="sticky top-0 bg-canvas-soft z-10 shadow-sm">
+                <tr class="border-b border-hairline text-[13px] text-muted-soft uppercase font-medium tracking-wider">
+                  <th class="py-3 px-6">Instruksi & Topik</th>
+                  <th class="py-3 px-6 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="list-activities" class="text-[14px] text-body">
+                <tr><td colspan="2" class="text-center py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat Instruksi...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-4 border-t border-hairline flex justify-between items-center bg-canvas-soft shrink-0">
+            <span class="text-[13px] text-muted-soft" id="info-page-activities">Halaman 1 dari 1</span>
+            <div class="flex gap-2">
+              <button class="btn-prev w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="activities"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+              <button class="btn-next w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="activities"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-template" class="kb-tab-pane hidden flex-col min-h-[600px]">
+        <div class="bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
+          <div class="p-5 border-b border-hairline flex justify-between items-center bg-white shrink-0">
+            <h2 class="font-serif text-xl text-ink">Daftar Konteks Template</h2>
+            <div class="flex items-center gap-3">
+              <button class="btn-refresh text-muted hover:text-ink transition-colors w-8 h-8 rounded-full bg-canvas-soft flex items-center justify-center" data-type="templates" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
+              <!-- <button disabled class="btn-open-drawer bg-primary text-white px-4 py-2 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm" data-form="tpl">
+                <i class="fa-solid fa-upload mr-1"></i> Import HTML
+              </button> -->
+            </div>
+          </div>
+          <div class="p-0 overflow-y-auto flex-1 bg-white content-start">
+            <table class="w-full text-left border-collapse bg-white">
+              <thead class="sticky top-0 bg-canvas-soft z-10 shadow-sm">
+                <tr class="border-b border-hairline text-[13px] text-muted-soft uppercase font-medium tracking-wider">
+                  <th class="py-3 px-6">Nama & Tipe Halaman</th>
+                  <th class="py-3 px-6 text-center">Data Elemen</th>
+                  <th class="py-3 px-6 text-right">Aksi</th>
+                </tr>
+              </thead>
+              <tbody id="list-templates" class="text-[14px] text-body">
+                <tr><td colspan="3" class="text-center py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat template...</td></tr>
+              </tbody>
+            </table>
+          </div>
+          <div class="p-4 border-t border-hairline flex justify-between items-center bg-canvas-soft shrink-0">
+            <span class="text-[13px] text-muted-soft" id="info-page-templates">Halaman 1 dari 1</span>
+            <div class="flex gap-2">
+              <button class="btn-prev w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="templates"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+              <button class="btn-next w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="templates"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ============================= -->
+  <!-- KB TEST PANEL OVERLAY -->
+  <!-- desktop: right slider -->
+  <!-- mobile: bottom drawer -->
+  <!-- ============================= -->
+<div id="kb-test-overlay" class="fixed inset-0 bg-ink/40 backdrop-blur-sm z-[65] invisible opacity-0 pointer-events-none transition-all duration-300"></div>
+
+  <aside id="kb-test-panel" class="fixed bottom-0 inset-x-0 h-[88vh] translate-y-full md:inset-y-0 md:right-0 md:left-auto md:w-[720px] md:h-full md:translate-x-full md:translate-y-0 flex flex-col bg-surface-card border-t md:border-t-0 md:border-l border-hairline rounded-t-[24px] md:rounded-t-none md:rounded-l-[24px] shadow-2xl transition-transform duration-300 ease-in-out z-[70] overflow-hidden">
+    <div class="p-5 border-b border-hairline bg-white shrink-0">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="text-[12px] uppercase tracking-wider text-muted-soft font-medium mb-1">Knowledge Base QA</p>
+          <h3 class="font-serif text-xl md:text-2xl text-ink">Uji Knowledge Base</h3>
+          <p class="text-[13px] text-body mt-1">Cek readiness, retrieval, jawaban AI, dan warning kualitas data.</p>
+        </div>
+        <button type="button" id="btn-close-kb-test-panel" class="w-9 h-9 rounded-full bg-canvas-soft hover:bg-hairline text-ink flex items-center justify-center transition-colors shrink-0">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+
+      <div class="mt-5 bg-canvas-soft p-1.5 rounded-xl border border-hairline flex overflow-x-auto hide-scrollbar">
+        <button type="button" class="kb-test-tab-btn flex-1 min-w-max px-4 py-2 rounded-lg bg-white shadow-sm text-ink text-[13px] font-medium" data-target="kb-panel-summary">Ringkasan</button>
+        <button type="button" class="kb-test-tab-btn flex-1 min-w-max px-4 py-2 rounded-lg text-muted hover:text-ink text-[13px] font-medium" data-target="kb-panel-retrieval">Retrieval</button>
+        <button type="button" class="kb-test-tab-btn flex-1 min-w-max px-4 py-2 rounded-lg text-muted hover:text-ink text-[13px] font-medium" data-target="kb-panel-ai">Test AI</button>
+        <button type="button" class="kb-test-tab-btn flex-1 min-w-max px-4 py-2 rounded-lg text-muted hover:text-ink text-[13px] font-medium" data-target="kb-panel-warning">Warning</button>
+      </div>
+    </div>
+
+    <div class="flex-1 overflow-y-auto bg-canvas p-5 md:p-6">
+      <div id="kb-panel-summary" class="kb-test-tab-pane space-y-5">
+        <div class="bg-surface-card border border-hairline rounded-[16px] p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="font-serif text-lg text-ink">Project Readiness</h4>
+            <span id="kb-readiness-score" class="text-[12px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted">0/6</span>
+          </div>
+          <div id="kb-readiness-list" class="space-y-2">
+            <div class="text-[13px] text-muted-soft">Memuat checklist...</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="kb-panel-retrieval" class="kb-test-tab-pane hidden space-y-5">
+        <div class="bg-surface-card border border-hairline rounded-[16px] p-5">
+          <label class="block text-[13px] font-medium text-ink mb-2">Filter Sumber Knowledge</label>
+          <div class="flex flex-wrap gap-2 mb-4">
+            <button type="button" class="kb-source-type-btn bg-primary text-white border border-primary px-4 py-2 rounded-full text-[12px] font-medium transition-colors" data-source-type="document_chunk" data-empty-message="Belum ada materi yang cocok untuk pertanyaan ini.">Materi (RAG)</button>
+            <button type="button" class="kb-source-type-btn bg-white text-ink border border-hairline hover:bg-canvas-soft px-4 py-2 rounded-full text-[12px] font-medium transition-colors" data-source-type="faq" data-empty-message="Belum ada FAQ yang cocok.">FAQ</button>
+            <button type="button" class="kb-source-type-btn bg-white text-ink border border-hairline hover:bg-canvas-soft px-4 py-2 rounded-full text-[12px] font-medium transition-colors" data-source-type="activity" data-empty-message="Belum ada instruksi aktivitas yang cocok.">Instruksi</button>
+            <button type="button" class="kb-source-type-btn bg-white text-ink border border-hairline hover:bg-canvas-soft px-4 py-2 rounded-full text-[12px] font-medium transition-colors" data-source-type="all" data-empty-message="Belum ada konteks yang cocok.">Semua</button>
+          </div>
+          <input type="hidden" id="kb-source-type" value="document_chunk">
+          <input type="hidden" id="kb-source-empty-message" value="Belum ada materi yang cocok untuk pertanyaan ini.">
+
+          <label for="kb-test-question" class="block text-[13px] font-medium text-ink mb-2 mt-4">Pertanyaan Test</label>
+          <textarea id="kb-test-question" rows="2" class="w-full bg-white border border-hairline-strong rounded-[12px] px-4 py-3 text-[14px] text-ink focus:outline-none focus:border-ink resize-none" placeholder="Contoh: Apa itu media sosial?"></textarea>
+
+          <div class="mt-3">
+            <p class="text-[12px] font-medium text-muted-soft mb-2">Coba pertanyaan cepat:</p>
+            <div class="flex flex-wrap gap-2">
+              <button type="button" class="kb-test-case-btn px-3 py-1.5 rounded-full bg-canvas-soft text-ink border border-hairline text-[12px] hover:bg-hairline transition-colors" data-source-type="document_chunk" data-question="Apa itu media sosial?">Apa itu media sosial?</button>
+              <button type="button" class="kb-test-case-btn px-3 py-1.5 rounded-full bg-canvas-soft text-ink border border-hairline text-[12px] hover:bg-hairline transition-colors" data-source-type="faq" data-question="Bagaimana cara login ke VClass?">Cara login VClass</button>
+              <button type="button" class="kb-test-case-btn px-3 py-1.5 rounded-full bg-canvas-soft text-ink border border-hairline text-[12px] hover:bg-hairline transition-colors" data-source-type="activity" data-question="Bagaimana cara mengumpulkan tugas ini?">Cara kumpul tugas</button>
+              <button type="button" class="kb-test-case-btn px-3 py-1.5 rounded-full bg-orange-50 text-orange-700 border border-orange-200 text-[12px] hover:bg-orange-100 transition-colors" data-source-type="all" data-question="Jawaban nomor 1 quiz ini apa?">Test Blocker Quiz</button>
+            </div>
+          </div>
+
+          <div class="flex justify-end mt-4">
+            <button type="button" id="btn-test-retrieval" class="bg-primary text-white px-5 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition-colors shadow-sm"><i class="fa-solid fa-magnifying-glass mr-1.5"></i> Test Retrieval</button>
+          </div>
+        </div>
+
+        <div class="bg-surface-card border border-hairline rounded-[16px] p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="font-serif text-lg text-ink">Hasil Retrieval</h4>
+            <span id="kb-retrieval-count" class="text-[12px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted">-</span>
+          </div>
+          <div id="kb-retrieval-result" class="space-y-3">
+            <div class="text-[13px] text-muted-soft">Belum ada test retrieval.</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="kb-panel-ai" class="kb-test-tab-pane hidden space-y-5">
+        <div class="bg-surface-card border border-hairline rounded-[16px] p-5">
+          <label for="kb-ai-test-question" class="block text-[13px] font-medium text-ink mb-2">Pertanyaan Test AI</label>
+          <textarea id="kb-ai-test-question" rows="2" class="w-full bg-white border border-hairline-strong rounded-[12px] px-4 py-3 text-[14px] text-ink focus:outline-none focus:border-ink resize-none" placeholder="Kirim ke AI..."></textarea>
+          <div class="flex justify-between items-center mt-3">
+            <p class="text-[12px] text-muted-soft max-w-[60%]">AI akan merespon berdasarkan konteks filter retrieval saat ini.</p>
+            <button type="button" id="btn-test-ai-answer" class="bg-primary text-white px-5 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition-colors shadow-sm"><i class="fa-solid fa-robot mr-1.5"></i> Test AI</button>
+          </div>
+        </div>
+
+        <div class="bg-surface-card border border-hairline rounded-[16px] p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="font-serif text-lg text-ink">Hasil Test AI</h4>
+            <span id="kb-ai-usage" class="text-[12px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted">AI usage: -</span>
+          </div>
+          <div id="kb-ai-result" class="space-y-3">
+            <div class="text-[13px] text-muted-soft">Belum ada test AI.</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="kb-panel-warning" class="kb-test-tab-pane hidden space-y-5">
+        <div class="bg-surface-card border border-hairline rounded-[16px] p-5">
+          <div class="flex items-center justify-between mb-4">
+            <h4 class="font-serif text-lg text-ink">Warning Kualitas Data</h4>
+            <span id="kb-warning-count" class="text-[12px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted">0 warning</span>
+          </div>
+          <div id="kb-quality-warning-list" class="space-y-2">
+            <div class="text-[13px] text-muted-soft">Belum ada warning.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </aside>
+
+  <style>
+    /* Mencegah Tailwind Purge Bug untuk Drawer Source Viewer */
+    #source-viewer-drawer { transform: translateY(100%); }
+    @media (min-width: 768px) {
+      #source-viewer-drawer { transform: translateX(100%) translateY(0); }
+    }
+    #source-viewer-drawer.is-open { transform: translateX(0) translateY(0) !important; }
+
+    /* CSS Wajib untuk PDF.js Text Layer */
+    #pdf-text-layer {
+      color: transparent;
+      line-height: 1;
+    }
+    #pdf-text-layer span {
+      color: transparent;
+      position: absolute;
+      white-space: pre;
+      cursor: text;
+      transform-origin: 0% 0%;
+    }
+    /* Warna Highlight */
+    #pdf-text-layer span.highlight-text {
+      background-color: rgba(250, 204, 21, 0.4); /* yellow-400 dengan opacity */
+      border-radius: 2px;
+    }
+  </style>
+
+  <div id="kb-overlay" class="fixed inset-0 bg-ink/40 backdrop-blur-sm z-[55] invisible opacity-0 transition-all duration-300 cursor-pointer"></div>
+
+  <div id="kb-drawer" class="fixed bottom-0 inset-x-0 h-[85vh] translate-y-full md:inset-y-0 md:right-0 md:left-auto md:w-[500px] md:h-full md:translate-x-full md:translate-y-0 flex flex-col bg-surface-card border-t md:border-t-0 md:border-l border-hairline rounded-t-[24px] md:rounded-t-none md:rounded-l-[24px] shadow-2xl transition-transform duration-300 ease-in-out z-[60] overflow-hidden">
+
+    <div class="p-5 border-b border-hairline bg-white flex justify-between items-center shrink-0">
+      <h3 class="font-serif text-xl text-ink" id="drawer-title">Tambah Data</h3>
+      <button type="button" id="btn-close-drawer" class="w-8 h-8 rounded-full bg-canvas-soft flex items-center justify-center text-ink hover:bg-hairline transition-colors">
+        <i class="fa-solid fa-xmark text-lg"></i>
+      </button>
+    </div>
+
+    <div class="p-5 overflow-y-auto flex-1 bg-white">
+      <div id="drawer-doc" class="hidden">
+        <DocumentUploadForm />
+      </div>
+
+      <div id="drawer-faq" class="hidden flex-col gap-4">
+        <div class="flex bg-canvas-soft p-1 rounded-xl border border-hairline w-full md:w-fit">
+          <button type="button" id="btn-faq-tab-manual" class="px-4 py-2 rounded-lg bg-white shadow-sm text-ink text-[13px] font-medium transition-colors">Manual</button>
+          <button type="button" id="btn-faq-tab-excel" class="px-4 py-2 rounded-lg text-muted hover:text-ink text-[13px] font-medium transition-colors">Upload Excel</button>
+        </div>
+        <div id="faq-content-manual"><KnowledgeFaqForm /></div>
+        <div id="faq-content-excel" class="hidden flex-col gap-4">
+          <div id="dropzone-faq" class="border-2 border-dashed border-hairline-strong rounded-[12px] p-6 text-center cursor-pointer hover:bg-canvas-soft transition-colors">
+            <i class="fa-solid fa-file-excel text-3xl text-emerald-600 mb-3"></i>
+            <p class="text-[14px] font-medium text-ink">Klik untuk upload file Excel</p>
+            <p class="text-[12px] text-muted-soft mt-1">Gunakan template yang disediakan</p>
+          </div>
+          <input type="file" id="file-import-faq" accept=".xlsx, .xls" class="hidden" />
+          <div id="filename-faq" class="hidden text-[13px] text-primary font-medium p-3 bg-primary/10 rounded-[8px]"><i class="fa-solid fa-file mr-2"></i><span class="name"></span></div>
+          <button type="button" id="btn-dl-template-faq" class="text-[13px] text-primary hover:underline w-fit"><i class="fa-solid fa-download mr-1"></i> Download Template</button>
+          <button type="button" id="btn-import-faq" class="w-full bg-primary text-white py-3 rounded-full text-[14px] font-medium" disabled>Proses Import</button>
+        </div>
+      </div>
+
+      <div id="drawer-act" class="hidden flex-col gap-4">
+        <div class="flex bg-canvas-soft p-1 rounded-xl border border-hairline w-full md:w-fit">
+          <button type="button" id="btn-act-tab-manual" class="px-4 py-2 rounded-lg bg-white shadow-sm text-ink text-[13px] font-medium transition-colors">Manual</button>
+          <button type="button" id="btn-act-tab-excel" class="px-4 py-2 rounded-lg text-muted hover:text-ink text-[13px] font-medium transition-colors">Upload Excel</button>
+        </div>
+        <div id="act-content-manual"><ActivityInstructionForm /></div>
+        <div id="act-content-excel" class="hidden flex-col gap-4">
+          <div id="dropzone-act" class="border-2 border-dashed border-hairline-strong rounded-[12px] p-6 text-center cursor-pointer hover:bg-canvas-soft transition-colors">
+            <i class="fa-solid fa-file-excel text-3xl text-emerald-600 mb-3"></i>
+            <p class="text-[14px] font-medium text-ink">Klik untuk upload file Excel</p>
+          </div>
+          <input type="file" id="file-import-act" accept=".xlsx, .xls" class="hidden" />
+          <div id="filename-act" class="hidden text-[13px] text-primary font-medium p-3 bg-primary/10 rounded-[8px]"><i class="fa-solid fa-file mr-2"></i><span class="name"></span></div>
+          <button type="button" id="btn-dl-template-act" class="text-[13px] text-primary hover:underline w-fit"><i class="fa-solid fa-download mr-1"></i> Download Template</button>
+          <button type="button" id="btn-import-act" class="w-full bg-primary text-white py-3 rounded-full text-[14px] font-medium" disabled>Proses Import</button>
+        </div>
+      </div>
+
+      <div id="drawer-tpl" class="hidden flex-col gap-4">
+        <form id="form-template-html" class="space-y-4">
+          <div>
+            <label class="block text-[14px] font-medium text-ink mb-2">Nama Template</label>
+            <input type="text" id="tpl_name" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink" required placeholder="Cth: Halaman Utama VClass">
+          </div>
+          <div>
+            <label class="block text-[14px] font-medium text-ink mb-2">Tipe Halaman (page_type)</label>
+            <select id="tpl_type" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink mb-2">
+              <option value="landing">landing</option>
+              <option value="dashboard">dashboard</option>
+              <option value="materi">materi</option>
+              <option value="course">course</option>
+              <option value="quiz">quiz</option>
+              <option value="login">login</option>
+              <option value="summary">summary</option>
+              <option value="custom">Lainnya (Custom)...</option>
+            </select>
+
+            <input type="text" id="tpl_type_custom" class="hidden w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink" placeholder="Ketik tipe halaman custom...">
+          </div>
+          <div>
+            <label class="block text-[14px] font-medium text-ink mb-2">Upload File HTML</label>
+            <div id="dropzone-tpl" class="border-2 border-dashed border-hairline-strong rounded-[12px] p-6 text-center cursor-pointer hover:bg-canvas-soft transition-colors bg-white">
+              <i class="fa-brands fa-html5 text-3xl text-orange-500 mb-3"></i>
+              <p class="text-[14px] font-medium text-ink">Klik untuk memilih file .html</p>
+            </div>
+            <input type="file" id="file-import-tpl" accept=".html" class="hidden" required />
+            <div id="filename-tpl" class="hidden mt-2 text-[13px] text-primary font-medium p-3 bg-primary/10 rounded-[8px] border border-primary/20"><i class="fa-solid fa-file-code mr-2"></i><span class="name"></span></div>
+          </div>
+          <button type="submit" id="btn-submit-tpl" class="w-full bg-primary text-white rounded-full py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm">
+            Upload Konteks
+          </button>
+        </form>
+      </div>
+    </div>
+  </div>
+
+  <div id="source-viewer-overlay" class="fixed inset-0 bg-ink/40 backdrop-blur-sm z-[80] invisible opacity-0 pointer-events-none transition-all duration-300"></div>
+
+  <aside id="source-viewer-drawer" class="fixed bottom-0 inset-x-0 h-[85vh] md:inset-y-0 md:right-0 md:left-auto w-full md:w-[800px] md:h-full bg-surface-card border-t md:border-t-0 md:border-l border-hairline shadow-2xl flex flex-col transition-transform duration-300 ease-in-out z-[90] rounded-t-[24px] md:rounded-none">
+
+    <div class="p-4 md:p-5 border-b border-hairline bg-white flex items-center justify-between shrink-0 md:rounded-none rounded-t-[24px]">
+      <div class="min-w-0 pr-4">
+        <p class="text-[12px] font-semibold text-primary uppercase tracking-wider mb-1" id="source-viewer-page">Halaman -</p>
+        <h3 class="font-serif text-lg md:text-xl text-ink truncate" id="source-viewer-title">Judul Dokumen</h3>
+      </div>
+      <div class="flex items-center gap-2 shrink-0">
+        <a href="#" id="btn-fallback-link" target="_blank" class="hidden md:flex items-center gap-1.5 px-3 py-1.5 bg-canvas-soft hover:bg-hairline border border-hairline rounded-lg text-[12px] font-medium text-ink transition-colors">
+          Buka File Asli <i class="fa-solid fa-arrow-up-right-from-square"></i>
+        </a>
+        <button type="button" id="btn-close-source-viewer" class="w-9 h-9 rounded-full bg-canvas-soft hover:bg-hairline text-ink flex items-center justify-center transition-colors">
+          <i class="fa-solid fa-xmark text-lg"></i>
+        </button>
+      </div>
+    </div>
+
+    <div id="source-viewer-quote-container" class="p-4 bg-canvas-soft border-b border-hairline shrink-0 hidden">
+      <div class="flex items-center justify-between mb-2">
+         <p class="text-[11px] uppercase text-muted-soft font-semibold tracking-wider">Kutipan Konteks AI</p>
+         <button type="button" id="btn-toggle-quote" class="text-[11px] text-primary hover:underline font-medium">Sembunyikan</button>
+      </div>
+      <div class="bg-white border border-hairline rounded-[12px] p-3 text-[13px] text-body max-h-[80px] overflow-y-auto leading-relaxed whitespace-pre-wrap transition-all" id="source-viewer-quote"></div>
+    </div>
+
+    <div class="flex-1 bg-canvas relative overflow-hidden flex flex-col">
+      <div id="pdf-scroll-area" class="w-full h-full relative hidden bg-zinc-200/50 flex-col items-center">
+        <SourcePdfHighlighter client:only="react" />
+      </div>
+
+      <div id="source-viewer-empty" class="hidden flex-1 flex flex-col items-center justify-center p-6 text-center">
+        <div class="w-16 h-16 rounded-full bg-canvas-soft border border-hairline flex items-center justify-center text-muted-soft mb-4">
+          <i class="fa-solid fa-file-lines text-2xl" id="empty-icon"></i>
+        </div>
+        <h4 class="font-medium text-ink mb-1" id="empty-title">File tidak dapat ditampilkan</h4>
+        <p class="text-[13px] text-muted-soft max-w-sm" id="empty-desc">Kutipan teks materi dapat Anda baca di atas.</p>
+        <a href="#" id="btn-empty-fallback" target="_blank" class="hidden mt-4 bg-primary text-white px-5 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm">
+          Buka Dokumen Asli <i class="fa-solid fa-arrow-up-right-from-square ml-1"></i>
+        </a>
+      </div>
+    </div>
+  </aside>
+
+  <script is:inline src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+  <script src="../../scripts/pages/knowledge.page.js"></script>
+  </DashboardLayout>
+

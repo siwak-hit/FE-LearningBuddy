@@ -1,0 +1,47 @@
+---
+import '../../styles/global.css';
+---
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <title>Login - AI Buddy Admin</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Playfair+Display:wght@300;400&display=swap" rel="stylesheet">
+  <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
+  <style>
+    .gradient-orb {
+      position: absolute; width: 600px; height: 600px;
+      background: radial-gradient(circle, #f4c5a8 0%, rgba(245,245,245,0) 70%);
+      bottom: -200px; right: -100px; z-index: 0; opacity: 0.5; pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-canvas text-body font-sans h-screen flex justify-center items-center relative overflow-hidden">
+
+  <div class="gradient-orb"></div>
+
+  <div class="bg-surface-card border border-hairline p-10 rounded-[24px] shadow-sm w-full max-w-md relative z-10">
+    <div class="text-center mb-8">
+      <h1 class="font-serif text-3xl text-ink tracking-tight mb-2"><i class="fa-solid fa-feather-pointed mr-2"></i>AI Buddy</h1>
+      <p class="text-[15px] text-muted-soft">Masuk ke Teacher Dashboard</p>
+    </div>
+
+    <form id="login-form" class="space-y-5">
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Email</label>
+        <input type="email" id="email" class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors" placeholder="guru@sekolah.com" required>
+      </div>
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Password</label>
+        <input type="password" id="password" class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors" placeholder="••••••••" required>
+      </div>
+      <button type="submit" class="w-full bg-primary text-white rounded-full py-3 text-[15px] font-medium hover:bg-primary-active transition-colors mt-4">
+        Masuk
+      </button>
+    </form>
+  </div>
+
+  <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+  <script src="../../scripts/main.js"></script>
+</body>
+</html>

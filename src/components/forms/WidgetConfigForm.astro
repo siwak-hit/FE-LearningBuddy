@@ -1,0 +1,153 @@
+---
+import Modal from '../common/Modal.astro';
+
+const inputClass = "w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors";
+const labelClass = "block text-[14px] font-medium text-ink mb-2";
+---
+
+<!-- TOMBOL REVEAL INTEGRASI -->
+<div class="bg-surface-card border border-hairline rounded-[16px] p-6 md:p-8 mb-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
+  <div class="text-center md:text-left">
+    <h2 class="font-serif text-2xl text-ink mb-1"><i class="fa-solid fa-code mr-2 text-muted-soft"></i> Script & Link Integrasi</h2>
+    <p class="text-body text-[14px]">Dapatkan kode script untuk VClass atau link untuk dibagikan.</p>
+  </div>
+  <button type="button" id="btn-reveal-integration" class="w-full md:w-auto bg-primary text-white rounded-full px-6 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors whitespace-nowrap">
+    <i class="fa-solid fa-eye mr-2"></i> Lihat Script & Link
+  </button>
+</div>
+
+<!-- FORM PENGATURAN WIDGET -->
+<form id="widget-config-form" class="space-y-8 bg-surface-card p-6 md:p-8 rounded-[16px] border border-hairline shadow-sm">
+  <h2 class="font-serif text-2xl mb-2 text-ink"><i class="fa-solid fa-sliders mr-2 text-muted-soft"></i> Konfigurasi Widget</h2>
+  <hr class="border-hairline mb-6">
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-8 md:gap-10">
+
+    <!-- TAMPILAN -->
+    <div class="space-y-5">
+      <h3 class="text-[18px] font-medium text-ink"><i class="fa-solid fa-paintbrush mr-2"></i> Tampilan</h3>
+      <div><label class={labelClass}>Judul Widget</label><input type="text" id="title" class={inputClass} required></div>
+      <div><label class={labelClass}>Subtitle</label><input type="text" id="subtitle" class={inputClass}></div>
+      <div>
+        <label class={labelClass}>Warna Utama (Pill Button)</label>
+        <div class="flex items-center gap-3">
+          <input type="color" id="primaryColor" class="w-12 h-12 p-0 border-0 rounded-[8px] cursor-pointer">
+          <span class="text-[14px] text-muted-soft">Warna tema tombol asisten.</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- INTEGRASI -->
+    <div class="space-y-5">
+      <h3 class="text-[18px] font-medium text-ink"><i class="fa-solid fa-network-wired mr-2"></i> Integrasi</h3>
+      <div><label class={labelClass}>Mode Akses (Ketersediaan)</label>
+        <select id="access_mode" class={inputClass}>
+          <option value="both">Bisa Embed & Link External</option>
+          <option value="embed">Hanya Embed di VClass</option>
+          <option value="external">Hanya via Link External</option>
+        </select>
+      </div>
+      <div><label class={labelClass}>Bentuk Widget (Tampilan UI)</label>
+        <select id="mode" class={inputClass}>
+          <option value="floating">Floating Bubble (Melayang)</option>
+          <option value="button">Button Fixed (Tombol Bawah)</option>
+          <option value="embed">Embed Inline (Menyatu di Halaman)</option>
+        </select>
+      </div>
+      <div>
+        <label class={labelClass}>Daftar Website yang Diizinkan (URL VClass)</label>
+        <textarea id="allowed_origin" rows="3" class={inputClass} placeholder="Contoh: https://vclass.sekolah.com"></textarea>
+        <p class="text-[13px] text-muted-soft mt-1">Pisahkan dengan Enter. Biarkan kosong jika mengizinkan semua.</p>
+      </div>
+    </div>
+
+    <!-- JADWAL & STATUS -->
+    <div class="space-y-5 md:col-span-2 pt-4 border-t border-hairline">
+      <h3 class="text-[18px] font-medium text-ink"><i class="fa-solid fa-clock mr-2"></i> Jadwal & Pengaktifan</h3>
+
+      <!-- Toggle Switches yang sudah diperbaiki -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+        <label class="flex items-center cursor-pointer">
+          <div class="relative">
+            <input type="checkbox" id="is_active" class="sr-only peer">
+            <!-- Background Track -->
+            <div class="w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-[#16a34a] transition-colors duration-200"></div>
+            <!-- Dot Kursor -->
+            <div class="absolute top-[2px] left-[2px] w-5 h-5 bg-white rounded-full shadow-sm border border-gray-200 transition-transform duration-200 peer-checked:translate-x-5"></div>
+          </div>
+          <span class="ml-3 text-[14px] font-medium text-ink">Status Widget Aktif</span>
+        </label>
+
+        <label class="flex items-center cursor-pointer">
+          <div class="relative">
+            <input type="checkbox" id="read_dom_context" class="sr-only peer">
+            <div class="w-11 h-6 bg-gray-300 rounded-full peer-checked:bg-[#16a34a] transition-colors duration-200"></div>
+            <div class="absolute top-[2px] left-[2px] w-5 h-5 bg-white rounded-full shadow-sm border border-gray-200 transition-transform duration-200 peer-checked:translate-x-5"></div>
+          </div>
+          <span class="ml-3 text-[14px] font-medium text-ink">Fitur Kursor Ajaib (Scan Halaman)</span>
+        </label>
+      </div>
+
+      <!-- Jadwal -->
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div><label class={labelClass}>Mulai Aktif Pada</label><input type="datetime-local" id="active_from" class={inputClass}></div>
+        <div><label class={labelClass}>Berakhir Pada</label><input type="datetime-local" id="active_until" class={inputClass}></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="pt-8 border-t border-hairline flex flex-col md:flex-row justify-end">
+    <button type="submit" class="w-full md:w-auto bg-primary text-white rounded-full px-8 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors"><i class="fa-solid fa-save mr-2"></i> Simpan Konfigurasi</button>
+  </div>
+</form>
+
+<!-- MODAL INTEGRASI SCRIPT -->
+<Modal id="modal-integration" title="Kode Integrasi">
+
+  <!-- Custom Tabs -->
+  <div class="flex border-b border-hairline mb-6">
+    <button type="button" class="tab-btn flex-1 pb-3 border-b-2 border-primary text-ink font-medium transition-colors" data-target="tab-embed"><i class="fa-solid fa-code mr-1"></i> Embed VClass</button>
+    <button type="button" class="tab-btn flex-1 pb-3 border-b-2 border-transparent text-muted hover:text-ink transition-colors" data-target="tab-external"><i class="fa-solid fa-link mr-1"></i> Link External</button>
+  </div>
+
+  <!-- Tab: Embed -->
+  <div id="tab-embed" class="tab-pane space-y-4">
+    <p class="text-[14px] text-body">Salin kode script ini dan tempelkan (paste) di dalam pengaturan HTML Moodle atau halaman Virtual Class Anda.</p>
+    <textarea readonly id="embed-code" class="w-full bg-canvas-soft border border-hairline text-body p-4 rounded-[8px] font-mono text-[13px] h-32 focus:outline-none"></textarea>
+    <button type="button" id="btn-copy-embed" class="w-full bg-primary text-white rounded-full px-5 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors"><i class="fa-solid fa-copy mr-2"></i> Salin Script</button>
+  </div>
+
+  <!-- Tab: External -->
+  <div id="tab-external" class="tab-pane hidden space-y-6">
+
+    <div class="space-y-3">
+      <div>
+        <h4 class="text-[15px] font-medium text-ink mb-1">1. Script External Launcher</h4>
+        <p class="text-[13px] text-muted-soft">Pasang script ini di VClass. Script ini hanya akan memunculkan tombol, dan saat diklik akan membuka tab chat baru membawa konteks halaman VClass.</p>
+      </div>
+      <textarea readonly id="ext-script" class="w-full bg-canvas-soft border border-hairline text-body p-4 rounded-[8px] font-mono text-[13px] h-28 focus:outline-none"></textarea>
+      <button type="button" id="btn-copy-ext-script" class="w-full bg-primary text-white rounded-full px-5 py-2.5 text-[14px] font-medium hover:bg-primary-active transition-colors">
+        <i class="fa-solid fa-code mr-2"></i> Salin Script Launcher
+      </button>
+    </div>
+
+    <hr class="border-hairline">
+
+    <div class="space-y-3">
+      <div>
+        <h4 class="text-[15px] font-medium text-ink mb-1">2. Link Direct / Preview</h4>
+        <p class="text-[13px] text-muted-soft">Gunakan link ini untuk mengetes ruang chat secara langsung (tanpa konteks VClass) atau bagikan manual ke siswa.</p>
+      </div>
+      <input type="text" readonly id="ext-link" class="w-full bg-canvas-soft border border-hairline text-body p-3 rounded-[8px] font-mono text-[13px] focus:outline-none">
+      <div class="flex flex-col md:flex-row gap-3">
+        <button type="button" id="btn-copy-link" class="flex-1 border border-hairline-strong text-ink rounded-full px-5 py-2.5 text-[14px] font-medium hover:bg-surface-strong transition-colors">
+          <i class="fa-solid fa-copy mr-2"></i> Salin Link
+        </button>
+        <a href="#" target="_blank" id="preview-link" class="flex-1 text-center bg-canvas-soft border border-hairline-strong text-ink rounded-full px-5 py-2.5 text-[14px] font-medium hover:bg-hairline transition-colors">
+          <i class="fa-solid fa-arrow-up-right-from-square mr-2"></i> Buka Preview
+        </a>
+      </div>
+    </div>
+
+  </div>
+</Modal>

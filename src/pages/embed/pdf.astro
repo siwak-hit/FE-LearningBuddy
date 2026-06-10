@@ -1,0 +1,28 @@
+---
+// src/pages/embed/pdf.astro
+// Import komponen React yang sudah dipindahkan tadi
+import PdfEmbedPage from '../../components/PdfEmbedPage.jsx';
+---
+
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PDF Viewer Embed</title>
+  <style>
+    /* Reset margin agar iframe penuh 100% tanpa scrollbar ganda */
+    html, body {
+      margin: 0;
+      padding: 0;
+      width: 100vw;
+      height: 100vh;
+      overflow: hidden;
+      background-color: #f3f4f6;
+    }
+  </style>
+</head>
+<body>
+  <PdfEmbedPage client:only="react" />
+</body>
+</html>

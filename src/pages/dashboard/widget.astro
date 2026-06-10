@@ -1,0 +1,33 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import WidgetConfigForm from '../../components/forms/WidgetConfigForm.astro';
+---
+
+<DashboardLayout title="Widget Config">
+  <div class="max-w-[1200px] mx-auto w-full">
+    <div class="mb-10">
+      <h1 class="font-serif text-4xl text-ink tracking-tight mb-2">Pengaturan Integrasi</h1>
+      <p class="text-body text-[16px]">
+        Atur tampilan, akses, dan generate script untuk
+        <span id="project-name-display" class="inline-block font-semibold text-blue-700 bg-blue-100 border border-blue-200 px-3 py-0.5 rounded-full text-[14px] align-middle shadow-sm ml-1">
+          Project...
+        </span>.
+      </p>
+    </div>
+
+    <div id="loading-state" class="text-center py-16 text-muted-soft">
+      <i class="fa-solid fa-spinner fa-spin text-3xl mb-4"></i>
+      <p>Memuat konfigurasi widget...</p>
+    </div>
+
+    <div id="empty-state" class="hidden bg-surface-card border border-hairline text-body p-6 rounded-[16px]">
+      <i class="fa-solid fa-circle-exclamation text-semantic-error mr-2"></i> Belum ada project yang dibuat. Silakan buat di Dashboard terlebih dahulu.
+    </div>
+
+    <div id="config-form-container" class="hidden">
+      <WidgetConfigForm />
+    </div>
+  </div>
+
+  <script src="../../scripts/pages/widget-settings.page.js"></script>
+</DashboardLayout>

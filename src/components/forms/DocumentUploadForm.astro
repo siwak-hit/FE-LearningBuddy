@@ -1,0 +1,17 @@
+<form id="form-upload-document" class="space-y-4">
+    <div>
+      <label class="block text-[14px] font-medium text-ink mb-2">Judul Dokumen</label>
+      <input type="text" id="doc_title" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none" required placeholder="Cth: Materi Bab 1 - Pengenalan AI">
+    </div>
+    <div>
+      <label class="block text-[14px] font-medium text-ink mb-2">Topik</label>
+      <input type="text" id="doc_topic" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none" required placeholder="Cth: Pengantar AI">
+    </div>
+    <div>
+      <label class="block text-[14px] font-medium text-ink mb-2">File (.pdf, .docx, .txt)</label>
+      <input type="file" id="doc_file" accept=".pdf,.docx,.txt" class="w-full text-[14px] text-body file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-[14px] file:font-medium file:bg-canvas-soft file:text-ink hover:file:bg-hairline" required>
+    </div>
+    <button type="submit" id="btn-upload-doc" class="w-full bg-primary text-white rounded-full py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm">
+      <i class="fa-solid fa-cloud-arrow-up mr-2"></i> Upload Materi
+    </button>
+  </form>

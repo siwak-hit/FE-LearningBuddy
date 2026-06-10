@@ -1,0 +1,45 @@
+<form id="form-activity-manual" class="space-y-4">
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Tipe Aktivitas</label>
+        <select id="act_type" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink">
+          <option value="assignment">Tugas (Assignment)</option>
+          <option value="quiz">Kuis (Quiz)</option>
+          <option value="discussion">Diskusi (Forum)</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Topik</label>
+        <input type="text" id="act_topic" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink" required placeholder="Cth: Jaringan Komputer">
+      </div>
+    </div>
+    <div>
+      <label class="block text-[14px] font-medium text-ink mb-2">Judul</label>
+      <input type="text" id="act_title" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink" required placeholder="Cth: Tugas Merangkum OSI Layer">
+    </div>
+    <div>
+      <label class="block text-[14px] font-medium text-ink mb-2">Instruksi Utama</label>
+      <textarea id="act_instruction" rows="3" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink" required placeholder="Jelaskan apa yang harus siswa lakukan..."></textarea>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Batas Waktu (Deadline)</label>
+        <input type="datetime-local" id="act_deadline" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink">
+      </div>
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Kriteria Selesai</label>
+        <input type="text" id="act_criteria" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink" placeholder="Cth: Mengunggah file PDF">
+      </div>
+    </div>
+    <div>
+      <label class="block text-[14px] font-medium text-ink mb-2">Poin yang sering membingungkan (Opsional)</label>
+      <input type="text" id="act_confusing" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink" placeholder="Cth: Perbedaan LAN dan WAN">
+    </div>
+    <div>
+      <label class="block text-[14px] font-medium text-ink mb-2">Aturan Khusus (JSON/Teks)</label>
+      <textarea id="act_rules" rows="2" class="w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:outline-none focus:border-ink" placeholder='{"format": "PDF", "maxPages": 2}'></textarea>
+    </div>
+    <button type="submit" class="w-full bg-primary text-white rounded-full py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm">
+      Simpan Instruksi
+    </button>
+  </form>

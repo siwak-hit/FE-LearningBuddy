@@ -1,0 +1,16 @@
+---
+import BuddyExternalLayout from '../layouts/BuddyExternalLayout.astro';
+import BuddyLanding from '../components/buddy/BuddyLanding.astro';
+import BuddyAiWorkspace from '../components/buddy/BuddyAiWorkspace.astro';
+
+const API_BASE = import.meta.env.PUBLIC_API_BASE_URL || '';
+---
+
+<BuddyExternalLayout title="AI Learning Buddy">
+  <div id="view-landing" class="hidden h-full w-full">
+    <BuddyLanding API_BASE={API_BASE} />
+  </div>
+  <div id="view-workspace" class="hidden h-full w-full">
+    <BuddyAiWorkspace API_BASE={API_BASE} />
+  </div>
+</BuddyExternalLayout>

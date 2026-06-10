@@ -1,0 +1,56 @@
+---
+import '../styles/global.css';
+---
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>AI Learning Buddy - Portal</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Playfair+Display:wght@300;400&display=swap" rel="stylesheet">
+
+  <style>
+    .gradient-orb {
+      position: absolute; width: 600px; height: 600px;
+      background: radial-gradient(circle, #a8c8e8 0%, rgba(245,245,245,0) 70%);
+      top: -200px; left: 50%; transform: translateX(-50%);
+      z-index: 0; opacity: 0.6; pointer-events: none;
+    }
+  </style>
+</head>
+<body class="bg-canvas text-body font-sans h-screen flex flex-col overflow-hidden relative">
+
+  <div class="gradient-orb"></div>
+
+  <nav class="relative z-10 flex justify-between items-center px-12 py-8">
+    <div class="font-serif font-light text-2xl text-ink tracking-tight"><i class="fa-solid fa-feather-pointed mr-2"></i>AI Buddy</div>
+    <!-- LINK DIPERBAIKI -->
+    <a href="/dashboard" class="text-ink font-medium text-[15px] hover:opacity-70 transition-opacity">Masuk Dashboard</a>
+  </nav>
+
+  <main class="relative z-10 flex-1 flex flex-col justify-center items-center text-center px-6 -mt-10">
+    <h1 class="font-serif text-[64px] text-ink leading-[1.05] tracking-[-1.92px] mb-6 max-w-3xl">
+      Asisten Pribadi<br>untuk Kelas Virtual Anda.
+    </h1>
+    <p class="text-[16px] text-body max-w-xl mb-10 leading-relaxed">
+      Suntikkan kecerdasan buatan langsung ke dalam Moodle VClass. Berikan siswa Anda pendamping belajar interaktif yang memahami konteks setiap halaman.
+    </p>
+
+    <div class="flex gap-4">
+      <!-- LINK DIPERBAIKI -->
+      <a href="/dashboard" class="bg-primary text-white rounded-full px-8 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm">
+        Buka Teacher Dashboard
+      </a>
+      <!-- LINK DIPERBAIKI: Harus ambil project_key aslimu dari DB, pakai dummy dulu -->
+      <a href="/buddy?projectKey=alb_dummy" class="bg-transparent border border-hairline-strong text-ink rounded-full px-8 py-3 text-[15px] font-medium hover:bg-canvas-soft transition-colors">
+        Lihat Demo Siswa
+      </a>
+    </div>
+  </main>
+
+  <footer class="relative z-10 text-center py-8 text-muted-soft text-[14px]">
+    Skripsi Project &copy; 2026. Designed with Editorial Guidelines.
+  </footer>
+
+</body>
+</html>
