@@ -30,27 +30,68 @@ const { API_BASE } = Astro.props;
     id="context-sidebar"
     class="fixed md:relative inset-y-0 left-0 z-40 w-[86%] max-w-[380px] md:w-[320px] lg:w-[380px] shrink-0 h-full bg-canvas-soft border-r border-hairline flex flex-col transform -translate-x-full md:translate-x-0 transition-all duration-300 ease-out overflow-hidden"
   >
-    <div class="p-6 md:p-8 border-b border-hairline shrink-0 w-full md:w-[320px] lg:w-[380px]">
-      <div class="flex items-center justify-between mb-8">
-        <button id="btn-back" class="text-muted hover:text-ink flex items-center text-[15px] font-medium transition-colors">
-          <i class="fa-solid fa-arrow-left mr-2"></i> Kembali ke VClass
-        </button>
 
-        <button
-          id="btn-close-context"
-          type="button"
-          class="md:hidden w-9 h-9 rounded-full bg-surface-card border border-hairline flex items-center justify-center text-muted hover:text-ink transition-colors"
-        >
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
+  <div class="p-6 md:p-8 border-b border-hairline shrink-0 w-full md:w-[320px] lg:w-[380px]">
+    <div class="flex items-center justify-between mb-8">
+      <button id="btn-back" class="text-muted hover:text-ink flex items-center text-[15px] font-medium transition-colors">
+        <i class="fa-solid fa-arrow-left mr-2"></i> Kembali ke VClass
+      </button>
 
-      <div class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px] mb-3">Preview Konteks</div>
-      <h2 id="context-title" class="font-serif font-light text-3xl text-ink leading-tight tracking-tight mb-2">Memuat Halaman...</h2>
-      <p class="text-[15px] text-muted-soft">Pilih teks elemen yang ingin kamu tanyakan. Visual hanya perkiraan jika tersedia.</p>
+      <button
+        id="btn-close-context"
+        type="button"
+        class="md:hidden w-9 h-9 rounded-full bg-surface-card border border-hairline flex items-center justify-center text-muted hover:text-ink transition-colors"
+      >
+        <i class="fa-solid fa-xmark"></i>
+      </button>
     </div>
 
-    <div id="element-list" class="flex-1 overflow-y-auto p-5 md:p-6 space-y-3 w-full md:w-[320px] lg:w-[380px]"></div>
+    <div class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px] mb-3">Preview Konteks</div>
+    <h2 id="context-title" class="font-serif font-light text-3xl text-ink leading-tight tracking-tight mb-2">Memuat Halaman...</h2>
+    <p class="text-[15px] text-muted-soft">Pilih teks elemen yang ingin kamu tanyakan. Visual hanya perkiraan jika tersedia.</p>
+  </div>
+
+  <div class="flex border-b border-hairline px-6 pt-2 shrink-0 bg-canvas-soft">
+    <button id="tab-btn-guide" type="button" class="flex-1 pb-3 text-[13px] font-bold text-primary border-b-2 border-primary transition-colors outline-none">Panduan Cepat</button>
+    <button id="tab-btn-elements" type="button" class="flex-1 pb-3 text-[13px] font-semibold text-muted hover:text-ink border-b-2 border-transparent transition-colors outline-none">Elemen Halaman</button>
+  </div>
+
+  <div id="tab-content-guide" class="flex-1 overflow-y-auto p-5 md:p-6 space-y-2 w-full md:w-[320px] lg:w-[380px]">
+    <div class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px] mb-3">Tanya Cepat</div>
+
+    <button type="button" class="btn-fast-guide w-full text-left bg-surface-card hover:bg-surface-strong border border-hairline rounded-xl px-4 py-3 text-[13px] font-medium text-ink transition-colors shadow-sm mb-2" data-intent="bantuan_login" data-msg="Cara Login">
+      <i class="fa-solid fa-rocket text-sky-500 mr-2"></i> Cara Login
+    </button>
+    <button type="button" class="btn-fast-guide w-full text-left bg-surface-card hover:bg-surface-strong border border-hairline rounded-xl px-4 py-3 text-[13px] font-medium text-ink transition-colors shadow-sm mb-2" data-intent="bantuan_lupa_password" data-msg="Lupa Password">
+      <i class="fa-solid fa-key text-amber-500 mr-2"></i> Lupa Password
+    </button>
+    <button type="button" class="btn-fast-guide w-full text-left bg-surface-card hover:bg-surface-strong border border-hairline rounded-xl px-4 py-3 text-[13px] font-medium text-ink transition-colors shadow-sm mb-2" data-intent="bantuan_buka_materi" data-msg="Cara Membuka Materi">
+      <i class="fa-solid fa-book-open text-indigo-500 mr-2"></i> Cara Membuka Materi
+    </button>
+    <button type="button" class="btn-fast-guide w-full text-left bg-surface-card hover:bg-surface-strong border border-hairline rounded-xl px-4 py-3 text-[13px] font-medium text-ink transition-colors shadow-sm mb-2" data-intent="bantuan_kumpul_tugas" data-msg="Cara Mengumpulkan Tugas">
+      <i class="fa-solid fa-cloud-arrow-up text-emerald-500 mr-2"></i> Cara Mengumpulkan Tugas
+    </button>
+    <button
+      type="button"
+      class="btn-fast-guide w-full text-left bg-surface-card hover:bg-surface-strong border border-hairline rounded-xl px-4 py-3 text-[13px] font-medium text-ink transition-colors shadow-sm mb-2"
+      data-intent="bantuan_forum"
+      data-msg="Cara membuat atau menjawab forum di VClass"
+    >
+      <i class="fa-solid fa-comments text-cyan-500 mr-2"></i> Cara Buat / Jawab Forum
+    </button>
+    <button type="button" class="btn-fast-guide w-full text-left bg-surface-card hover:bg-surface-strong border border-hairline rounded-xl px-4 py-3 text-[13px] font-medium text-ink transition-colors shadow-sm mb-2" data-intent="bantuan_quiz" data-msg="Cara Mengerjakan Quiz">
+      <i class="fa-solid fa-pen-to-square text-purple-500 mr-2"></i> Cara Mengerjakan Quiz
+    </button>
+    <button type="button" class="btn-fast-guide w-full text-left bg-surface-card hover:bg-surface-strong border border-hairline rounded-xl px-4 py-3 text-[13px] font-medium text-ink transition-colors shadow-sm mb-2" data-intent="tanya_deadline" data-msg="Cek Tugas & Deadline">
+      <i class="fa-solid fa-clock text-rose-500 mr-2"></i> Cek Tugas & Deadline
+    </button>
+
+    <button type="button" class="btn-fast-guide w-full text-left bg-emerald-50/60 hover:bg-emerald-100/80 border border-emerald-200/80 rounded-xl px-4 py-3 text-[13px] font-semibold text-emerald-800 transition-colors shadow-sm mt-4" data-intent="hubungi_guru" data-msg="Hubungi Guru">
+      <i class="fa-brands fa-whatsapp text-green-600 mr-2 text-[15px]"></i> Hubungi Guru (WhatsApp)
+    </button>
+  </div>
+
+  <div id="element-list" class="hidden flex-1 overflow-y-auto p-5 md:p-6 space-y-3 w-full md:w-[320px] lg:w-[380px]"></div>
   </aside>
 
   <main class="flex-1 h-full flex flex-col bg-canvas relative min-w-0 transition-all duration-300">
@@ -104,7 +145,7 @@ const { API_BASE } = Astro.props;
         <div class="flex gap-2 overflow-x-auto no-scrollbar" id="suggestion-chips"></div>
       </div>
 
-      <form id="chat-form" class="flex gap-3 relative bg-surface-card border border-hairline-strong rounded-[24px] p-2 shadow-sm focus-within:border-ink transition-colors">
+      <form id="chat-form" class="flex items-center gap-3 relative bg-surface-card border border-hairline-strong rounded-[24px] p-2 shadow-sm focus-within:border-ink transition-colors">
         <input
           type="text"
           id="chat-input"
@@ -112,6 +153,22 @@ const { API_BASE } = Astro.props;
           class="flex-1 bg-transparent px-4 md:px-5 py-2 text-[15px] text-ink focus:outline-none min-w-0"
           autocomplete="off"
         >
+
+        <div class="relative flex items-center select-none" id="response-mode-dropdown">
+          <button type="button" id="btn-mode-dropdown-toggle" class="h-10 px-3 rounded-xl border border-hairline bg-surface-strong text-[12px] font-bold text-ink hover:bg-hairline-strong transition-colors flex items-center gap-1.5 whitespace-nowrap outline-none">
+            <i class="fa-solid fa-align-left text-muted"></i> <span id="current-mode-label">Default</span> <i class="fa-solid fa-chevron-up text-[9px] text-muted-soft"></i>
+          </button>
+
+          <div id="response-mode-menu" class="hidden absolute bottom-14 right-0 z-50 min-w-[150px] bg-white border border-hairline rounded-xl shadow-xl p-1 flex flex-col gap-0.5 animate-in fade-in slide-in-from-bottom-2 duration-150">
+            <button type="button" class="opt-response-mode w-full text-left px-3 py-2 text-[13px] font-semibold rounded-lg hover:bg-surface-strong transition-colors text-primary border-0 bg-transparent cursor-pointer" data-mode="default">
+              <i class="fa-solid fa-align-left mr-2 text-[12px]"></i> Mode Default
+            </button>
+            <button type="button" class="opt-response-mode w-full text-left px-3 py-2 text-[13px] font-semibold rounded-lg hover:bg-surface-strong transition-colors text-ink border-0 bg-transparent cursor-pointer" data-mode="short">
+              <i class="fa-solid fa-bolt mr-2 text-[12px] text-amber-500"></i> Jawab Singkat
+            </button>
+          </div>
+        </div>
+
         <button
           type="submit"
           id="btn-send"

@@ -24,12 +24,50 @@ function buildKeywords(keywords = []) {
   )].slice(0, 8);
 }
 
+function escapeRegExp(value = '') {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function createHighlightOverlayFromRange(range, pageEl) {
+  const pageRect = pageEl.getBoundingClientRect();
+  const rects = Array.from(range.getClientRects());
+
+  rects.forEach((rect) => {
+    // Skip rect yang aneh / terlalu besar.
+    if (!rect.width || !rect.height) return;
+    if (rect.width > pageRect.width * 0.75) return;
+    if (rect.height > 40) return;
+
+    const highlight = document.createElement('div');
+    highlight.setAttribute('data-alb-pdf-highlight', 'true');
+
+    highlight.style.position = 'absolute';
+    highlight.style.left = `${rect.left - pageRect.left}px`;
+    highlight.style.top = `${rect.top - pageRect.top}px`;
+    highlight.style.width = `${rect.width}px`;
+    highlight.style.height = `${rect.height}px`;
+    highlight.style.backgroundColor = 'rgba(250, 204, 21, 0.45)';
+    highlight.style.borderRadius = '3px';
+    highlight.style.pointerEvents = 'none';
+    highlight.style.zIndex = '3';
+
+    pageEl.appendChild(highlight);
+  });
+}
+
 function clearOldHighlights() {
   document.querySelectorAll('[data-alb-pdf-highlight="true"]').forEach((node) => {
+    node.remove();
+  });
+
+  document.querySelectorAll('[data-alb-pdf-highlight-span="true"]').forEach((node) => {
     node.style.backgroundColor = '';
     node.style.borderRadius = '';
     node.style.padding = '';
-    node.removeAttribute('data-alb-pdf-highlight');
+    node.style.boxShadow = '';
+    node.style.position = '';
+    node.style.zIndex = '';
+    node.removeAttribute('data-alb-pdf-highlight-span');
   });
 }
 
@@ -49,45 +87,81 @@ function shouldHighlightSpan(spanText = '', safeKeywords = []) {
 }
 
 function highlightKeywordsInTextLayer(keywords = [], pageNumber = 1) {
-  // 1. Pastikan halamannya ada
   const targetPage = document.querySelector(`[data-page-number="${pageNumber}"]`);
-  if (!targetPage) return false; // Halaman belum render, paksa retry!
+  if (!targetPage) return false;
 
-  // 2. Pastikan layer teksnya ada
   const textLayer = targetPage.querySelector('.textLayer');
-  if (!textLayer) return false; // Layer teks belum render, paksa retry!
+  if (!textLayer) return false;
 
-  // 3. Pastikan teks sudah disuntikkan ke dalam layer
   const spans = textLayer.querySelectorAll('span');
-  if (spans.length === 0) return false; // Teks belum disuntik, paksa retry!
+  if (spans.length === 0) return false;
 
-  // JIKA SAMPAI DI SINI, TEKS PDF SUDAH RENDER 100%
   const safeKeywords = buildKeywords(keywords);
   let firstHighlightedNode = null;
+  let highlightedCount = 0;
+
+  console.log('[SourcePdfHighlighter] Highlight check:', {
+    pageNumber,
+    safeKeywords,
+    spanCount: spans.length
+  });
 
   if (safeKeywords.length > 0) {
     spans.forEach((span) => {
-      if (shouldHighlightSpan(span.textContent || '', safeKeywords)) {
-        // Terapkan highlight kuning stabilo
-        span.style.backgroundColor = 'rgba(250, 204, 21, 0.55)';
-        span.style.borderRadius = '3px';
-        span.setAttribute('data-alb-pdf-highlight', 'true');
+      const rawText = span.textContent || '';
+      const normalizedSpanText = normalizeText(rawText);
+      if (!normalizedSpanText) return;
 
-        if (!firstHighlightedNode) {
-          firstHighlightedNode = span;
+      safeKeywords.forEach((keyword) => {
+        const normalizedKeyword = normalizeText(keyword);
+        if (!normalizedKeyword) return;
+
+        // Untuk frasa seperti "media sosial", wajib cocok sebagai frasa.
+        // Untuk keyword satu kata, cocokkan kata itu saja.
+        const regex = new RegExp(escapeRegExp(normalizedKeyword), 'i');
+
+        if (!regex.test(normalizedSpanText)) return;
+
+        // Cari posisi match di teks asli secara sederhana.
+        const lowerRaw = rawText.toLowerCase();
+        const lowerKeyword = keyword.toLowerCase();
+        const index = lowerRaw.indexOf(lowerKeyword);
+
+        // Kalau frasa tidak ketemu di rawText karena normalisasi,
+        // jangan highlight seluruh span. Ini mencegah blok gede.
+        if (index < 0) return;
+
+        try {
+          const range = document.createRange();
+          range.setStart(span.firstChild, index);
+          range.setEnd(span.firstChild, index + keyword.length);
+
+          createHighlightOverlayFromRange(range, targetPage);
+
+          highlightedCount += 1;
+          if (!firstHighlightedNode) firstHighlightedNode = span;
+
+          range.detach?.();
+        } catch (err) {
+          // Jangan fallback highlight span penuh, karena itu penyebab blok kuning besar.
+          console.warn('[SourcePdfHighlighter] Gagal membuat range highlight:', err);
         }
-      }
+      });
     });
   }
 
-  // Scroll otomatis ke teks yang di-highlight, atau minimal ke ujung atas halaman
+  console.log('[SourcePdfHighlighter] Highlight result:', {
+    pageNumber,
+    highlighted: highlightedCount
+  });
+
   if (firstHighlightedNode) {
     firstHighlightedNode.scrollIntoView({ behavior: 'smooth', block: 'center' });
   } else {
     targetPage.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
-  return true; // Beri tahu sistem bahwa highlight berhasil, hentikan retry.
+  return true;
 }
 
 export default function SourcePdfHighlighter() {

@@ -48,7 +48,8 @@ export async function initLanding() {
       summary: document.querySelector('main p')?.innerText?.trim() || 'Halaman Virtual Class.',
       sourceUrl: window.location.href,
       capturedAt: new Date().toISOString(),
-      elements: this.collectPageElements()
+      elements: this.collectPageElements(),
+      userTasks: this.collectUserTasks() // AMBIL DATA DEADLINE
     };
     sessionStorage.setItem('alb_external_context', JSON.stringify(context));
     if (fetchedConfig) sessionStorage.setItem('alb_external_config', JSON.stringify(fetchedConfig));

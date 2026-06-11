@@ -6,32 +6,62 @@ const normalizeText = (text = '') => String(text).toLowerCase().replace(/[^\w\s-
 const unique = (items = []) => [...new Set(items.filter(Boolean))];
 
 const extractHighlightKeywords = (query = '', chunkText = '') => {
-  const queryTerms = normalizeText(query).split(/\s+/).filter(w => w.length > 2 && !STOPWORDS.includes(w));
+  const normalizedQuery = normalizeText(query);
   const normalizedChunk = normalizeText(chunkText);
-  if (!queryTerms.length || !normalizedChunk) return [];
+
+  if (!normalizedChunk) return [];
 
   const highlights = [];
 
-  // Cek frasa beruntun
+  const queryTerms = normalizedQuery
+    .split(/\s+/)
+    .filter(w => w.length > 2 && !STOPWORDS.includes(w));
+
+  // 1. Prioritas: cocokkan kata/frasa dari query ke chunk
   for (let i = 0; i < queryTerms.length; i++) {
+    const term = queryTerms[i];
+
     if (queryTerms[i + 1]) {
       const phrase = `${queryTerms[i]} ${queryTerms[i + 1]}`;
       if (normalizedChunk.includes(phrase)) highlights.push(phrase);
     }
+
+    if (normalizedChunk.includes(term)) highlights.push(term);
   }
 
-  const isDefinition = query.includes('apa itu') || query.includes('pengertian') || query.includes('jenis');
+  // 2. Fallback penting:
+  // Kalau query kosong / tidak cocok, ambil kata penting langsung dari chunk.
+  if (highlights.length === 0) {
+    const chunkTerms = normalizedChunk
+      .split(/\s+/)
+      .filter(w => w.length > 3 && !STOPWORDS.includes(w));
 
-  queryTerms.forEach(term => {
-    if (normalizedChunk.includes(term)) highlights.push(term);
-    if (isDefinition) {
-      if (normalizedChunk.includes(`pengertian ${term}`)) highlights.push(`pengertian ${term}`);
-      if (normalizedChunk.includes(`jenis ${term}`)) highlights.push(`jenis ${term}`);
+    // Ambil beberapa frasa 2 kata dari chunk agar highlight lebih kontekstual
+    for (let i = 0; i < chunkTerms.length - 1; i++) {
+      const phrase = `${chunkTerms[i]} ${chunkTerms[i + 1]}`;
+      highlights.push(phrase);
+      if (highlights.length >= 6) break;
     }
-  });
 
-  return unique(highlights).sort((a, b) => b.length - a.length).slice(0, 6);
+    // Tambahkan kata tunggal juga sebagai cadangan
+    chunkTerms.slice(0, 8).forEach(term => highlights.push(term));
+    }
+
+    const finalKeywords = unique(highlights)
+    .sort((a, b) => b.length - a.length);
+
+  // Kalau ada frasa 2 kata atau lebih, prioritaskan frasa.
+  // Jangan ikutkan kata tunggal seperti "media" dan "sosial"
+  // karena hasilnya terlalu banyak.
+  const phraseKeywords = finalKeywords.filter(item => item.includes(' '));
+
+  if (phraseKeywords.length > 0) {
+    return phraseKeywords.slice(0, 4);
+  }
+
+  return finalKeywords.slice(0, 6);
 };
+
 
 export const SourceViewer = {
   init() {
@@ -58,9 +88,31 @@ export const SourceViewer = {
     if (!data) return;
 
     const fileUrl = data.file_url;
-    const isPdf = fileUrl && (data.file_type === 'pdf' || fileUrl.endsWith('.pdf'));
+    const isPdf = fileUrl && (
+      data.file_type === 'pdf' ||
+      fileUrl.toLowerCase().includes('.pdf')
+    );
+
     const pageNumber = parseInt(data.page_number || 1, 10);
-    const keywords = extractHighlightKeywords(data.query, data.highlight_text || '');
+
+    const highlightText =
+      data.highlight_text ||
+      data.chunk_text ||
+      data.content ||
+      data.quote ||
+      '';
+
+    const keywords = extractHighlightKeywords(
+      data.query || data.user_query || data.question || '',
+      highlightText
+    );
+
+    console.log('[SourceViewer] PDF highlight payload:', {
+      pageNumber,
+      query: data.query,
+      highlightText,
+      keywords
+    });
 
     // 1. Set UI Text
     $('#source-viewer-title').text(data.title || 'Dokumen Rujukan');

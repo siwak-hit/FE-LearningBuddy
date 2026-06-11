@@ -78,34 +78,47 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     formattedText = `<div class="mb-4 text-[14px] leading-relaxed text-ink">${this.escapeHtml(text.answer_text)}</div>`;
     formattedText += `<div class="space-y-4">`;
 
+    // TAMBAHAN: Set Tracking untuk Mencegah Visual Duplikat
+    let renderedElements = new Set();
+
     (text.steps || []).forEach(step => {
       formattedText += `
         <div class="border border-primary/20 bg-primary/5 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
           <div class="font-bold text-[13px] text-primary mb-1">Langkah ${step.step_number}: ${this.escapeHtml(step.title)}</div>
           <div class="text-[13px] text-body leading-relaxed">${this.escapeHtml(step.description)}</div>`;
 
-      // Cari Visual Elemen jika ada referensi
       if (step.element_ref) {
         const refName = String(step.element_ref).toLowerCase();
-        const matchedEl = (this.contextData?.elements || []).find(e =>
-          String(e.name).toLowerCase() === refName ||
-          String(e.title).toLowerCase() === refName ||
-          String(e.key).toLowerCase() === refName
-        );
 
-        if (matchedEl) {
-          const previewSrcdoc = this.buildElementPreviewSrcdoc
-            ? this.buildElementPreviewSrcdoc(matchedEl)
-            : `<!doctype html><html><body>${matchedEl.html || matchedEl.text}</body></html>`;
+        // Cek jika ID visual belum pernah dirender di tutorial ini
+        if (!renderedElements.has(refName)) {
+          const matchedEl = (this.contextData?.elements || []).find(e =>
+            String(e.name).toLowerCase() === refName ||
+            String(e.title).toLowerCase() === refName ||
+            String(e.key).toLowerCase() === refName
+          );
 
-          formattedText += `
-            <div class="mt-3 border border-hairline rounded-lg overflow-hidden">
-              <div class="px-3 py-1.5 bg-slate-50 border-b border-hairline text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                <i class="fa-solid fa-eye"></i> Visual: ${this.escapeHtml(matchedEl.name)}
+          if (matchedEl) {
+            renderedElements.add(refName); // Kunci agar step berikutnya tidak render lagi
+
+            const previewSrcdoc = this.buildElementPreviewSrcdoc
+              ? this.buildElementPreviewSrcdoc(matchedEl)
+              : `<!doctype html><html><body>${matchedEl.html || matchedEl.text}</body></html>`;
+
+            formattedText += `
+              <div class="mt-3 border border-hairline rounded-lg overflow-hidden">
+                <div class="px-3 py-1.5 bg-slate-50 border-b border-hairline text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
+                  <i class="fa-solid fa-eye"></i> Visual: ${this.escapeHtml(matchedEl.name)}
+                </div>
+                <iframe class="w-full bg-white pointer-events-none border-0 block"
+                        style="min-height: 80px;"
+                        onload="try { this.style.height = this.contentWindow.document.documentElement.scrollHeight + 'px'; } catch(e){}"
+                        sandbox="allow-scripts allow-same-origin"
+                        referrerpolicy="no-referrer"
+                        srcdoc="${this.escapeHtml(previewSrcdoc)}"></iframe>
               </div>
-              <iframe class="w-full h-[140px] bg-white pointer-events-none border-0" sandbox="" referrerpolicy="no-referrer" srcdoc="${this.escapeHtml(previewSrcdoc)}"></iframe>
-            </div>
-          `;
+            `;
+          }
         }
       }
       formattedText += `</div>`;
@@ -230,9 +243,18 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
             file_url: act.url || '',
             file_type: 'pdf',
             page_number: act.page_number || 1,
-            query: act.query || ''
+            query: act.query || '',
+
+            // INI WAJIB IKUT MASUK KE data-source
+            highlight_text:
+              act.highlight_text ||
+              act.chunk_text ||
+              act.content ||
+              ''
           };
+
           const safePayload = encodeURIComponent(JSON.stringify(payload));
+
           actionsHtml += `<button type="button" class="btn-open-source-viewer inline-flex items-center gap-1.5 bg-red-50 text-red-600 border border-red-100 hover:bg-red-100 text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-sm" data-source="${safePayload}"><i class="fa-solid fa-file-pdf"></i> ${label}</button>`;
         } else if (act.type === 'continue_prompt') {
           const prompt = this.escapeHtml(act.prompt || label);
@@ -242,6 +264,12 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           const safePayload = encodeURIComponent(JSON.stringify(act.template || {}));
           const pendingMsg = this.escapeHtml(act.pending_message || '');
           actionsHtml += `<button type="button" class="btn-switch-context inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-medium text-white px-4 py-2 rounded-full transition-colors shadow-sm" data-template="${safePayload}" data-message="${pendingMsg}"><i class="fa-solid fa-exchange-alt"></i> ${label}</button>`;
+
+        } else if (act.type === 'ask_ai') {
+          // RENDER TOMBOL TANYA AI DARI FAQ (SEKARANG AMAN)
+          const safePayload = encodeURIComponent(JSON.stringify(act.payload || {}));
+          actionsHtml += `<button type="button" class="btn-ask-ai-fallback inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-medium text-white px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
+
         } else if (act.type === 'show_steps' || act.type === 'highlight_element') {
           actionsHtml += `<button type="button" class="inline-flex items-center gap-1.5 bg-surface-strong border border-hairline hover:bg-hairline-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-bolt"></i> ${label}</button>`;
         }
@@ -437,52 +465,4 @@ export function resolveTemplateNavigationUrl(template = {}, pageType = '') {
 }
 
 
-export function renderWaForm(btnNode) {
-  const $existingForm = $('.alb-wa-help-form');
-  if ($existingForm.length) {
-    $existingForm[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
-    return;
-  }
-
-  $(btnNode).prop('disabled', true).css('opacity', '0.5');
-
-  // Ambil nama dari session storage (atau fallback ke 'Siswa')
-  const savedName = sessionStorage.getItem('alb_student_name') || '';
-
-  const formHtml = `
-    <div class="alb-wa-help-form wa-mini-form bg-canvas-soft border border-hairline p-4 rounded-xl mt-3 max-w-[85%] ml-auto md:ml-14 shadow-sm">
-      <p class="text-[13px] font-semibold text-ink mb-2">Kirim Pesan Bantuan Guru</p>
-      <input type="text" class="wa-input-name w-full bg-white border border-hairline rounded-lg px-3 py-2 text-[13px] mb-2 focus:border-primary outline-none text-ink" value="${this.escapeHtml(savedName)}" placeholder="Nama Kamu...">
-      <textarea class="wa-input-issue w-full bg-white border border-hairline rounded-lg px-3 py-2 text-[13px] mb-2 focus:border-primary outline-none min-h-[60px] resize-y text-ink" placeholder="Tulis kendala yang kamu alami..."></textarea>
-      <button type="button" class="wa-submit-btn w-full bg-green-500 hover:bg-green-600 text-white rounded-lg px-3 py-2 text-[13px] font-medium mb-1 transition-colors">Kirim via WhatsApp</button>
-      <button type="button" class="wa-cancel-btn w-full bg-transparent text-muted hover:text-ink rounded-lg px-3 py-2 text-[12px] transition-colors">Batal</button>
-    </div>
-  `;
-
-  const $form = $(formHtml);
-  // Sisipkan form di bawah bubble pesan AI
-  $(btnNode).closest('.flex.items-start').parent().append($form);
-  this.scrollToBottom();
-
-  $form.find('.wa-cancel-btn').off('click').on('click', () => {
-    $form.remove();
-    $('.btn-wa-action').prop('disabled', false).css('opacity', '1');
-  });
-
-  $form.find('.wa-submit-btn').off('click').on('click', () => {
-    const name = $form.find('.wa-input-name').val().trim() || 'Siswa';
-    const issue = $form.find('.wa-input-issue').val().trim() || 'Saya butuh bantuan di VClass.';
-    const text = `Halo Pak/Bu Guru, saya ingin meminta bantuan.
-
-Nama: ${name}
-Kendala: ${issue}
-Halaman: ${window.location.href}
-Waktu: ${new Date().toLocaleString('id-ID')}
-
-Saya merasa kesulitan saat belajar di VClass.`;
-
-    window.open('https://api.whatsapp.com/send/?phone=628989807094&text=' + encodeURIComponent(text), '_blank');
-    $form.html('<div class="text-[13px] text-green-600 text-center py-2 font-medium"><i class="fa-solid fa-check mr-1"></i> Mengalihkan ke WhatsApp...</div>');
-  });
-}
 

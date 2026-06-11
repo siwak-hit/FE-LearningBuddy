@@ -29,6 +29,13 @@ export function cacheWorkspaceDOM() {
   this.$btnConfirmLeave = $('#btn-confirm-leave');
   this.$lockdownOverlay = $('#lockdown-overlay');
   this.$unlockKeyInput = $('#unlock-key-input');
+  this.$tabBtnGuide = $('#tab-btn-guide');
+  this.$tabBtnElements = $('#tab-btn-elements');
+  this.$tabContentGuide = $('#tab-content-guide');
+
+  this.$modeToggleBtn = $('#btn-mode-dropdown-toggle');
+  this.$modeMenu = $('#response-mode-menu');
+  this.$currentModeLabel = $('#current-mode-label');
 }
 
 export function handleLockdown(isLocked) {
@@ -1442,4 +1449,10 @@ const applySelectedTemplate = async (selectedIndex) => {
     this.$suggestionWrapper.removeClass('hidden pointer-events-none').stop(true, true).slideDown(200);
     this.isSuggestionHidden = false;
   });
+}
+
+
+// TIMPA ATAU TAMBAHKAN FUNGSI INI DI PALING BAWAH FILE dom-ui.js
+export function getResponseMode() {
+  return this.currentResponseMode || 'default';
 }

@@ -238,3 +238,40 @@ export function collectPageElements() {
     .slice(0, MAX_ELEMENTS)
     .map(({ el, index }) => buildElementData(el, index));
 }
+
+export function collectUserTasks() {
+  const tasks = [];
+
+  // Mencari elemen timeline/kalender Moodle umum (bisa disesuaikan dengan struktur tema Moodle 167)
+  const eventNodes = document.querySelectorAll('.timeline-event-list-item, .event, .activity.assignment');
+
+  eventNodes.forEach(node => {
+    const titleNode = node.querySelector('.text-truncate, .instancename, .event-name');
+    const dateNode = node.querySelector('.text-right, .date, .time');
+
+    if (titleNode && dateNode) {
+      const title = (titleNode.innerText || titleNode.textContent).trim();
+      const dueDate = (dateNode.innerText || dateNode.textContent).trim();
+
+      // Deteksi tipe
+      let type = 'activity';
+      if (title.toLowerCase().includes('quiz') || title.toLowerCase().includes('kuis')) type = 'quiz';
+      if (title.toLowerCase().includes('tugas') || title.toLowerCase().includes('assignment')) type = 'assignment';
+
+      // Deteksi status (contoh logika: cek apakah ada badge 'submitted' atau 'selesai')
+      const statusNode = node.querySelector('.badge, .status');
+      const statusText = statusNode ? (statusNode.innerText || statusNode.textContent).toLowerCase() : '';
+      const status = statusText.includes('submitted') || statusText.includes('selesai') ? 'completed' : 'not_submitted';
+
+      tasks.push({
+        title,
+        type,
+        dueDate,
+        status,
+        courseName: document.title // Kasar, tapi aman untuk fallback
+      });
+    }
+  });
+
+  return tasks;
+}

@@ -29,19 +29,50 @@ export function normalizeElementText(value = '', max = 220) {
     .slice(0, max);
 }
 
-export function formatResponseText(text) {
-  let accordions = [];
-  let parsedText = text || '';
+export function formatResponseText(text = '') {
+  const htmlBlocks = [];
+  const accordions = [];
+  let parsedText = String(text || '');
 
-  parsedText = parsedText.replace(/\[ACCORDION=(.*?)\]([\s\S]*?)\[\/ACCORDION\]/g, (match, title, content) => {
-    accordions.push({ title: title, content: content.trim() });
-    return `___ACCORDION_${accordions.length - 1}___`;
-  });
+  // 1. Isolasi blok HTML aman sebelum escape.
+  //    Termasuk accordion table deadline.
+  parsedText = parsedText.replace(
+    /(<details\b[^>]*class=["'][^"']*(?:alb-task-accordion|alb-html-block)[^"']*["'][\s\S]*?<\/details>)/gi,
+    (match) => {
+      const key = `@@HTML_BLOCK_${htmlBlocks.length}@@`;
+      htmlBlocks.push(match);
+      return key;
+    }
+  );
 
+  parsedText = parsedText.replace(
+    /(<div\b[^>]*class=["'][^"']*overflow-x-auto[^"']*["'][\s\S]*?<\/div>)/gi,
+    (match) => {
+      const key = `@@HTML_BLOCK_${htmlBlocks.length}@@`;
+      htmlBlocks.push(match);
+      return key;
+    }
+  );
+
+  // 2. Isolasi accordion custom berbasis teks.
+  parsedText = parsedText.replace(
+    /\[ACCORDION=([^\]]+)\]([\s\S]*?)\[\/ACCORDION\]/gi,
+    (match, title, content) => {
+      const key = `@@ACCORDION_BLOCK_${accordions.length}@@`;
+      accordions.push({
+        title: String(title || '').trim(),
+        content: String(content || '').trim()
+      });
+      return key;
+    }
+  );
+
+  // 3. Escape teks biasa.
   let safeText = this.escapeHtml(parsedText)
     .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
     .replace(/\n/g, '<br/>');
 
+  // 4. Balikin accordion custom.
   accordions.forEach((acc, idx) => {
     const safeTitle = this.escapeHtml(acc.title);
     const safeContent = this.escapeHtml(acc.content)
@@ -56,15 +87,18 @@ export function formatResponseText(text) {
           <span class="flex-1 pr-4">${safeTitle}</span>
           <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform duration-300 shrink-0"></i>
         </summary>
-        <div class="p-4 text-[13px] text-body border-t border-hairline bg-white leading-relaxed">
+        <div class="p-4 text-[13px] text-body leading-relaxed border-t border-hairline bg-white">
           ${safeContent}
         </div>
       </details>
     `;
 
-    safeText = safeText
-      .replace(`___ACCORDION_${idx}___<br/>`, accHtml)
-      .replace(`___ACCORDION_${idx}___`, accHtml);
+    safeText = safeText.replace(`@@ACCORDION_BLOCK_${idx}@@`, accHtml);
+  });
+
+  // 5. Balikin HTML aman.
+  htmlBlocks.forEach((html, idx) => {
+    safeText = safeText.replace(`@@HTML_BLOCK_${idx}@@`, html);
   });
 
   return safeText;
