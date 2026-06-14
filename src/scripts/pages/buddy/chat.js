@@ -34,25 +34,99 @@ export function removeTypingIndicator() {
   $('#typing-indicator').remove();
 }
 
+const INPUT_LOCK_NOTICE_HIDE_KEY = `alb_hide_input_lock_notice:${window.location.host}`;
+const INPUT_LOCK_NOTICE_COUNT_KEY = `alb_input_lock_notice_count:${window.location.host}`;
+
+function getNoticeCount() {
+  return Number(localStorage.getItem(INPUT_LOCK_NOTICE_COUNT_KEY) || 0) || 0;
+}
+
+function setNoticeCount(value) {
+  localStorage.setItem(INPUT_LOCK_NOTICE_COUNT_KEY, String(Math.max(0, Number(value || 0))));
+}
+
+function isInputLockNoticeHiddenForever() {
+  return localStorage.getItem(INPUT_LOCK_NOTICE_HIDE_KEY) === '1';
+}
+
+function showInputLockedNotice(context) {
+  if (!context?.$inputArea?.length) return;
+  if (isInputLockNoticeHiddenForever()) return;
+
+  const noticeId = 'alb-input-locked-notice';
+  let count = getNoticeCount() + 1;
+  setNoticeCount(count);
+
+  let $notice = $('#' + noticeId);
+  if (!$notice.length) {
+    $notice = $(
+      `<div id="${noticeId}" class="mt-2 mb-1 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2 text-[12px] leading-relaxed shadow-sm">
+        <div class="flex items-start gap-2">
+          <i class="fa-solid fa-circle-info mt-0.5 shrink-0"></i>
+          <div class="flex-1 min-w-0">
+            <div class="alb-input-lock-text">Input dikunci sementara. Klik tombol <b>"Sudah jelas"</b> pada respons chat terakhir untuk bisa mengetik lagi, atau pilih <b>"Belum jelas"</b> jika ingin AI menjelaskan.</div>
+            <div class="alb-input-lock-extra hidden mt-2 pt-2 border-t border-amber-200/70">
+              <label class="inline-flex items-center gap-2 cursor-pointer select-none">
+                <input type="checkbox" id="alb-hide-input-lock-notice-switch" class="rounded border-amber-300 text-primary focus:ring-primary" />
+                <span>Jangan tampilkan info ini lagi</span>
+              </label>
+            </div>
+          </div>
+          <button type="button" id="alb-input-lock-notice-close" class="w-7 h-7 rounded-full bg-white/70 border border-amber-100 text-amber-800 hover:bg-white shrink-0" aria-label="Tutup info input terkunci">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+      </div>`
+    );
+
+    const $form = context.$inputArea.closest('form');
+    if ($form.length) $form.before($notice);
+    else context.$inputArea.before($notice);
+
+    $notice.on('click', '#alb-input-lock-notice-close', () => hideInputLockedNotice());
+    $notice.on('change', '#alb-hide-input-lock-notice-switch', function () {
+      if ($(this).is(':checked')) {
+        localStorage.setItem(INPUT_LOCK_NOTICE_HIDE_KEY, '1');
+        hideInputLockedNotice();
+      }
+    });
+  }
+
+  $notice.find('.alb-input-lock-extra').toggleClass('hidden', count < 3);
+  $notice.removeClass('hidden');
+}
+
+function hideInputLockedNotice() {
+  $('#alb-input-locked-notice').addClass('hidden');
+}
+
+export function clearInputLockedNoticePreference() {
+  localStorage.removeItem(INPUT_LOCK_NOTICE_HIDE_KEY);
+  setNoticeCount(0);
+  hideInputLockedNotice();
+}
+
+export function hideInputLockedNoticeExternal() {
+  hideInputLockedNotice();
+}
+
 function disableSupersededFeedbackActions(context) {
   const $chatArea = context?.$chatArea;
   if (!$chatArea || !$chatArea.length) return false;
 
-  const $pendingWraps = $chatArea.find('.alb-system-message-wrap[data-waiting-feedback="1"]');
-  if (!$pendingWraps.length) return false;
+  const $pending = $chatArea.find('.alb-system-message-wrap[data-waiting-feedback="1"]');
+  if (!$pending.length) return false;
 
-  $pendingWraps.each((_, wrap) => {
+  $pending.each((_, wrap) => {
     const $wrap = $(wrap);
-    // Saat ada chat baru, tombol feedback lama tidak boleh lagi mengunci input.
-    // Yang dimatikan hanya tombol "Tanya AI/Belum jelas" dan "Sudah jelas" pada bubble lama.
     $wrap.find('.btn-system-feedback-ok, .btn-system-feedback-ai, .btn-ask-ai-fallback')
       .prop('disabled', true)
       .addClass('opacity-60 cursor-not-allowed pointer-events-none')
       .attr('title', 'Tombol ini sudah digantikan oleh percakapan terbaru.');
-
     $wrap.removeAttr('data-waiting-feedback').attr('data-superseded-feedback', '1');
   });
 
+  hideInputLockedNotice();
   return true;
 }
 
@@ -64,8 +138,6 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   let text = rawText;
   let isTutorialMode = false;
 
-  // Kalau user mengirim chat baru lewat input/sidebar saat bubble lama masih menunggu tombol "Sudah jelas",
-  // bubble lama dianggap tertimpa. Jangan biarkan input terus terkunci karena tombol lama.
   if (isUser && disableSupersededFeedbackActions(this)) {
     this._unlockInputAfterCurrentResponse = true;
   }
@@ -376,7 +448,8 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     }
   }
 
-  const shouldWaitForSystemFeedback = !isUser && Array.isArray(actions) && actions.some((act) => act?.type === 'system_feedback_ok');
+  const hasWaAction = !isUser && Array.isArray(actions) && actions.some((act) => ['wa_teacher', 'wa_specific_task'].includes(act?.type));
+  const shouldWaitForSystemFeedback = !isUser && !hasWaAction && Array.isArray(actions) && actions.some((act) => act?.type === 'system_feedback_ok');
   if (!isUser) this._lastBotMessageWaitsForFeedback = shouldWaitForSystemFeedback;
 
   const avatarHtml = isUser
@@ -399,8 +472,11 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   if (shouldWaitForSystemFeedback && this.$inputArea?.length && this.$btnSend?.length) {
     this.$inputArea
       .prop('disabled', true)
-      .attr('placeholder', 'Klik "Sudah jelas" jika panduan sudah cukup, atau pilih "Belum jelas" untuk minta AI.');
+      .attr('placeholder', 'Klik tombol "Sudah jelas" pada respons chat terakhir untuk bisa ngechat lagi.');
     this.$btnSend.prop('disabled', true);
+    showInputLockedNotice(this);
+  } else if (!isUser) {
+    hideInputLockedNotice();
   }
 
   this.scrollToBottom();

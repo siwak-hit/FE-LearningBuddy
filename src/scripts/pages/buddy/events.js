@@ -50,6 +50,9 @@ function escapeHtml(value = '') {
     .replace(/'/g, '&#039;');
 }
 
+
+
+
 function ensureVclassPreviewModal() {
   if ($('#alb-vclass-preview-modal').length) return;
 
@@ -69,7 +72,7 @@ function ensureVclassPreviewModal() {
         <div class="px-4 py-2 bg-amber-50 border-b border-amber-100 text-[12px] text-amber-800">
           <i class="fa-solid fa-circle-info"></i> Jika halaman VClass menolak ditampilkan di iframe, gunakan tombol <b>Tab Baru</b>.
         </div>
-        <iframe id="alb-vclass-preview-frame" class="w-full flex-1 bg-white border-0" sandbox="allow-scripts allow-forms allow-popups allow-top-navigation-by-user-activation" referrerpolicy="no-referrer"></iframe>
+        <iframe id="alb-vclass-preview-frame" class="w-full flex-1 bg-white border-0" sandbox="allow-same-origin allow-scripts allow-forms allow-popups" referrerpolicy="no-referrer"></iframe>
       </div>
     </div>
   `);
@@ -134,6 +137,8 @@ function showCooldownToast(context, remainingOverride = null) {
     canUseAI: false
   };
 
+  ensureFullScreenCooldownOverlay(context, remainingSeconds);
+
   if (typeof context.updateAiUsageUI === 'function') {
     context.updateAiUsageUI(context.aiUsage);
   } else if (typeof context.triggerCooldown === 'function') {
@@ -143,6 +148,171 @@ function showCooldownToast(context, remainingOverride = null) {
 
 function isCooldownBlocking(context) {
   return Boolean(context.aiUsage?.cooldown_active) || Number(context.aiUsage?.cooldown_remaining_seconds || 0) > 0;
+}
+
+function getLocalScopeKey(context, suffix) {
+  const host = window.location.host || 'localhost';
+  const projectKey = context?.projectKey || context?.project_key || 'default-project';
+  return `alb:${host}:${projectKey}:${suffix}`;
+}
+
+function persistLockdown(context, locked = true, extra = {}) {
+  const key = getLocalScopeKey(context, 'lockdown');
+  if (!locked) {
+    localStorage.removeItem(key);
+    return;
+  }
+
+  localStorage.setItem(key, JSON.stringify({
+    locked: true,
+    reason: extra.reason || 'profanity_limit',
+    warnings: Number(extra.warnings || 3),
+    savedAt: Date.now()
+  }));
+}
+
+function readPersistedLockdown(context) {
+  try {
+    const raw = localStorage.getItem(getLocalScopeKey(context, 'lockdown'));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.locked ? parsed : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+function ensureFullScreenCooldownOverlay(context, remainingOverride = null) {
+  const remainingSeconds = Number(
+    remainingOverride || context?.aiUsage?.cooldown_remaining_seconds || AI_COOLDOWN_FALLBACK_SECONDS
+  );
+
+  const endAt = Date.now() + Math.max(1, remainingSeconds) * 1000;
+  localStorage.setItem(getLocalScopeKey(context, 'cooldown'), JSON.stringify({ endAt }));
+
+  if (!$('#alb-global-cooldown-overlay').length) {
+    $('body').append(`
+      <div id="alb-global-cooldown-overlay" class="fixed inset-0 z-[99999] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="w-full max-w-[460px] bg-white rounded-3xl shadow-2xl border border-white/20 p-6 text-center">
+          <div class="w-16 h-16 mx-auto rounded-full bg-amber-100 text-amber-700 flex items-center justify-center text-2xl mb-4">
+            <i class="fa-solid fa-hourglass-half"></i>
+          </div>
+          <h2 class="text-[22px] font-black text-ink mb-2">AI Buddy sedang cooldown</h2>
+          <p class="text-[14px] text-body leading-6 mb-4">Batas penggunaan AI sementara tercapai. Seluruh layar ditahan dulu supaya tidak terjadi request berulang.</p>
+          <div class="bg-canvas-soft border border-hairline rounded-2xl p-4">
+            <div class="text-[12px] text-muted-soft mb-1">Tunggu sekitar</div>
+            <div id="alb-global-cooldown-time" class="text-[34px] font-black text-primary tracking-tight">03:00</div>
+          </div>
+        </div>
+      </div>
+    `);
+  }
+
+  const tick = () => {
+    const remain = Math.max(0, Math.ceil((endAt - Date.now()) / 1000));
+    const minutes = Math.floor(remain / 60).toString().padStart(2, '0');
+    const seconds = (remain % 60).toString().padStart(2, '0');
+    $('#alb-global-cooldown-time').text(`${minutes}:${seconds}`);
+
+    if (remain <= 0) {
+      clearInterval(window.__albGlobalCooldownTimer);
+      window.__albGlobalCooldownTimer = null;
+      localStorage.removeItem(getLocalScopeKey(context, 'cooldown'));
+      $('#alb-global-cooldown-overlay').remove();
+      if (context?.aiUsage) {
+        context.aiUsage.cooldown_active = false;
+        context.aiUsage.cooldown_remaining_seconds = 0;
+        context.aiUsage.used = 0;
+        context.aiUsage.remaining = Number(context.aiUsage.max || 3);
+        context.aiUsage.limit_reached = false;
+        context.aiUsage.canUseAI = true;
+        if (typeof context.updateAiUsageUI === 'function') context.updateAiUsageUI(context.aiUsage);
+      }
+      return;
+    }
+  };
+
+  if (window.__albGlobalCooldownTimer) clearInterval(window.__albGlobalCooldownTimer);
+  tick();
+  window.__albGlobalCooldownTimer = setInterval(tick, 1000);
+}
+
+function applyPersistedCooldownIfNeeded(context) {
+  try {
+    const raw = localStorage.getItem(getLocalScopeKey(context, 'cooldown'));
+    if (!raw) return;
+    const parsed = JSON.parse(raw);
+    const remain = Math.ceil((Number(parsed.endAt || 0) - Date.now()) / 1000);
+    if (remain > 0) ensureFullScreenCooldownOverlay(context, remain);
+    else localStorage.removeItem(getLocalScopeKey(context, 'cooldown'));
+  } catch (_) {}
+}
+
+function ensureLocalLockOverlay(context, persisted = {}) {
+  persistLockdown(context, true, persisted);
+
+  if (typeof context?.handleLockdown === 'function') {
+    context.handleLockdown(true);
+  }
+
+  if (!$('#alb-global-lock-overlay').length) {
+    $('body').append(`
+      <div id="alb-global-lock-overlay" class="fixed inset-0 z-[100000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="w-full max-w-[500px] bg-white rounded-3xl shadow-2xl border border-white/20 p-6">
+          <div class="text-center mb-5">
+            <div class="w-16 h-16 mx-auto rounded-full bg-red-100 text-red-700 flex items-center justify-center text-2xl mb-4"><i class="fa-solid fa-lock"></i></div>
+            <h2 class="text-[22px] font-black text-ink mb-2">Chat dikunci sementara</h2>
+            <p class="text-[14px] text-body leading-6">Batas peringatan bahasa kurang pantas sudah mencapai <b>${Number(persisted.warnings || 3)}/3</b>. Minta key pembuka ke guru, lalu isi form di bawah.</p>
+          </div>
+          <div class="space-y-3">
+            <input id="alb-global-unlock-name" type="text" class="w-full bg-canvas-soft border border-hairline rounded-xl px-4 py-3 text-[14px] text-ink outline-none focus:border-primary" placeholder="Nama siswa" value="${sessionStorage.getItem('alb_student_name') || ''}">
+            <input id="alb-global-unlock-key" type="text" class="w-full bg-canvas-soft border border-hairline rounded-xl px-4 py-3 text-[14px] text-ink outline-none focus:border-primary" placeholder="Key dari guru">
+            <button id="alb-global-unlock-submit" type="button" class="w-full bg-primary hover:bg-primary-active text-white rounded-xl px-4 py-3 text-[14px] font-bold transition-colors">Verifikasi & Buka Akses</button>
+          </div>
+          <button id="alb-global-unlock-wa" type="button" class="mt-3 w-full bg-green-500 hover:bg-green-600 text-white rounded-xl px-4 py-3 text-[14px] font-bold transition-colors"><i class="fa-brands fa-whatsapp mr-1"></i> Minta key ke guru</button>
+        </div>
+      </div>
+    `);
+  }
+
+  $('#alb-global-unlock-wa').off('click').on('click', () => {
+    const text = encodeURIComponent('Halo Pak/Bu, chat AI Buddy saya terkunci karena peringatan bahasa. Mohon key pembukanya.');
+    window.open(`https://api.whatsapp.com/send/?phone=628989807094&text=${text}`, '_blank', 'noopener,noreferrer');
+  });
+
+  $('#alb-global-unlock-submit').off('click').on('click', async () => {
+    const name = $('#alb-global-unlock-name').val().trim();
+    const key = $('#alb-global-unlock-key').val().trim();
+    if (!name || !key) return Toast.show('Nama dan key wajib diisi.', 'error');
+
+    $('#alb-global-unlock-submit').prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Memverifikasi...');
+    try {
+      try {
+        await ApiService.patch(`/chat/session/${context.sessionId}/profile`, { student_name: name });
+        sessionStorage.setItem('alb_student_name', name);
+      } catch (_) {}
+
+      const res = await ApiService.post('/chat/unlock', { sessionId: context.sessionId, key });
+      if (res?.status === 'success') {
+        persistLockdown(context, false);
+        $('#alb-global-lock-overlay').remove();
+        context.handleLockdown?.(false);
+        Toast.show('Chat berhasil dibuka kembali.', 'success');
+      } else {
+        Toast.show(res?.message || 'Key salah atau kedaluwarsa.', 'error');
+      }
+    } catch (err) {
+      Toast.show('Gagal menghubungi server.', 'error');
+    } finally {
+      $('#alb-global-unlock-submit').prop('disabled', false).html('Verifikasi & Buka Akses');
+      $('#alb-global-unlock-key').val('');
+    }
+  });
+}
+
+function applyPersistedLockdownIfNeeded(context) {
+  const persisted = readPersistedLockdown(context);
+  if (persisted) ensureLocalLockOverlay(context, persisted);
 }
 
 function isLikelyMaterialQuestion(message = '') {
@@ -159,48 +329,68 @@ function isLikelyMaterialQuestion(message = '') {
 
 function getCanonicalSuggestions(rawInput = '') {
   const text = String(rawInput || '').toLowerCase().trim();
-  if (text.length < 6) return [];
+  if (!text) return [];
 
+  const words = text.split(/\s+/).filter(Boolean);
+  // Saran pertanyaan hanya aman saat input masih pendek. Kalau user sudah menulis panjang,
+  // jangan dipaksa generate karena sering berubah jadi chip kosong/tanda tanya.
+  if (words.length > 5 || text.length > 48) return [];
+
+  const questionWords = ['apa', 'bagaimana', 'gimana', 'kenapa', 'mengapa', 'siapa', 'kapan', 'dimana', 'di mana', 'berapa'];
+  const firstWord = words[0] || '';
+  const isGreenFlag = questionWords.includes(firstWord) || text.endsWith('?');
   const suggestions = [];
 
-  // Materi: Media sosial
-  if (/\b(media sosial|sosial media|sosmed)\b/i.test(text)) {
-    const asksImpact = /\b(dampak|pengaruh|efek|akibat|positif|negatif|manfaat|risiko|bahaya)\b/i.test(text);
-    const asksAddiction = /\b(kecanduan|ketagihan|terlalu sering|mengurangi|membatasi|supaya gak|biar gak)\b/i.test(text);
-    const asksExample = /\b(contoh|jenis|macam|aplikasi)\b/i.test(text);
+  const pushClean = (value) => {
+    const clean = String(value || '').replace(/\s+/g, ' ').trim();
+    if (!clean || clean === '?' || clean.length < 8) return;
+    suggestions.push(clean);
+  };
 
-    if (asksImpact) {
-      suggestions.push('Apa dampak penggunaan media sosial?');
-      suggestions.push('Apa saja dampak positif dan negatif media sosial?');
-    } else if (asksAddiction) {
-      suggestions.push('Bagaimana cara agar tidak kecanduan media sosial?');
-      suggestions.push('Bagaimana cara membatasi penggunaan media sosial?');
-    } else if (asksExample) {
-      suggestions.push('Apa saja contoh media sosial?');
-      suggestions.push('Apa saja jenis-jenis media sosial?');
+  const seed = words.slice(0, 5).join(' ');
+
+  if (/\b(media sosial|sosial media|sosmed)\b/i.test(seed)) {
+    if (/\b(dampak|pengaruh|positif|negatif|bahaya|risiko)\b/i.test(seed)) {
+      pushClean('Apa dampak media sosial?');
+      pushClean('Apa dampak positif dan negatif media sosial?');
     } else {
-      suggestions.push('Apa itu media sosial?');
-      suggestions.push('Apa dampak penggunaan media sosial?');
+      pushClean('Apa itu media sosial?');
+      pushClean('Apa saja contoh media sosial?');
     }
+  } else if (/\b(hoax|hoaks)\b/i.test(seed)) {
+    pushClean('Apa itu hoax?');
+    pushClean('Bagaimana cara mengecek hoax?');
+  } else if (/\b(cyberbullying|perundungan)\b/i.test(seed)) {
+    pushClean('Apa itu cyberbullying?');
+    pushClean('Bagaimana cara mencegah cyberbullying?');
+  } else if (/\b(cms|wordpress|plugin)\b/i.test(seed)) {
+    const topic = /wordpress/i.test(seed) ? 'WordPress' : /plugin/i.test(seed) ? 'plugin' : 'CMS';
+    pushClean(`Apa itu ${topic}?`);
+    pushClean(`Apa fungsi ${topic}?`);
+  } else if (/\b(forum|diskusi|reply|balas)\b/i.test(seed)) {
+    pushClean(isGreenFlag ? 'Bagaimana cara menjawab forum?' : 'Apa cara menjawab forum?');
+  } else if (/\b(quiz|kuis|ujian|soal)\b/i.test(seed)) {
+    pushClean(isGreenFlag ? 'Bagaimana cara mengerjakan kuis?' : 'Apa cara mengerjakan kuis?');
+  } else if (/\b(tugas|assignment|upload|kumpul)\b/i.test(seed)) {
+    pushClean(isGreenFlag ? 'Bagaimana cara mengumpulkan tugas?' : 'Apa cara mengumpulkan tugas?');
   }
 
-  // Bantuan teknis VClass
-  if (/\b(forum|diskusi|reply|balas|postingan)\b/i.test(text)) {
-    suggestions.push('Cara membuat atau menjawab forum di VClass');
-    suggestions.push('Cara reply forum di VClass');
+  // Yellow flag: kalau bukan diawali kata tanya, usahakan bentuk saran diawali "Apa".
+  if (!isGreenFlag) {
+    return [...new Set(suggestions.map((item) => {
+      if (/^(apa|bagaimana|gimana|kenapa|mengapa|siapa|kapan|dimana|di mana|berapa)\b/i.test(item)) return item;
+      return `Apa ${item.charAt(0).toLowerCase()}${item.slice(1)}`;
+    }))].slice(0, 3);
   }
 
-  if (/\b(quiz|kuis|ujian|soal)\b/i.test(text)) {
-    suggestions.push('Cara Mengerjakan Quiz');
-    suggestions.push('Cara submit quiz di VClass');
-  }
+  return [...new Set(suggestions)].slice(0, 3);
+}
 
-  if (/\b(tugas|assignment|upload|kumpul|mengumpulkan)\b/i.test(text)) {
-    suggestions.push('Cara Mengumpulkan Tugas');
-    suggestions.push('Cara upload tugas di VClass');
-  }
-
-  return [...new Set(suggestions)].slice(0, 4);
+function sanitizeSuggestionList(list = []) {
+  return [...new Set((list || [])
+    .map((item) => String(item || '').replace(/\s+/g, ' ').trim())
+    .filter((item) => item && item !== '?' && item.length >= 8)
+  )].slice(0, 4);
 }
 
 function updateModeUI(context, selectedMode = 'system') {
@@ -223,8 +413,6 @@ async function sendChatMessage(context, options = {}) {
   if (!messageText || context.isRequesting) return;
 
   context.isRequesting = true;
-  context.lastUserQuestion = messageText;
-  context.currentUserQuestion = messageText;
 
   context.appendBubble(messageText, true, 'user');
   context.$inputArea?.val('');
@@ -239,11 +427,26 @@ async function sendChatMessage(context, options = {}) {
 
   // Kalau user mengetik pertanyaan materi secara manual, jangan kunci retrieval ke FAQ teknis.
   // Mode tetap dihormati: AI Singkat/Detail => forceAI true, Jawaban Sistem => forceAI false.
+  const activeIdentity = readActiveStudentIdentity(context) || {};
+  const mergedPageContext = {
+    ...(context.contextData || {}),
+    ...(options.pageContext || {}),
+    session_meta: {
+      ...(context.contextData?.session_meta || {}),
+      ...(options.pageContext?.session_meta || {}),
+      ...(activeIdentity.email ? { email: activeIdentity.email } : {}),
+      ...(activeIdentity.class_code ? { class_code: activeIdentity.class_code } : {}),
+      ...(activeIdentity.moodle_user_id ? { moodle_user_id: activeIdentity.moodle_user_id } : {}),
+      ...(activeIdentity.course_id ? { course_id: activeIdentity.course_id } : {}),
+      ...(activeIdentity.fullname ? { display_name: activeIdentity.fullname } : {})
+    }
+  };
+
   const payload = {
     sessionId: context.sessionId,
     message: messageText,
     projectKey: context.projectKey,
-    pageContext: options.pageContext || context.contextData || {},
+    pageContext: mergedPageContext,
     elementContext: options.elementContext ?? context.selectedElement ?? null,
     expectedSourceType: options.expectedSourceType || (materialQuestion ? 'all' : (modeConfig.forceFAQ ? 'faq' : 'document_chunk')),
     responseMode: selectedResponseMode,
@@ -263,9 +466,17 @@ async function sendChatMessage(context, options = {}) {
 
       if (res.data.ai_usage && typeof context.updateAiUsageUI === 'function') {
         context.updateAiUsageUI(res.data.ai_usage);
+        if (res.data.ai_usage.cooldown_active || Number(res.data.ai_usage.cooldown_remaining_seconds || 0) > 0) {
+          showCooldownToast(context, Number(res.data.ai_usage.cooldown_remaining_seconds || AI_COOLDOWN_FALLBACK_SECONDS));
+        }
       } else if (cooldownSecondsFromText > 0) {
         showCooldownToast(context, cooldownSecondsFromText);
       }
+
+      persistReusableStudentSession(context, {
+        ...(readActiveStudentIdentity(context) || {}),
+        sessionId: context.sessionId
+      });
 
       if (typeof context.handleBotResponse === 'function') {
         context.handleBotResponse(res.data);
@@ -274,8 +485,8 @@ async function sendChatMessage(context, options = {}) {
         context.appendBubble(botMessage.message || 'Jawaban berhasil diterima.', false, res.data.response_source || 'system', botMessage.actions || []);
       }
 
-      if (res.data.is_locked && typeof context.handleLockdown === 'function') {
-        context.handleLockdown(true);
+      if (res.data.is_locked) {
+        ensureLocalLockOverlay(context, { warnings: res.data.warnings || 3, reason: res.data.lock_reason || 'profanity_limit' });
       }
     } else {
       context.appendBubble(res?.message || 'Maaf, terjadi kesalahan saat menghubungi server.', false, 'system');
@@ -288,8 +499,6 @@ async function sendChatMessage(context, options = {}) {
     context.isRequesting = false;
     context.forceNextAI = false;
 
-    // Jika pertanyaan baru dari sidebar/shortcut menimpa jawaban lama yang menunggu tombol "Sudah jelas",
-    // aktifkan kembali input setelah response baru selesai, kecuali response baru juga menunggu feedback.
     if (context._unlockInputAfterCurrentResponse && !context._lastBotMessageWaitsForFeedback) {
       enableChatInputAfterFeedback(context);
     }
@@ -398,8 +607,616 @@ export function navigateSourceTab(targetUrl = '', pageType = '', options = {}) {
   }
 }
 
+
+function getVerifiedStudentKey(context, email = '', classCode = '') {
+  const host = window.location.host || 'localhost';
+  const projectKey = context?.projectKey || context?.project_key || 'default-project';
+  const cleanEmail = String(email || '').trim().toLowerCase();
+  const cleanClass = String(classCode || '').trim().toUpperCase();
+  return `alb:${host}:${projectKey}:student-session:${cleanEmail}:${cleanClass}`;
+}
+
+function readActiveStudentIdentity(context) {
+  try {
+    const host = window.location.host || 'localhost';
+    const projectKey = context?.projectKey || context?.project_key || 'default-project';
+    const raw = localStorage.getItem(`alb:${host}:${projectKey}:active-student`);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_) { return null; }
+}
+
+function writeActiveStudentIdentity(context, identity = {}) {
+  try {
+    const host = window.location.host || 'localhost';
+    const projectKey = context?.projectKey || context?.project_key || 'default-project';
+    localStorage.setItem(`alb:${host}:${projectKey}:active-student`, JSON.stringify({ ...identity, savedAt: Date.now() }));
+  } catch (_) {}
+}
+
+function persistReusableStudentSession(context, identity = {}) {
+  const email = identity.email || identity.student_email || identity.username || '';
+  const classCode = identity.class_code || identity.classCode || identity.kelas || '';
+  const sessionId = identity.sessionId || identity.session_id || context?.sessionId || '';
+  if (!email || !classCode || !sessionId) return;
+
+  const payload = {
+    sessionId,
+    email: String(email).trim().toLowerCase(),
+    class_code: String(classCode).trim().toUpperCase(),
+    moodle_user_id: identity.moodle_user_id || identity.userid || null,
+    fullname: identity.fullname || identity.display_name || identity.name || '',
+    course_id: identity.course_id || identity.courseId || null,
+    course_title: identity.course_title || '',
+    savedAt: Date.now()
+  };
+
+  localStorage.setItem(getVerifiedStudentKey(context, payload.email, payload.class_code), JSON.stringify(payload));
+  writeActiveStudentIdentity(context, payload);
+
+  // Simpan registry kecil di DB supaya 1 siswa dapat memakai 1 session yang sama.
+  // Kalau endpoint belum dipasang, localStorage tetap menjadi fallback.
+  ApiService.post('/student-sessions/register', {
+    projectKey: context?.projectKey,
+    projectId: context?.projectId,
+    sessionId: payload.sessionId,
+    email: payload.email,
+    classCode: payload.class_code,
+    student_name: payload.fullname,
+    moodle_user_id: payload.moodle_user_id,
+    course_id: payload.course_id,
+    course_title: payload.course_title
+  }).catch(() => null);
+}
+
+function readReusableStudentSession(context, email = '', classCode = '') {
+  try {
+    const raw = localStorage.getItem(getVerifiedStudentKey(context, email, classCode));
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    return parsed?.sessionId ? parsed : null;
+  } catch (_) { return null; }
+}
+
+function removeReusableStudentSession(context) {
+  const active = readActiveStudentIdentity(context);
+  if (active?.email && active?.class_code) {
+    localStorage.removeItem(getVerifiedStudentKey(context, active.email, active.class_code));
+  }
+  const host = window.location.host || 'localhost';
+  const projectKey = context?.projectKey || context?.project_key || 'default-project';
+  localStorage.removeItem(`alb:${host}:${projectKey}:active-student`);
+  sessionStorage.removeItem('alb_student_name');
+  sessionStorage.removeItem('alb_student_email');
+  sessionStorage.removeItem('alb_student_class');
+}
+
+function hydrateReusableSessionIfAvailable(context) {
+  const active = readActiveStudentIdentity(context);
+  if (!active?.sessionId) return false;
+  if (context.sessionId && String(context.sessionId) === String(active.sessionId)) return true;
+
+  context.sessionId = active.sessionId;
+  context.contextData = {
+    ...(context.contextData || {}),
+    session_meta: {
+      ...(context.contextData?.session_meta || {}),
+      email: active.email,
+      class_code: active.class_code,
+      moodle_user_id: active.moodle_user_id || null,
+      display_name: active.fullname || active.email,
+      course_id: active.course_id || null,
+      course_title: active.course_title || null,
+      moodle_verified: true
+    }
+  };
+  return true;
+}
+
+
+function ensureDeleteSessionModal(context) {
+  if ($('#alb-delete-session-modal').length) return;
+
+  $('body').append(`
+    <div id="alb-delete-session-modal" class="hidden fixed inset-0 z-[9999] bg-slate-950/55 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-white border border-hairline rounded-2xl shadow-2xl w-full max-w-[430px] overflow-hidden">
+        <div class="p-5 border-b border-hairline">
+          <div class="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-3">
+            <i class="fa-solid fa-trash-can"></i>
+          </div>
+          <h3 class="text-[18px] font-black text-ink mb-1">Hapus session siswa?</h3>
+          <p class="text-[14px] text-muted leading-6">
+            Session siswa yang tersimpan akan dihapus. Setelah itu siswa perlu mulai sesi ulang dari form awal.
+          </p>
+        </div>
+        <div class="p-4 flex items-center justify-end gap-2 bg-canvas-soft">
+          <button type="button" id="alb-cancel-delete-session" class="px-4 py-2 rounded-full border border-hairline bg-white text-[13px] font-bold text-ink hover:bg-surface-strong">Batal</button>
+          <button type="button" id="alb-confirm-delete-session" class="px-4 py-2 rounded-full bg-red-600 text-white text-[13px] font-bold hover:bg-red-700">Ya, hapus</button>
+        </div>
+      </div>
+    </div>
+  `);
+
+  $('#alb-cancel-delete-session').on('click', () => $('#alb-delete-session-modal').addClass('hidden'));
+  $('#alb-delete-session-modal').on('click', function (e) {
+    if (e.target === this) $(this).addClass('hidden');
+  });
+
+  $('#alb-confirm-delete-session').on('click', async function () {
+    const $btn = $(this);
+    const oldText = $btn.html();
+    $btn.prop('disabled', true).addClass('opacity-70 cursor-not-allowed').html('<i class="fa-solid fa-spinner fa-spin mr-1"></i> Menghapus...');
+
+    const oldSessionId = context.sessionId;
+    removeReusableStudentSession(context);
+
+    try {
+      if (oldSessionId) {
+        await ApiService.delete(`/student-sessions/session/${oldSessionId}`).catch(() => null);
+        await ApiService.delete(`/chat/session/${oldSessionId}`).catch(() => null);
+      }
+      Toast.show('Session sudah dihapus. Silakan mulai sesi ulang.', 'success');
+      $('#alb-delete-session-modal').addClass('hidden');
+      setTimeout(() => {
+        window.location.href = `/buddy?projectKey=${encodeURIComponent(context.projectKey || '')}`;
+      }, 450);
+    } catch (error) {
+      console.error('[Delete Session] gagal:', error);
+      Toast.show('Gagal menghapus session.', 'error');
+      $btn.prop('disabled', false).removeClass('opacity-70 cursor-not-allowed').html(oldText);
+    }
+  });
+}
+
+function ensureDeleteSessionButton(context) {
+  const $chip = context.$btnSessionInfo || $('#btn-session-info, #alb-session-chip, [data-alb-session-chip]').first();
+  if (!$chip?.length) return;
+
+  const $header = $chip.closest('header');
+  let $wrap = $('#alb-session-actions-wrap');
+
+  if (!$wrap.length) {
+    $wrap = $('<div id="alb-session-actions-wrap" class="flex items-center gap-2 shrink-0"></div>');
+
+    if ($header.length) {
+      const $deleteExisting = $('#alb-delete-session-btn');
+      $chip.before($wrap);
+      $wrap.append($chip.detach());
+      if ($deleteExisting.length) $wrap.append($deleteExisting.detach());
+    } else {
+      $chip.wrap($wrap);
+      $wrap = $('#alb-session-actions-wrap');
+    }
+  } else if (!$chip.closest('#alb-session-actions-wrap').length) {
+    $wrap.prepend($chip.detach());
+  }
+
+  $chip.removeClass('ml-2').addClass('shrink-0');
+
+  if ($('#alb-delete-session-btn').length) {
+    const $existing = $('#alb-delete-session-btn')
+      .removeClass('ml-2')
+      .addClass('shrink-0')
+      .appendTo($wrap);
+
+    $existing.off('click.albDeleteSession').on('click.albDeleteSession', () => {
+      ensureDeleteSessionModal(context);
+      $('#alb-delete-session-modal').removeClass('hidden');
+    });
+    return;
+  }
+
+  const $btn = $(`
+    <button type="button" id="alb-delete-session-btn" class="inline-flex items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600 hover:bg-red-100 transition-colors shrink-0" title="Hapus session siswa tersimpan">
+      <i class="fa-solid fa-trash-can"></i>
+      <span class="hidden sm:inline">Hapus Session</span>
+    </button>
+  `);
+
+  $wrap.append($btn);
+  $btn.on('click', () => {
+    ensureDeleteSessionModal(context);
+    $('#alb-delete-session-modal').removeClass('hidden');
+  });
+}
+
+function findExternalSessionFields() {
+  const $email = $('#alb-student-email, #student-email, #student_email, input[name="student_email"], input[name="email"]').filter(':visible').first();
+  const $class = $('#alb-student-class, #student-class, #student_class, select[name="classCode"], select[name="class_code"], select[name="kelas"]').filter(':visible').first();
+  const $start = $('#alb-btn-start-session, #btn-start-session, [data-alb-start-session], button:contains("Mulai sesi"), button:contains("Mulai Sesi")').filter(':visible').first();
+  return { $email, $class, $start };
+}
+
+function bindExternalSessionGate(context) {
+  const { $email, $class, $start } = findExternalSessionFields();
+  if (!$start.length || $start.data('albGateBound')) return;
+  $start.data('albGateBound', true);
+
+  let verifiedIdentity = null;
+  const setStartEnabled = (enabled, message = '') => {
+    $start.prop('disabled', !enabled)
+      .toggleClass('opacity-60 cursor-not-allowed', !enabled)
+      .attr('title', enabled ? 'Mulai sesi AI Buddy' : (message || 'Isi email dan kelas terlebih dahulu'));
+  };
+
+  const validate = async () => {
+    const email = String($email.val() || '').trim().toLowerCase();
+    const classCode = String($class.val() || '').trim().toUpperCase();
+    verifiedIdentity = null;
+
+    if (!email || !email.includes('@') || !classCode) {
+      setStartEnabled(false, 'Isi email Moodle dan kelas terlebih dahulu.');
+      return;
+    }
+
+    const reusable = readReusableStudentSession(context, email, classCode);
+    if (reusable?.sessionId) {
+      context.sessionId = reusable.sessionId;
+      persistReusableStudentSession(context, reusable);
+      verifiedIdentity = reusable;
+      setStartEnabled(true);
+      Toast.show('Session lama siswa ditemukan. Sesi akan dilanjutkan.', 'success');
+      return;
+    }
+
+    const reuseQuery = new URLSearchParams({ projectKey: context.projectKey || '', projectId: context.projectId || '', email, classCode }).toString();
+    const reuseRes = await ApiService.get(`/student-sessions/reuse?${reuseQuery}`).catch(() => null);
+    if (reuseRes?.status === 'success' && reuseRes.data?.found && reuseRes.data?.session?.session_id) {
+      const oldSession = reuseRes.data.session;
+      const reusableFromDb = {
+        sessionId: oldSession.session_id,
+        email: oldSession.student_email || email,
+        class_code: oldSession.class_code || classCode,
+        fullname: oldSession.student_name || '',
+        moodle_user_id: oldSession.moodle_user_id || null,
+        course_id: oldSession.course_id || null,
+        course_title: oldSession.course_title || ''
+      };
+      context.sessionId = reusableFromDb.sessionId;
+      persistReusableStudentSession(context, reusableFromDb);
+      verifiedIdentity = reusableFromDb;
+      setStartEnabled(true);
+      Toast.show('Session lama siswa ditemukan dari server. Sesi dilanjutkan.', 'success');
+      return;
+    }
+
+    setStartEnabled(false, 'Sedang memvalidasi email ke Moodle...');
+    const res = await ApiService.post('/moodle/student/resolve', {
+      projectKey: context.projectKey,
+      projectId: context.projectId,
+      sessionId: context.sessionId,
+      email,
+      classCode
+    });
+
+    if (res?.status === 'success' && res.data?.found) {
+      verifiedIdentity = { ...res.data, email, class_code: res.data.class_code || classCode, sessionId: context.sessionId };
+      persistReusableStudentSession(context, verifiedIdentity);
+      sessionStorage.setItem('alb_student_email', email);
+      sessionStorage.setItem('alb_student_class', verifiedIdentity.class_code || classCode);
+      setStartEnabled(true);
+      Toast.show('Email Moodle valid. Sesi bisa dimulai.', 'success');
+    } else {
+      setStartEnabled(false, res?.data?.message || res?.message || 'Email tidak ditemukan di kelas tersebut.');
+      Toast.show(res?.data?.message || res?.message || 'Email tidak ditemukan di Moodle untuk kelas itu.', 'error');
+    }
+  };
+
+  setStartEnabled(false, 'Isi email Moodle dan kelas terlebih dahulu.');
+  $email.add($class).on('input change blur', () => {
+    clearTimeout(window.__albSessionGateTimer);
+    window.__albSessionGateTimer = setTimeout(validate, 450);
+  });
+
+  $start.on('click', (event) => {
+    const email = String($email.val() || '').trim().toLowerCase();
+    const classCode = String($class.val() || '').trim().toUpperCase();
+    const reusable = readReusableStudentSession(context, email, classCode);
+    if (reusable?.sessionId) {
+      context.sessionId = reusable.sessionId;
+      persistReusableStudentSession(context, reusable);
+      return;
+    }
+    if (!verifiedIdentity) {
+      event.preventDefault();
+      event.stopImmediatePropagation();
+      validate();
+    }
+  });
+}
+
+function decorateAiUsageAutoReset(context) {
+  if (context.__albAiUsageDecorated || typeof context.updateAiUsageUI !== 'function') return;
+  context.__albAiUsageDecorated = true;
+
+  const original = context.updateAiUsageUI.bind(context);
+  context.updateAiUsageUI = (usage = {}) => {
+    original(usage);
+    context.aiUsage = { ...(context.aiUsage || {}), ...(usage || {}) };
+
+    const used = Number(usage.used || 0);
+    const max = Number(usage.max || 3);
+    const isCooling = Boolean(usage.cooldown_active) || Number(usage.cooldown_remaining_seconds || 0) > 0;
+
+    if (window.__albAiChipResetTimer) clearTimeout(window.__albAiChipResetTimer);
+
+    if (used > 0 && !isCooling) {
+      const resetMs = Number(window.__ALB_AI_USAGE_RESET_MS || 180000);
+      window.__albAiChipResetTimer = setTimeout(() => {
+        context.aiUsage = { ...(context.aiUsage || {}), used: 0, max, remaining: max, limit_reached: false, cooldown_active: false, cooldown_remaining_seconds: 0, canUseAI: true };
+        original(context.aiUsage);
+      }, resetMs);
+    }
+  };
+}
+
+function selfHealDisabledInput(context) {
+  const hasWaitingFeedback = context.$chatArea?.find('.alb-system-message-wrap[data-waiting-feedback="1"]').length > 0;
+  const hasLock = $('#alb-global-lock-overlay').length > 0 || Boolean(readPersistedLockdown(context));
+  const hasCooldown = $('#alb-global-cooldown-overlay').length > 0 || isCooldownBlocking(context);
+  if (!hasWaitingFeedback && !hasLock && !hasCooldown && context.$inputArea?.prop('disabled')) {
+    enableChatInputAfterFeedback(context);
+  }
+}
+
+function registerAlbPwa(context) {
+  if (!('serviceWorker' in navigator) || window.__albPwaRegistered) return;
+  window.__albPwaRegistered = true;
+  navigator.serviceWorker.register('/sw.js').catch(() => {});
+
+  const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone;
+  const active = readActiveStudentIdentity(context);
+  if (standalone && !active?.sessionId && !sessionStorage.getItem('alb_pwa_vclass_hint_shown')) {
+    sessionStorage.setItem('alb_pwa_vclass_hint_shown', '1');
+    $('body').append(`
+      <div id="alb-pwa-first-run" class="fixed inset-0 z-[100001] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
+        <div class="max-w-[460px] w-full rounded-3xl bg-white p-6 shadow-2xl text-center">
+          <div class="w-16 h-16 mx-auto rounded-full bg-primary/10 text-primary flex items-center justify-center text-2xl mb-4"><i class="fa-solid fa-mobile-screen-button"></i></div>
+          <h2 class="text-[22px] font-black text-ink mb-2">Mulai dari VClass dulu</h2>
+          <p class="text-[14px] text-body leading-6 mb-5">Untuk mengaitkan akun dan kelas, buka VClass lalu tekan tombol AI Learning Buddy di pojok kanan bawah. Setelah email dan kelas valid, aplikasi akan melanjutkan session yang sama.</p>
+          <div class="flex gap-2 justify-center">
+            <a href="${LMS_BASE_URL}/my/courses.php" class="bg-primary text-white rounded-full px-4 py-2 text-[13px] font-bold">Buka VClass</a>
+            <button type="button" id="alb-pwa-first-run-close" class="border border-hairline rounded-full px-4 py-2 text-[13px] font-bold text-muted">Nanti</button>
+          </div>
+        </div>
+      </div>
+    `);
+    $('#alb-pwa-first-run-close').on('click', () => $('#alb-pwa-first-run').remove());
+  }
+}
+
+function getNotesIdentity(context) {
+  const active = readActiveStudentIdentity(context) || {};
+  const meta = context.contextData?.session_meta || {};
+  return {
+    projectKey: context.projectKey || '',
+    projectId: context.projectId || '',
+    sessionId: context.sessionId || active.sessionId || '',
+    student_email: active.email || meta.email || sessionStorage.getItem('alb_student_email') || '',
+    class_code: active.class_code || meta.class_code || sessionStorage.getItem('alb_student_class') || '',
+    student_name: active.fullname || meta.display_name || sessionStorage.getItem('alb_student_name') || ''
+  };
+}
+
+function ensureStudentNotesMenu(context) {
+  const $guide = context.$tabContentGuide?.length ? context.$tabContentGuide : $('#tab-content-guide');
+  if (!$guide.length || $guide.find('[data-alb-notes-menu="1"]').length) return;
+
+  $guide.append(`
+    <div data-alb-notes-menu="1" class="mt-5 pt-4 border-t border-hairline space-y-3">
+      <div class="px-1">
+        <div class="text-[10px] font-black uppercase tracking-[0.12em] text-muted flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary/60"></span>Menu Catatan</div>
+        <div class="text-[11px] text-muted-soft mt-0.5 leading-snug">Catatan kecil yang disimpan sistem, bukan AI.</div>
+      </div>
+      <div class="space-y-2.5">
+        <button type="button" id="alb-note-add-btn" class="w-full text-left bg-white hover:bg-canvas-soft border border-hairline rounded-xl px-3 py-3 flex items-center gap-3 transition-colors"><i class="fa-solid fa-note-sticky text-amber-500"></i><span><b class="block text-[13px] text-ink">Tambah Catatan</b><small class="text-[11px] text-muted-soft">Simpan pengingat singkat</small></span></button>
+        <button type="button" id="alb-note-list-btn" class="w-full text-left bg-white hover:bg-canvas-soft border border-hairline rounded-xl px-3 py-3 flex items-center gap-3 transition-colors"><i class="fa-solid fa-table-list text-primary"></i><span><b class="block text-[13px] text-ink">Lihat Catatan</b><small class="text-[11px] text-muted-soft">Cari, edit, dan hapus catatan</small></span></button>
+      </div>
+    </div>
+  `);
+
+  $('#alb-note-add-btn').on('click', () => openStudentNotesModal(context, 'add'));
+  $('#alb-note-list-btn').on('click', () => openStudentNotesModal(context, 'list'));
+}
+
+function ensureStudentNotesModal() {
+  if ($('#alb-student-notes-modal').length) return;
+  $('body').append(`
+    <div id="alb-student-notes-modal" class="hidden fixed inset-0 z-[9700] bg-slate-950/60 backdrop-blur-sm p-3 md:p-6">
+      <div class="bg-surface-card w-full max-w-[900px] mx-auto h-full md:h-[86vh] rounded-2xl shadow-2xl border border-hairline flex flex-col overflow-hidden">
+        <div class="px-4 py-3 border-b border-hairline bg-white flex items-center justify-between gap-3 shrink-0">
+          <div>
+            <div id="alb-notes-modal-title" class="text-[15px] font-black text-ink">Catatan Siswa</div>
+            <div class="text-[11px] text-muted-soft">Data disimpan oleh sistem, bukan jawaban AI.</div>
+          </div>
+          <button type="button" id="alb-notes-close" class="w-9 h-9 rounded-full bg-surface-strong border border-hairline text-ink hover:bg-hairline"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div class="md:hidden p-3 bg-white border-b border-hairline shrink-0">
+          <div class="grid grid-cols-2 gap-2 bg-canvas-soft border border-hairline rounded-2xl p-1">
+            <button type="button" id="alb-note-tab-add" class="alb-note-tab rounded-xl px-3 py-2 text-[12px] font-black transition-colors" data-note-tab="add"><i class="fa-solid fa-plus mr-1"></i>Tambah</button>
+            <button type="button" id="alb-note-tab-list" class="alb-note-tab rounded-xl px-3 py-2 text-[12px] font-black transition-colors" data-note-tab="list"><i class="fa-solid fa-list mr-1"></i>Lihat</button>
+          </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-[320px_1fr] flex-1 min-h-0 overflow-hidden">
+          <section id="alb-note-panel-add" class="alb-note-panel border-b md:border-b-0 md:border-r border-hairline bg-canvas-soft p-4 overflow-y-auto">
+            <form id="alb-note-form" class="space-y-3">
+              <input type="hidden" id="alb-note-id" value="">
+              <div>
+                <label class="block text-[12px] font-bold text-muted mb-1">Judul Catatan</label>
+                <input id="alb-note-title" class="w-full bg-white border border-hairline rounded-xl px-3 py-2 text-[13px] outline-none focus:border-primary" placeholder="Contoh: Password VClass" required>
+              </div>
+              <div>
+                <label class="block text-[12px] font-bold text-muted mb-1">Isi Catatan</label>
+                <textarea id="alb-note-content" class="w-full bg-white border border-hairline rounded-xl px-3 py-2 text-[13px] min-h-[160px] md:min-h-[120px] resize-y outline-none focus:border-primary" placeholder="Tulis catatan singkat yang ingin kamu ingat..." required></textarea>
+              </div>
+              <div class="flex gap-2">
+                <button type="submit" class="flex-1 bg-primary text-white rounded-xl px-3 py-2 text-[13px] font-bold">Simpan</button>
+                <button type="button" id="alb-note-reset" class="border border-hairline bg-white rounded-xl px-3 py-2 text-[13px] font-bold text-muted">Reset</button>
+              </div>
+            </form>
+          </section>
+
+          <section id="alb-note-panel-list" class="alb-note-panel p-4 overflow-y-auto">
+            <div class="flex flex-col md:flex-row gap-2 md:items-center md:justify-between mb-3">
+              <input id="alb-note-search" class="w-full md:max-w-[320px] bg-white border border-hairline rounded-xl px-3 py-2 text-[13px] outline-none focus:border-primary" placeholder="Cari catatan...">
+              <div id="alb-note-page-info" class="text-[12px] text-muted-soft"></div>
+            </div>
+            <div class="overflow-x-auto border border-hairline rounded-xl bg-white">
+              <table class="w-full text-[13px]">
+                <thead class="bg-canvas-soft text-muted"><tr><th class="text-left p-3">Judul</th><th class="text-left p-3">Isi</th><th class="text-left p-3 w-[140px]">Aksi</th></tr></thead>
+                <tbody id="alb-note-table-body"><tr><td colspan="3" class="p-4 text-center text-muted-soft">Memuat...</td></tr></tbody>
+              </table>
+            </div>
+            <div class="mt-3 flex items-center justify-end gap-2"><button id="alb-note-prev" type="button" class="border border-hairline bg-white rounded-lg px-3 py-1.5 text-[12px] font-bold text-muted">Prev</button><button id="alb-note-next" type="button" class="border border-hairline bg-white rounded-lg px-3 py-1.5 text-[12px] font-bold text-muted">Next</button></div>
+          </section>
+        </div>
+      </div>
+    </div>
+  `);
+  $('#alb-notes-close').on('click', () => $('#alb-student-notes-modal').addClass('hidden'));
+}
+
+function setStudentNotesTab(tab = 'list') {
+  const active = tab === 'add' ? 'add' : 'list';
+
+  $('.alb-note-tab')
+    .removeClass('bg-white text-ink shadow-sm')
+    .addClass('text-muted');
+  $(`.alb-note-tab[data-note-tab="${active}"]`)
+    .addClass('bg-white text-ink shadow-sm')
+    .removeClass('text-muted');
+
+  // Mobile: form dan tabel dipisah tab. Desktop tetap split 2 kolom.
+  $('#alb-note-panel-add, #alb-note-panel-list').removeClass('hidden');
+  if (window.matchMedia('(max-width: 767px)').matches) {
+    if (active === 'add') {
+      $('#alb-note-panel-add').removeClass('hidden');
+      $('#alb-note-panel-list').addClass('hidden');
+    } else {
+      $('#alb-note-panel-add').addClass('hidden');
+      $('#alb-note-panel-list').removeClass('hidden');
+    }
+  }
+}
+
+function getLocalNoteKey(context) {
+  const identity = getNotesIdentity(context);
+  return `alb:${window.location.host}:${identity.projectKey || identity.projectId || 'project'}:notes:${identity.student_email || identity.sessionId || 'anon'}`;
+}
+
+function readLocalNotes(context) {
+  try { return JSON.parse(localStorage.getItem(getLocalNoteKey(context)) || '[]'); } catch (_) { return []; }
+}
+
+function writeLocalNotes(context, notes) {
+  localStorage.setItem(getLocalNoteKey(context), JSON.stringify(notes || []));
+}
+
+function openStudentNotesModal(context, mode = 'list') {
+  ensureStudentNotesModal();
+  $('#alb-student-notes-modal').removeClass('hidden');
+  $('.alb-note-tab').off('click').on('click', function () { setStudentNotesTab($(this).data('note-tab')); });
+  $(window).off('resize.albNotesTabs').on('resize.albNotesTabs', () => setStudentNotesTab($('#alb-note-tab-add').hasClass('bg-white') ? 'add' : 'list'));
+  setStudentNotesTab(mode === 'add' ? 'add' : 'list');
+
+  let state = { page: 1, limit: 5, q: '' };
+  const identity = getNotesIdentity(context);
+
+  const resetForm = () => {
+    $('#alb-note-id').val('');
+    $('#alb-note-title').val('');
+    $('#alb-note-content').val('');
+  };
+
+  const renderRows = (items = [], total = 0) => {
+    const rows = items.map((note) => `
+      <tr class="border-t border-hairline">
+        <td class="p-3 align-top font-semibold text-ink">${escapeHtml(note.title)}</td>
+        <td class="p-3 align-top text-body max-w-[360px]"><div class="line-clamp-3">${escapeHtml(note.content)}</div></td>
+        <td class="p-3 align-top"><div class="flex gap-1.5"><button class="alb-note-edit bg-sky-50 text-sky-700 border border-sky-100 rounded-lg px-2 py-1 text-[11px] font-bold" data-id="${escapeHtml(note.id)}">Edit</button><button class="alb-note-delete bg-red-50 text-red-700 border border-red-100 rounded-lg px-2 py-1 text-[11px] font-bold" data-id="${escapeHtml(note.id)}">Hapus</button></div></td>
+      </tr>`).join('');
+    $('#alb-note-table-body').html(rows || '<tr><td colspan="3" class="p-4 text-center text-muted-soft">Belum ada catatan.</td></tr>');
+    const maxPage = Math.max(1, Math.ceil(Number(total || items.length || 0) / state.limit));
+    $('#alb-note-page-info').text(`Halaman ${state.page}/${maxPage} · ${total || items.length} catatan`);
+    $('#alb-note-prev').prop('disabled', state.page <= 1).toggleClass('opacity-50', state.page <= 1);
+    $('#alb-note-next').prop('disabled', state.page >= maxPage).toggleClass('opacity-50', state.page >= maxPage);
+  };
+
+  const loadNotes = async () => {
+    const query = new URLSearchParams({ ...identity, page: state.page, limit: state.limit, q: state.q }).toString();
+    const res = await ApiService.get(`/student-notes?${query}`).catch(() => null);
+    if (res?.status === 'success') {
+      renderRows(res.data?.items || [], res.data?.total || 0);
+      return;
+    }
+    const all = readLocalNotes(context).filter((note) => !state.q || `${note.title} ${note.content}`.toLowerCase().includes(state.q.toLowerCase()));
+    const start = (state.page - 1) * state.limit;
+    renderRows(all.slice(start, start + state.limit), all.length);
+  };
+
+  $('#alb-note-form').off('submit').on('submit', async (e) => {
+    e.preventDefault();
+    const id = $('#alb-note-id').val();
+    const payload = { ...identity, title: $('#alb-note-title').val().trim(), content: $('#alb-note-content').val().trim() };
+    if (!payload.title || !payload.content) return Toast.show('Judul dan isi catatan wajib diisi.', 'warning');
+
+    const res = id
+      ? await ApiService.put(`/student-notes/${id}`, payload).catch(() => null)
+      : await ApiService.post('/student-notes', payload).catch(() => null);
+
+    if (!res || res.status !== 'success') {
+      const notes = readLocalNotes(context);
+      if (id) {
+        const idx = notes.findIndex((n) => String(n.id) === String(id));
+        if (idx >= 0) notes[idx] = { ...notes[idx], ...payload, updated_at: new Date().toISOString() };
+      } else {
+        notes.unshift({ id: `local-${Date.now()}`, ...payload, created_at: new Date().toISOString() });
+      }
+      writeLocalNotes(context, notes);
+    }
+
+    resetForm();
+    Toast.show('Catatan berhasil disimpan.', 'success');
+    loadNotes();
+    if (window.matchMedia('(max-width: 767px)').matches) setStudentNotesTab('list');
+  });
+
+  $('#alb-note-reset').off('click').on('click', resetForm);
+  $('#alb-note-search').off('input').on('input', function () { state.q = $(this).val().trim(); state.page = 1; clearTimeout(window.__albNoteSearchTimer); window.__albNoteSearchTimer = setTimeout(loadNotes, 300); });
+  $('#alb-note-prev').off('click').on('click', () => { if (state.page > 1) { state.page -= 1; loadNotes(); } });
+  $('#alb-note-next').off('click').on('click', () => { state.page += 1; loadNotes(); });
+  $('#alb-note-table-body').off('click', '.alb-note-edit').on('click', '.alb-note-edit', async function () {
+    const id = $(this).data('id');
+    const local = readLocalNotes(context).find((n) => String(n.id) === String(id));
+    const note = local || {};
+    $('#alb-note-id').val(id);
+    $('#alb-note-title').val(note.title || $(this).closest('tr').find('td').eq(0).text().trim());
+    $('#alb-note-content').val(note.content || $(this).closest('tr').find('td').eq(1).text().trim());
+    setStudentNotesTab('add');
+    setTimeout(() => $('#alb-note-title').focus(), 80);
+  });
+  $('#alb-note-table-body').off('click', '.alb-note-delete').on('click', '.alb-note-delete', async function () {
+    const id = $(this).data('id');
+    if (!confirm('Hapus catatan ini?')) return;
+    const res = await ApiService.delete(`/student-notes/${id}`).catch(() => null);
+    if (!res || res.status !== 'success') writeLocalNotes(context, readLocalNotes(context).filter((n) => String(n.id) !== String(id)));
+    loadNotes();
+  });
+
+  if (mode === 'add') $('#alb-note-title').focus();
+  loadNotes();
+}
+
 export function bindWorkspaceEvents() {
   let suggestionTimer = null;
+
+  hydrateReusableSessionIfAvailable(this);
+  decorateAiUsageAutoReset(this);
+  registerAlbPwa(this);
+  applyPersistedCooldownIfNeeded(this);
+  applyPersistedLockdownIfNeeded(this);
+  selfHealDisabledInput(this);
 
   bindSidebarTabs(this);
   bindContextDrawer(this);
@@ -410,6 +1227,9 @@ export function bindWorkspaceEvents() {
   bindUnlockForm(this);
   bindChatActionButtons(this);
   bindModeSelector(this);
+  bindExternalSessionGate(this);
+  ensureDeleteSessionButton(this);
+  ensureStudentNotesMenu(this);
 }
 
 function bindSidebarTabs(context) {
@@ -471,7 +1291,7 @@ function bindInputEvents(context, getSuggestionTimer, setSuggestionTimer) {
 
       if (context.isRequesting || context.aiUsage?.cooldown_active) return;
 
-      const triggerSuggestions = context.getTriggerSuggestions?.(trimmedVal) || [];
+      const triggerSuggestions = sanitizeSuggestionList(context.getTriggerSuggestions?.(trimmedVal) || []);
       if (triggerSuggestions.length > 0) {
         context.renderCentralSuggestionChips?.(triggerSuggestions, 'trigger');
       }
@@ -481,13 +1301,13 @@ function bindInputEvents(context, getSuggestionTimer, setSuggestionTimer) {
         const latestValue = context.$inputArea.val().trim();
         if (!latestValue || context.isRequesting || context.aiUsage?.cooldown_active) return;
 
-        const canonicalSuggestions = getCanonicalSuggestions(latestValue);
+        const canonicalSuggestions = sanitizeSuggestionList(getCanonicalSuggestions(latestValue));
         if (canonicalSuggestions.length > 0) {
           context.renderCentralSuggestionChips?.(canonicalSuggestions, 'canonical');
           return;
         }
 
-        const currentTriggers = context.getTriggerSuggestions?.(latestValue) || [];
+        const currentTriggers = sanitizeSuggestionList(context.getTriggerSuggestions?.(latestValue) || []);
         if (currentTriggers.length === 0) {
           context.hideSuggestionWrapper?.();
         } else if (context.currentSuggestionSource === 'canonical') {
@@ -653,6 +1473,8 @@ function bindUnlockForm(context) {
       const res = await ApiService.post('/chat/unlock', { sessionId: context.sessionId, key });
 
       if (res?.status === 'success') {
+        persistLockdown(context, false);
+        $('#alb-global-lock-overlay').remove();
         context.handleLockdown(false);
         Toast.show('Chat berhasil dibuka kembali.', 'success');
         context.appendBubble(
@@ -982,6 +1804,8 @@ function markSingleChatButtonClicked($btn, options = {}) {
 function enableChatInputAfterFeedback(context) {
   if (!context?.$inputArea?.length || !context?.$btnSend?.length) return;
   if (context.isLocked) return;
+  $('#alb-input-locked-notice').addClass('hidden');
+  context.hideInputLockedNoticeExternal?.();
   context.$inputArea
     .prop('disabled', false)
     .attr('placeholder', 'Tanya sesuatu atau pilih elemen...')
@@ -1010,192 +1834,99 @@ function paginateLmsTableFromButton($btn) {
 }
 
 
-function buildMaterialReaderHtml(item = {}) {
+function buildMoodleMaterialReaderHtml(item = {}) {
   const title = escapeHtml(item.title || 'Materi Moodle');
   const topic = escapeHtml(item.topic || item.class_code || 'Materi');
   const badge = escapeHtml((item.modname || item.file_type || 'html').toString().toUpperCase());
   const sourceUrl = escapeHtml(item.url || item.source_url || item.file_url || '');
-  const rawSnippets = Array.isArray(item.snippets) && item.snippets.length
-    ? item.snippets
-    : [item.content || item.preview || 'Materi ini sudah tersinkron ke AI Buddy. Untuk halaman Moodle asli, gunakan tombol Tab Baru.'];
-
-  const normalizedSnippets = rawSnippets
-    .map((snippet) => String(snippet || '').replace(/\s+/g, ' ').trim())
+  const snippets = (Array.isArray(item.snippets) && item.snippets.length ? item.snippets : [item.content || item.preview || 'Materi ini sudah tersinkron ke AI Buddy.'])
+    .map((v) => String(v || '').replace(/\s+/g, ' ').trim())
     .filter(Boolean)
     .slice(0, 8);
-
-  const bodyHtml = normalizedSnippets
-    .map((snippet, index) => {
-      const text = escapeHtml(snippet);
-      return `
-        <section class="alb-reader-section bg-white border border-hairline rounded-2xl p-4 md:p-5 shadow-sm">
-          <div class="text-[11px] font-black text-muted-soft uppercase tracking-wider mb-2">Bagian ${index + 1}</div>
-          <p class="text-[14px] md:text-[15px] leading-7 text-ink whitespace-pre-wrap">${text}</p>
-        </section>`;
-    })
-    .join('');
-
+  const sections = snippets.map((text, idx) => `
+    <section class="bg-white border border-hairline rounded-2xl p-4 md:p-5 shadow-sm">
+      <div class="text-[11px] font-black text-muted-soft uppercase tracking-wider mb-2">Bagian ${idx + 1}</div>
+      <p class="text-[14px] md:text-[15px] leading-7 text-ink whitespace-pre-wrap">${escapeHtml(text)}</p>
+    </section>`).join('');
   return `
-    <div class="alb-reader-local max-w-[920px] mx-auto p-4 md:p-7 space-y-4 md:space-y-5">
+    <div class="max-w-[920px] mx-auto p-4 md:p-7 space-y-4 md:space-y-5">
       <section class="bg-white border border-hairline rounded-3xl p-5 md:p-7 shadow-sm">
-        <div class="inline-flex items-center gap-2 bg-primary/10 text-primary border border-primary/15 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-wider">
-          ${badge} · Materi tersinkron
-        </div>
+        <div class="inline-flex items-center gap-2 bg-primary/10 text-primary border border-primary/15 rounded-full px-3 py-1.5 text-[11px] font-black uppercase tracking-wider">${badge} · Materi tersinkron</div>
         <h1 class="mt-4 text-[26px] md:text-[38px] leading-tight font-black text-ink tracking-tight">${title}</h1>
         <div class="mt-1 text-[13px] md:text-[15px] text-muted-soft">${topic}</div>
-
         <div class="alb-reader-note mt-5 bg-amber-50 border border-amber-100 text-amber-800 rounded-2xl p-4 flex items-start gap-3">
           <i class="fa-solid fa-circle-info mt-1 shrink-0"></i>
-          <div class="flex-1 text-[13px] md:text-[14px] leading-6">
-            <b>Catatan desain:</b> tampilan ini adalah versi reader yang sudah diperbaiki dari materi tersinkron, bukan iframe Moodle asli. Catatan ini bisa ditutup dengan tombol silang, dan akan muncul lagi setelah halaman di-refresh.
-          </div>
-          <button type="button" class="alb-reader-note-close w-8 h-8 rounded-full bg-white/70 border border-amber-100 text-amber-800 hover:bg-white shrink-0" aria-label="Tutup catatan">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
+          <div class="flex-1 text-[13px] md:text-[14px] leading-6"><b>Catatan desain:</b> tampilan ini adalah reader dari materi yang sudah tersinkron. Catatan ini bisa ditutup dan akan muncul lagi setelah halaman di-refresh.</div>
+          <button type="button" class="alb-reader-note-close w-8 h-8 rounded-full bg-white/70 border border-amber-100 text-amber-800 hover:bg-white shrink-0"><i class="fa-solid fa-xmark"></i></button>
         </div>
       </section>
-
-      ${bodyHtml || '<section class="bg-white border border-hairline rounded-2xl p-5 text-body">Belum ada cuplikan materi untuk ditampilkan.</section>'}
-
+      ${sections || '<section class="bg-white border border-hairline rounded-2xl p-5 text-body">Belum ada cuplikan materi untuk ditampilkan.</section>'}
       ${sourceUrl ? `<div class="text-[12px] text-muted-soft break-all px-1">Sumber Moodle: ${sourceUrl}</div>` : ''}
     </div>`;
 }
 
 function ensureMoodleMaterialModal() {
   if ($('#alb-moodle-material-modal').length) return;
-
   $('body').append(`
     <div id="alb-moodle-material-modal" class="hidden fixed inset-0 z-[9800] bg-slate-950/70 backdrop-blur-sm p-2 md:p-6">
       <div class="relative bg-surface-card w-full h-full rounded-2xl shadow-2xl border border-hairline flex flex-col overflow-hidden">
         <div class="px-3 md:px-4 py-3 border-b border-hairline bg-white flex items-center justify-between gap-3">
           <div class="flex items-center gap-2 min-w-0">
-            <button type="button" id="alb-moodle-material-menu" class="md:hidden w-9 h-9 rounded-full bg-surface-strong border border-hairline text-ink hover:bg-hairline shrink-0" aria-label="Buka daftar materi">
-              <i class="fa-solid fa-bars"></i>
-            </button>
-            <div class="min-w-0">
-              <div id="alb-moodle-material-title" class="text-[14px] font-black text-ink truncate">Materi Moodle</div>
-              <div id="alb-moodle-material-subtitle" class="text-[11px] text-muted-soft truncate">Pilih materi untuk dibuka</div>
-            </div>
+            <button type="button" id="alb-moodle-material-menu" class="md:hidden w-9 h-9 rounded-full bg-surface-strong border border-hairline text-ink hover:bg-hairline shrink-0"><i class="fa-solid fa-bars"></i></button>
+            <div class="min-w-0"><div id="alb-moodle-material-title" class="text-[14px] font-black text-ink truncate">Materi Terkait</div><div id="alb-moodle-material-subtitle" class="text-[11px] text-muted-soft truncate">Pilih materi</div></div>
           </div>
-          <div class="flex items-center gap-2 shrink-0">
-            <button type="button" id="alb-moodle-material-open-tab" class="hidden inline-flex items-center gap-1.5 bg-primary text-white px-3 py-2 rounded-full text-[12px] font-bold">
-              <i class="fa-solid fa-up-right-from-square"></i> Tab Baru
-            </button>
-            <button type="button" id="alb-moodle-material-close" class="w-9 h-9 rounded-full bg-surface-strong border border-hairline text-ink hover:bg-hairline">
-              <i class="fa-solid fa-xmark"></i>
-            </button>
-          </div>
+          <div class="flex items-center gap-2 shrink-0"><button type="button" id="alb-moodle-material-open-tab" class="hidden inline-flex items-center gap-1.5 bg-primary text-white px-3 py-2 rounded-full text-[12px] font-bold"><i class="fa-solid fa-up-right-from-square"></i> Tab Baru</button><button type="button" id="alb-moodle-material-close" class="w-9 h-9 rounded-full bg-surface-strong border border-hairline text-ink hover:bg-hairline"><i class="fa-solid fa-xmark"></i></button></div>
         </div>
-
         <div class="relative grid grid-cols-1 md:grid-cols-[300px_1fr] flex-1 min-h-0 overflow-hidden">
           <div id="alb-moodle-material-sidebar-shade" class="hidden md:hidden absolute inset-0 z-20 bg-slate-950/45"></div>
-
           <aside id="alb-moodle-material-sidebar" class="absolute md:relative inset-y-0 left-0 z-30 w-[82%] max-w-[320px] md:w-auto md:max-w-none -translate-x-full md:translate-x-0 transition-transform duration-300 border-r border-hairline bg-canvas-soft overflow-y-auto p-3 shadow-2xl md:shadow-none">
-            <div class="flex items-center justify-between gap-2 mb-3">
-              <div class="text-[11px] font-black text-muted-soft uppercase tracking-wider">Daftar Materi</div>
-              <button type="button" id="alb-moodle-material-sidebar-close" class="md:hidden w-8 h-8 rounded-full bg-white border border-hairline text-ink">
-                <i class="fa-solid fa-xmark"></i>
-              </button>
-            </div>
+            <div class="flex items-center justify-between gap-2 mb-3"><div class="text-[11px] font-black text-muted-soft uppercase tracking-wider">Daftar Materi</div><button type="button" id="alb-moodle-material-sidebar-close" class="md:hidden w-8 h-8 rounded-full bg-white border border-hairline text-ink"><i class="fa-solid fa-xmark"></i></button></div>
             <div id="alb-moodle-material-list" class="space-y-2"></div>
           </aside>
-
-          <section class="flex flex-col min-h-0 bg-canvas">
-            <div id="alb-moodle-material-reader" class="w-full flex-1 overflow-y-auto bg-canvas"></div>
-          </section>
+          <section class="flex flex-col min-h-0 bg-canvas"><div id="alb-moodle-material-reader" class="w-full flex-1 overflow-y-auto bg-canvas"></div></section>
         </div>
       </div>
     </div>
   `);
-
-  const closeSidebar = () => {
-    $('#alb-moodle-material-sidebar').addClass('-translate-x-full');
-    $('#alb-moodle-material-sidebar-shade').addClass('hidden');
-  };
-
-  const openSidebar = () => {
-    $('#alb-moodle-material-sidebar').removeClass('-translate-x-full');
-    $('#alb-moodle-material-sidebar-shade').removeClass('hidden');
-  };
-
+  const closeSidebar = () => { $('#alb-moodle-material-sidebar').addClass('-translate-x-full'); $('#alb-moodle-material-sidebar-shade').addClass('hidden'); };
+  const openSidebar = () => { $('#alb-moodle-material-sidebar').removeClass('-translate-x-full'); $('#alb-moodle-material-sidebar-shade').removeClass('hidden'); };
   $('#alb-moodle-material-menu').on('click', openSidebar);
   $('#alb-moodle-material-sidebar-close, #alb-moodle-material-sidebar-shade').on('click', closeSidebar);
-
-  $('#alb-moodle-material-close').on('click', () => {
-    $('#alb-moodle-material-reader').empty();
-    $('#alb-moodle-material-modal').addClass('hidden');
-    closeSidebar();
-    $('body').css('overflow', '');
-  });
-
-  $('#alb-moodle-material-open-tab').on('click', () => {
-    const url = $('#alb-moodle-material-open-tab').attr('data-url') || '';
-    if (url) window.open(url, '_blank', 'noopener,noreferrer');
-  });
-
-  $('#alb-moodle-material-reader').on('click', '.alb-reader-note-close', function () {
-    $(this).closest('.alb-reader-note').slideUp(160, function () { $(this).remove(); });
-  });
+  $('#alb-moodle-material-close').on('click', () => { $('#alb-moodle-material-reader').empty(); $('#alb-moodle-material-modal').addClass('hidden'); closeSidebar(); $('body').css('overflow', ''); });
+  $('#alb-moodle-material-open-tab').on('click', () => { const url = $('#alb-moodle-material-open-tab').attr('data-url') || ''; if (url) window.open(url, '_blank', 'noopener,noreferrer'); });
+  $('#alb-moodle-material-reader').on('click', '.alb-reader-note-close', function () { $(this).closest('.alb-reader-note').slideUp(160, function () { $(this).remove(); }); });
 }
 
 function openMoodleMaterialModal(payload = {}) {
   ensureMoodleMaterialModal();
-  const materials = Array.isArray(payload.materials) ? payload.materials.filter(Boolean) : [];
-
-  $('#alb-moodle-material-title').text(payload.title || 'Materi Moodle');
-
+  const materials = Array.isArray(payload.materials) ? payload.materials.filter(Boolean).slice(0, 3) : [];
+  $('#alb-moodle-material-title').text(payload.title || 'Materi Terkait');
   if (!materials.length) {
-    $('#alb-moodle-material-list').html(`<div class="text-[13px] text-muted-soft bg-white border border-hairline rounded-xl p-3">Belum ada materi yang bisa dibuka.</div>`);
+    $('#alb-moodle-material-list').html('<div class="text-[13px] text-muted-soft bg-white border border-hairline rounded-xl p-3">Belum ada materi yang bisa dibuka.</div>');
     $('#alb-moodle-material-reader').empty();
     $('#alb-moodle-material-open-tab').addClass('hidden').attr('data-url', '');
     $('#alb-moodle-material-modal').removeClass('hidden');
     $('body').css('overflow', 'hidden');
     return;
   }
-
   const renderList = (activeIndex = 0) => {
-    const html = materials.map((item, index) => {
-      const active = index === activeIndex;
-      const title = escapeHtml(item.title || `Materi ${index + 1}`);
-      const topic = escapeHtml(item.topic || item.class_code || 'Moodle');
-      const badge = escapeHtml((item.modname || item.file_type || 'html').toString().toUpperCase());
-      return `
-        <button type="button" class="alb-material-item w-full text-left rounded-xl border ${active ? 'border-primary bg-primary/8' : 'border-hairline bg-white hover:bg-surface-strong'} p-3 transition-colors" data-index="${index}">
-          <div class="flex items-start justify-between gap-2">
-            <div class="min-w-0">
-              <div class="text-[13px] font-bold text-ink leading-snug line-clamp-2">${title}</div>
-              <div class="text-[11px] text-muted-soft mt-1 truncate">${topic}</div>
-            </div>
-            <span class="text-[10px] font-black px-2 py-1 rounded-full bg-canvas-soft text-muted border border-hairline">${badge}</span>
-          </div>
-        </button>`;
-    }).join('');
-    $('#alb-moodle-material-list').html(html);
+    $('#alb-moodle-material-list').html(materials.map((item, idx) => {
+      const active = idx === activeIndex;
+      return `<button type="button" class="alb-material-item w-full text-left rounded-xl border ${active ? 'border-primary bg-primary/10' : 'border-hairline bg-white hover:bg-surface-strong'} p-3 transition-colors" data-index="${idx}"><div class="text-[13px] font-bold text-ink leading-snug">${escapeHtml(item.title || `Materi ${idx + 1}`)}</div><div class="text-[11px] text-muted-soft mt-1">${escapeHtml(item.topic || item.class_code || 'Moodle')}</div></button>`;
+    }).join(''));
   };
-
   const showMaterial = (index = 0) => {
     const safeIndex = Math.max(0, Math.min(materials.length - 1, Number(index || 0)));
     const item = materials[safeIndex] || {};
     const url = item.url || item.source_url || item.file_url || '';
     renderList(safeIndex);
     $('#alb-moodle-material-subtitle').text(`${item.topic || 'Materi'} ${materials.length > 1 ? `• ${safeIndex + 1}/${materials.length}` : ''}`);
-
-    // VClass memakai X-Frame-Options SAMEORIGIN, jadi konten ditampilkan sebagai reader lokal dari chunk materi tersinkron.
-    $('#alb-moodle-material-reader').html(buildMaterialReaderHtml(item));
-
+    $('#alb-moodle-material-reader').html(buildMoodleMaterialReaderHtml(item));
     if (url) $('#alb-moodle-material-open-tab').removeClass('hidden').attr('data-url', url);
     else $('#alb-moodle-material-open-tab').addClass('hidden').attr('data-url', '');
   };
-
-  $('#alb-moodle-material-list').off('click', '.alb-material-item').on('click', '.alb-material-item', (e) => {
-    showMaterial(Number($(e.currentTarget).attr('data-index') || 0));
-    $('#alb-moodle-material-sidebar').addClass('-translate-x-full');
-    $('#alb-moodle-material-sidebar-shade').addClass('hidden');
-  });
-
-  $('#alb-moodle-material-modal').removeClass('hidden');
-  $('body').css('overflow', 'hidden');
-  showMaterial(0);
+  $('#alb-moodle-material-list').off('click', '.alb-material-item').on('click', '.alb-material-item', (e) => { showMaterial(Number($(e.currentTarget).attr('data-index') || 0)); $('#alb-moodle-material-sidebar').addClass('-translate-x-full'); $('#alb-moodle-material-sidebar-shade').addClass('hidden'); });
+  $('#alb-moodle-material-modal').removeClass('hidden'); $('body').css('overflow', 'hidden'); showMaterial(0);
 }
 
 function bindChatActionButtons(context) {
@@ -1221,20 +1952,6 @@ function bindChatActionButtons(context) {
     });
 
   context.$chatArea
-    .off('click', '.btn-open-moodle-materials')
-    .on('click', '.btn-open-moodle-materials', (e) => {
-      e.preventDefault();
-      const rawPayload = $(e.currentTarget).attr('data-payload') || '';
-      try {
-        const payload = JSON.parse(decodeURIComponent(rawPayload));
-        openMoodleMaterialModal(payload);
-      } catch (err) {
-        console.error('[Buddy External] Gagal membuka materi Moodle:', err);
-        Toast.show('Gagal membuka materi Moodle.', 'error');
-      }
-    });
-
-  context.$chatArea
     .off('click', '.alb-lms-page-btn')
     .on('click', '.alb-lms-page-btn', (e) => {
       e.preventDefault();
@@ -1248,6 +1965,20 @@ function bindChatActionButtons(context) {
       e.preventDefault();
       const $btn = $(e.currentTarget);
       openVclassPreviewModal($btn.attr('data-url') || '', $btn.attr('data-title') || 'Preview VClass');
+    });
+
+  context.$chatArea
+    .off('click', '.btn-open-moodle-materials')
+    .on('click', '.btn-open-moodle-materials', (e) => {
+      e.preventDefault();
+      const rawPayload = $(e.currentTarget).attr('data-payload') || '';
+      try {
+        const payload = JSON.parse(decodeURIComponent(rawPayload));
+        openMoodleMaterialModal(payload);
+      } catch (err) {
+        console.error('[Buddy External] Gagal membuka materi Moodle:', err);
+        Toast.show('Gagal membuka materi Moodle.', 'error');
+      }
     });
 
   context.$chatArea
@@ -1275,6 +2006,7 @@ function bindChatActionButtons(context) {
     .off('click', '.btn-wa-action')
     .on('click', '.btn-wa-action', (e) => {
       e.preventDefault();
+      enableChatInputAfterFeedback(context);
       openWaFormOnce(context, e.currentTarget);
     });
 
@@ -1282,6 +2014,7 @@ function bindChatActionButtons(context) {
     .off('click', '.btn-wa-specific-task')
     .on('click', '.btn-wa-specific-task', (e) => {
       e.preventDefault();
+      enableChatInputAfterFeedback(context);
       const taskName = $(e.currentTarget).attr('data-task') || '';
       openWaFormOnce(context, e.currentTarget, taskName);
     });
@@ -1303,6 +2036,7 @@ function bindChatActionButtons(context) {
         .addClass('bg-emerald-600 text-white')
         .html('<i class="fa-solid fa-check"></i> Sip, masalah selesai');
 
+      $wrap.removeAttr('data-waiting-feedback');
       enableChatInputAfterFeedback(context);
       Toast.show('Terima kasih. Jawaban sistem ditandai membantu.', 'success');
     });
@@ -1373,7 +2107,7 @@ async function handleSystemFeedbackAi(context, event) {
     .replace(/^Belum,\s*jelaskan\s*dengan\s*AI\s*:\s*/i, '')
     .replace(/^Tolong\s+jelaskan\s+lebih\s+detail\s+dengan\s+AI\s*[:.]?\s*/i, '')
     .trim();
-  const aiPrompt = cleanPrompt || context.lastUserQuestion || context.currentUserQuestion || 'Tolong jelaskan pertanyaan saya tadi dengan lebih jelas.';
+  const aiPrompt = cleanPrompt || 'Jelaskan cara menggunakan fitur ini secara jelas dan singkat.';
 
   if (isCooldownBlocking(context)) {
     showCooldownToast(context);
@@ -1468,32 +2202,11 @@ function handleAskAiFallback(context, event) {
     .addClass('opacity-60 cursor-not-allowed');
 
   try {
-    let payloadData = JSON.parse(decodeURIComponent(rawPayload));
-    if (typeof payloadData === 'string') {
-      payloadData = JSON.parse(decodeURIComponent(payloadData));
-    }
-
-    const aiMessage = String(
-      payloadData.original_message ||
-      payloadData.message ||
-      payloadData.ai_message ||
-      context.lastUserQuestion ||
-      context.currentUserQuestion ||
-      ''
-    ).trim();
-
-    if (!aiMessage) {
-      Toast.show('Pertanyaan awal tidak terbaca. Tulis ulang pertanyaannya ya.', 'warning');
-      $btn.closest('.alb-action-group').find('button')
-        .prop('disabled', false)
-        .removeClass('opacity-60 cursor-not-allowed');
-      return;
-    }
-
+    const payloadData = $btn.data('payload') || JSON.parse(decodeURIComponent(rawPayload));
+    const aiMessage = payloadData.message || payloadData.ai_message || 'Jelaskan cara menggunakan fitur ini secara jelas dan singkat.';
     const sourceAnswer = payloadData.source_answer || '';
-    const targetMode = payloadData.responseMode === 'detail' ? 'ai_detail' : 'ai_short';
 
-    updateModeUI(context, targetMode);
+    updateModeUI(context, 'ai_short');
     context.updateResponseModeUI?.();
 
     sendChatMessage(context, {
@@ -1501,13 +2214,12 @@ function handleAskAiFallback(context, event) {
       forceAI: payloadData.forceAI !== false,
       forceFAQ: false,
       intent: payloadData.intent || null,
-      expectedSourceType: payloadData.expectedSourceType || 'document_chunk',
+      expectedSourceType: payloadData.expectedSourceType || 'all',
       responseMode: payloadData.responseMode || 'short',
       pageContext: {
         ...(context.contextData || {}),
         previous_system_answer: sourceAnswer,
-        ai_followup_type: 'material_followup',
-        original_user_question: aiMessage
+        ai_followup_type: 'static_tutorial_followup'
       }
     }).finally(() => enableChatInputAfterFeedback(context));
   } catch (err) {

@@ -12,6 +12,89 @@ $(document).ready(function () {
   // Inisiasi fitur Fullscreen Source Viewer
   SourceViewer.init();
 
+  // ==========================================
+  // MATERIAL SOURCE SWITCHER OVERFLOW FIX
+  // ==========================================
+  function initMaterialSourceSwitcherOverflowFix() {
+    if ($('#alb-knowledge-source-switcher-style').length) return;
+
+    $('head').append(`
+      <style id="alb-knowledge-source-switcher-style">
+        /* Fix overflow tombol Integrasi Moodle / Upload Manual di header Sumber Materi RAG */
+        .alb-material-source-row {
+          min-width: 0;
+          gap: 1rem;
+        }
+
+        .alb-material-source-switcher {
+          max-width: 100%;
+          min-width: 0;
+          overflow: hidden;
+          flex-wrap: wrap;
+          gap: .35rem;
+        }
+
+        .alb-material-source-switcher .material-source-btn {
+          min-width: 0;
+          max-width: 100%;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          justify-content: center;
+        }
+
+        .alb-material-source-switcher .material-source-btn i {
+          flex-shrink: 0;
+        }
+
+        @media (max-width: 900px) {
+          .alb-material-source-row {
+            flex-direction: column !important;
+            align-items: stretch !important;
+          }
+
+          .alb-material-source-switcher {
+            width: 100% !important;
+            display: grid !important;
+            grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+            padding: .35rem !important;
+          }
+
+          .alb-material-source-switcher .material-source-btn {
+            width: 100% !important;
+            padding-left: .75rem !important;
+            padding-right: .75rem !important;
+            font-size: 13px !important;
+          }
+        }
+
+        @media (max-width: 420px) {
+          .alb-material-source-switcher {
+            grid-template-columns: 1fr;
+          }
+        }
+      </style>
+    `);
+
+    const $buttons = $('.material-source-btn');
+    if (!$buttons.length) return;
+
+    const $switcher = $buttons.first().parent();
+    $switcher.addClass('alb-material-source-switcher');
+
+    // Ambil row terdekat yang memuat judul/description di kiri dan switcher di kanan.
+    const $row = $switcher.closest('.flex').first();
+    $row.addClass('alb-material-source-row');
+
+    $buttons.each(function () {
+      $(this)
+        .addClass('min-w-0 truncate')
+        .attr('title', $(this).text().replace(/\s+/g, ' ').trim());
+    });
+  }
+
+  initMaterialSourceSwitcherOverflowFix();
+
   const store = {
     documents: { data: [], page: 1, limit: 10 },
     faqs: { data: [], page: 1, limit: 10 },
@@ -78,6 +161,7 @@ $(document).ready(function () {
     // Saat Integrasi Moodle aktif, halaman fokus ke proses sinkron saja.
     $('#manual-document-list-card').toggleClass('hidden', normalizedMode !== 'manual');
 
+    initMaterialSourceSwitcherOverflowFix();
     if (normalizedMode === 'moodle') loadMoodleKnowledgePanel();
   }
 
