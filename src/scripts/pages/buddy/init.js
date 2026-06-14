@@ -78,13 +78,18 @@ export function initWorkspace(isExternal = false) {
   }
 
   if (isExternal && this.urlSessionId) {
-    // 1. Load Session seperti biasa
-    this.loadExternalSessionContext(this.urlSessionId).then(() => {});
+    // Load session, verifikasi siswa LMS, baru tampilkan onboarding.
+    this.loadExternalSessionContext(this.urlSessionId).then(async () => {
+      if (typeof this.ensureLmsStudentIdentity === 'function') {
+        await this.ensureLmsStudentIdentity({ silent: false });
+      }
 
-    // 3. Tampilkan Onboarding jika belum pernah
-    if (!localStorage.getItem('alb_external_onboarding_seen')) {
+      if (!localStorage.getItem('alb_external_onboarding_seen')) {
         this.showOnboardingCarousel();
-    }
+      }
+
+      this.toggleSuggestions?.();
+    });
   } else {
     this.loadSessionData();
     this.renderElementList();

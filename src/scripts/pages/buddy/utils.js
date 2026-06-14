@@ -34,24 +34,68 @@ export function formatResponseText(text = '') {
   const accordions = [];
   let parsedText = String(text || '');
 
-  // 1. Isolasi blok HTML aman sebelum escape.
-  //    Termasuk accordion table deadline.
-  parsedText = parsedText.replace(
-    /(<details\b[^>]*class=["'][^"']*(?:alb-task-accordion|alb-html-block)[^"']*["'][\s\S]*?<\/details>)/gi,
-    (match) => {
-      const key = `@@HTML_BLOCK_${htmlBlocks.length}@@`;
-      htmlBlocks.push(match);
-      return key;
+  function stashHtml(block = '') {
+    const key = `@@HTML_BLOCK_${htmlBlocks.length}@@`;
+    htmlBlocks.push(block);
+    return key;
+  }
+
+  function protectRegexBlocks(source, regex) {
+    return source.replace(regex, (match) => stashHtml(match));
+  }
+
+  function protectBalancedBlocks(source, selectorRegex, tagName) {
+    let output = '';
+    let cursor = 0;
+    const openRegex = new RegExp(`<${tagName}\\b[^>]*>`, 'gi');
+    let match;
+
+    while ((match = selectorRegex.exec(source)) !== null) {
+      const startIndex = match.index;
+      if (startIndex < cursor) continue;
+
+      output += source.slice(cursor, startIndex);
+
+      let depth = 0;
+      let endIndex = match.index + match[0].length;
+      const tagRegex = new RegExp(`</?${tagName}\\b[^>]*>`, 'gi');
+      tagRegex.lastIndex = startIndex;
+      let tagMatch;
+
+      while ((tagMatch = tagRegex.exec(source)) !== null) {
+        const tag = tagMatch[0];
+        if (new RegExp(`^<${tagName}\\b`, 'i').test(tag)) depth += 1;
+        else depth -= 1;
+        endIndex = tagRegex.lastIndex;
+        if (depth <= 0) break;
+      }
+
+      output += stashHtml(source.slice(startIndex, endIndex));
+      cursor = endIndex;
     }
+
+    output += source.slice(cursor);
+    return output;
+  }
+
+  // 1. Isolasi blok HTML aman sebelum escape.
+  parsedText = protectRegexBlocks(
+    parsedText,
+    /<details\b[^>]*class=["'][^"']*(?:alb-task-accordion|alb-html-block)[^"']*["'][\s\S]*?<\/details>/gi
   );
 
-  parsedText = parsedText.replace(
-    /(<div\b[^>]*class=["'][^"']*overflow-x-auto[^"']*["'][\s\S]*?<\/div>)/gi,
-    (match) => {
-      const key = `@@HTML_BLOCK_${htmlBlocks.length}@@`;
-      htmlBlocks.push(match);
-      return key;
-    }
+  // Div tabel Moodle. Wajib balanced, karena di dalamnya ada div tombol aksi.
+  parsedText = protectBalancedBlocks(
+    parsedText,
+    /<div\b[^>]*class=["'][^"']*overflow-x-auto[^"']*["'][^>]*>/gi,
+    'div'
+  );
+
+  // Kalau suatu saat tabel dikirim tanpa wrapper div.
+  parsedText = protectBalancedBlocks(
+    parsedText,
+    /<table\b[^>]*class=["'][^"']*(?:alb-task-table|w-full)[^"']*["'][^>]*>/gi,
+    'table'
   );
 
   // 2. Isolasi accordion custom berbasis teks.
@@ -59,10 +103,7 @@ export function formatResponseText(text = '') {
     /\[ACCORDION=([^\]]+)\]([\s\S]*?)\[\/ACCORDION\]/gi,
     (match, title, content) => {
       const key = `@@ACCORDION_BLOCK_${accordions.length}@@`;
-      accordions.push({
-        title: String(title || '').trim(),
-        content: String(content || '').trim()
-      });
+      accordions.push({ title: String(title || '').trim(), content: String(content || '').trim() });
       return key;
     }
   );
@@ -80,7 +121,6 @@ export function formatResponseText(text = '') {
       .replace(/\n/g, '<br/>');
 
     const openAttr = idx === 0 ? 'open' : '';
-
     const accHtml = `
       <details class="group bg-surface-card border border-hairline rounded-xl mb-3 mt-2 overflow-hidden shadow-sm" ${openAttr}>
         <summary class="p-3.5 bg-surface-strong hover:bg-hairline-strong cursor-pointer font-semibold text-[13px] text-ink flex justify-between items-center outline-none list-none [&::-webkit-details-marker]:hidden transition-colors">
@@ -90,8 +130,7 @@ export function formatResponseText(text = '') {
         <div class="p-4 text-[13px] text-body leading-relaxed border-t border-hairline bg-white">
           ${safeContent}
         </div>
-      </details>
-    `;
+      </details>`;
 
     safeText = safeText.replace(`@@ACCORDION_BLOCK_${idx}@@`, accHtml);
   });

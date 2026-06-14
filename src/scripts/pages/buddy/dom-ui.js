@@ -1,5 +1,50 @@
 import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
+import Toast from '../../components/toast.js';
+
+function formatCooldownTime(seconds = 0) {
+  const safeSeconds = Math.max(0, Number(seconds) || 0);
+  const m = Math.floor(safeSeconds / 60).toString().padStart(2, '0');
+  const s = (safeSeconds % 60).toString().padStart(2, '0');
+  return `${m}:${s}`;
+}
+
+function getCooldownStorageKey(sessionId = '') {
+  return `alb_ai_cooldown_until_${sessionId || 'default'}`;
+}
+
+function saveCooldownEnd(sessionId, remainingSeconds = 0) {
+  if (!sessionId || remainingSeconds <= 0) return;
+
+  const endsAt = Date.now() + (Number(remainingSeconds) * 1000);
+  localStorage.setItem(getCooldownStorageKey(sessionId), String(endsAt));
+}
+
+function getStoredCooldownRemaining(sessionId) {
+  if (!sessionId) return 0;
+
+  const raw = localStorage.getItem(getCooldownStorageKey(sessionId));
+  const endsAt = Number(raw || 0);
+  if (!endsAt) return 0;
+
+  const remaining = Math.ceil((endsAt - Date.now()) / 1000);
+
+  if (remaining <= 0) {
+    localStorage.removeItem(getCooldownStorageKey(sessionId));
+    return 0;
+  }
+
+  return remaining;
+}
+
+function clearStoredCooldown(sessionId) {
+  if (!sessionId) return;
+  localStorage.removeItem(getCooldownStorageKey(sessionId));
+}
+
+function getUsageChip($chatCountDisplay) {
+  return $chatCountDisplay.closest('#btn-session-info, .session-info, button, div');
+}
 
 export function cacheWorkspaceDOM() {
   this.$elTitle = $('#context-title');
@@ -51,15 +96,64 @@ export function handleLockdown(isLocked) {
   }
 }
 
-export function updateAiUsageUI(usage) {
-  this.aiUsage = usage;
-  // FIX: Kembalikan agar hanya mencetak angka (karena "/ 3" sudah ada di HTML)
-  this.$chatCountDisplay.text(usage.used);
+export function updateAiUsageUI(usage = {}) {
+  const max = Number(usage.max || 3);
+  const used = Number(usage.used || 0);
+
+  let remainingSeconds = Number(usage.cooldown_remaining_seconds || 0);
+
+  // Pakai nilai terbesar antara backend dan localStorage.
+  // Ini mencegah overlay hilang ketika refresh saat timer tinggal < 1 menit.
+  const storedRemaining = getStoredCooldownRemaining(this.sessionId);
+  remainingSeconds = Math.max(remainingSeconds, storedRemaining);
+
+  const isLimitReached = used >= max || Boolean(usage.limit_reached);
+  const isCooldownActive = Boolean(usage.cooldown_active) || remainingSeconds > 0;
+
+  this.aiUsage = {
+    ...usage,
+    used,
+    max,
+    remaining: Math.max(0, max - used),
+    cooldown_active: isCooldownActive,
+    cooldown_remaining_seconds: remainingSeconds,
+    canUseAI: !isCooldownActive && usage.canUseAI !== false
+  };
+
+  this.$chatCountDisplay.text(used);
+
+  const $chip = getUsageChip(this.$chatCountDisplay);
+
+  $chip.removeClass('border-red-300 bg-red-50 text-red-700 ring-2 ring-red-100');
+  this.$chatCountDisplay.removeClass('text-red-600 font-black');
+
+  if (isCooldownActive || isLimitReached) {
+    $chip.addClass('border-red-300 bg-red-50 text-red-700 ring-2 ring-red-100');
+    this.$chatCountDisplay.addClass('text-red-600 font-black');
+  }
+
+  if (isLimitReached && !isCooldownActive && !this._limitToastShown) {
+    Toast.show('Kuota AI Buddy sudah mencapai 3/3. Request AI berikutnya akan menunggu cooldown.', 'warning');
+    this._limitToastShown = true;
+  }
+
+  if (isCooldownActive) {
+    this.triggerCooldown();
+    return;
+  }
+
+  clearStoredCooldown(this.sessionId);
+  this._cooldownToastShown = false;
+
+  if (!isLimitReached) {
+    this._limitToastShown = false;
+  }
 
   if (!this.isLocked) {
     this.$inputArea.prop('disabled', false).attr('placeholder', 'Tanya sesuatu atau pilih elemen...');
     this.$btnSend.prop('disabled', false);
   }
+
   this.$cooldownOverlay.addClass('hidden');
 }
 
@@ -68,39 +162,77 @@ export function startCooldownTimer() {
 }
 
 export function triggerCooldown() {
-  this.$inputArea.prop('disabled', true);
+  this.$inputArea
+    .prop('disabled', true)
+    .attr('placeholder', 'AI sedang cooldown. Tunggu waktu jeda selesai...');
+
   this.$btnSend.prop('disabled', true);
   this.$cooldownOverlay.removeClass('hidden');
 
-  let timeLeft = (this.aiUsage && this.aiUsage.cooldown_remaining_seconds > 0)
-    ? this.aiUsage.cooldown_remaining_seconds
-    : 120;
+  let timeLeft = 0;
+
+  if (this.aiUsage && Number(this.aiUsage.cooldown_remaining_seconds) > 0) {
+    timeLeft = Number(this.aiUsage.cooldown_remaining_seconds);
+  }
+
+  const storedRemaining = getStoredCooldownRemaining(this.sessionId);
+  timeLeft = Math.max(timeLeft, storedRemaining);
+
+  if (!timeLeft || timeLeft <= 0) {
+    timeLeft = 180;
+  }
+
+  saveCooldownEnd(this.sessionId, timeLeft);
+
+  this.$timerDisplay.text(formatCooldownTime(timeLeft));
 
   clearInterval(this.cooldownInterval);
 
   this.cooldownInterval = setInterval(() => {
-    timeLeft--;
-    if (this.aiUsage) this.aiUsage.cooldown_remaining_seconds = timeLeft;
+    timeLeft = Math.max(0, timeLeft - 1);
 
-    let m = Math.floor(timeLeft / 60).toString().padStart(2, '0');
-    let s = (timeLeft % 60).toString().padStart(2, '0');
-    this.$timerDisplay.text(`${m}:${s}`);
+    if (this.aiUsage) {
+      this.aiUsage.cooldown_remaining_seconds = timeLeft;
+      this.aiUsage.cooldown_active = timeLeft > 0;
+      this.aiUsage.canUseAI = false;
+    }
+
+    this.$timerDisplay.text(formatCooldownTime(timeLeft));
 
     if (timeLeft <= 0) {
       clearInterval(this.cooldownInterval);
-      if (this.aiUsage) {
-         this.aiUsage.cooldown_active = false;
-         this.aiUsage.used = 0;
-         // FIX: Kembalikan agar hanya mereset ke angka '0'
-         this.$chatCountDisplay.text('0');
-      }
-      this.$timerDisplay.parent().html('Waktu jeda selesai.');
-      $('.fa-hourglass-half').removeClass('fa-spin');
-      this.$btnReload.removeClass('hidden');
+      clearStoredCooldown(this.sessionId);
 
-      this.$inputArea.prop('disabled', false).focus();
-      this.$btnSend.prop('disabled', false);
+      if (this.aiUsage) {
+        this.aiUsage.cooldown_active = false;
+        this.aiUsage.cooldown_remaining_seconds = 0;
+        this.aiUsage.used = 0;
+        this.aiUsage.remaining = this.aiUsage.max || 3;
+        this.aiUsage.canUseAI = true;
+      }
+
+      this.$chatCountDisplay.text('0');
+
+      const $chip = getUsageChip(this.$chatCountDisplay);
+      $chip.removeClass('border-red-300 bg-red-50 text-red-700 ring-2 ring-red-100');
+      this.$chatCountDisplay.removeClass('text-red-600 font-black');
+
+      this.$timerDisplay.text('00:00');
       this.$cooldownOverlay.addClass('hidden');
+
+      if (!this.isLocked) {
+        this.$inputArea
+          .prop('disabled', false)
+          .attr('placeholder', 'Tanya sesuatu atau pilih elemen...')
+          .focus();
+
+        this.$btnSend.prop('disabled', false);
+      }
+
+      this._cooldownToastShown = false;
+      this._limitToastShown = false;
+
+      Toast.show('Cooldown selesai. AI Buddy bisa digunakan lagi.', 'success');
     }
   }, 1000);
 }
@@ -303,9 +435,9 @@ export function buildPreviewProxyUrl(url = '') {
 
   const apiBase = this.getPreviewApiBase();
 
-  // Kalau API base tidak ketemu, tetap load URL aslinya di dalam iframe.
-  // Ini tetap tidak meluber, hanya mungkin font eksternal kena CORS.
-  if (!apiBase) return normalizedUrl;
+  // Jangan load asset cross-origin langsung. Kalau API base/proxy tidak tersedia,
+  // kosongkan saja agar iframe tetap HTML/CSS lokal dan tidak kena CORS.
+  if (!apiBase) return '';
 
   return `${apiBase}/page-templates/proxy-asset?url=${encodeURIComponent(normalizedUrl)}`;
 }
@@ -350,6 +482,8 @@ export function sanitizePreviewHtml(html = '') {
     .replace(/<noscript\b[^<]*(?:(?!<\/noscript>)<[^<]*)*<\/noscript>/gi, '')
     .replace(/<object\b[^<]*(?:(?!<\/object>)<[^<]*)*<\/object>/gi, '')
     .replace(/<embed\b[^>]*>/gi, '')
+    .replace(/<img\b[^>]*>/gi, '')
+    .replace(/<svg\b[^<]*(?:(?!<\/svg>)<[^<]*)*<\/svg>/gi, '')
     .replace(/<link\b(?=[^>]*rel=["']?stylesheet["']?)[^>]*>/gi, '')
     .replace(/<link\b[^>]*rel=["']?stylesheet["']?[^>]*>/gi, '')
     .replace(/@font-face\s*{[\s\S]*?}/gi, '')
@@ -421,42 +555,71 @@ export function getPreviewBaseCss() {
   `;
 }
 
-export function buildElementPreviewSrcdoc(matchedEl) {
-  // Masukkan link CDN Moodle SMPN 167 Jakarta secara eksplisit di dalam iframe
-  // Iframe secara otomatis "mengurung" (isolate) CSS ini agar tidak bocor ke luar
+export function buildElementPreviewSrcdoc(matchedEl = {}, template = this.activeTemplate) {
+  const rawHtml = matchedEl.html || matchedEl.text || '';
+  const safeHtml = this.stripTemplateStylesFromHtml
+    ? this.stripTemplateStylesFromHtml(rawHtml)
+    : String(rawHtml || '').replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, '');
+
+  const templateStyles = (matchedEl.template_html_preview && this.getTemplateStyles ? this.getTemplateStyles({ html_preview: matchedEl.template_html_preview }) : '')
+    || (template?.html_preview && this.getTemplateStyles ? this.getTemplateStyles(template) : '')
+    || '';
+
+  const fallbackStyles = '';
 
   return `<!doctype html>
 <html lang="id">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <base target="_blank">
 
-  <link rel="stylesheet" type="text/css" href="https://fonts.googleapis.com/css2?family=Roboto+Flex:opsz,wght@8..144,300..700&display=swap">
-  <link rel="stylesheet" type="text/css" href="https://lms.smpn167jakarta.sch.id/theme/yui_combo.php?rollup/3.18.1/yui-moodlesimple-min.css">
-  <link rel="stylesheet" type="text/css" href="https://lms.smpn167jakarta.sch.id/theme/styles.php/mb2nl/1776930830_1/all">
+  ${templateStyles || fallbackStyles}
 
   <style>
-    /* Isolasi Tambahan: Pastikan canvas iframe bersih */
     html, body {
       margin: 0 !important;
       padding: 0 !important;
       background: transparent !important;
+      overflow: hidden !important;
+      min-height: 0 !important;
     }
 
-    /* CEGAH INTERAKSI (KLIK) DI DALAM PREVIEW */
     *, *::before, *::after {
-      pointer-events: none !important;
+      box-sizing: border-box;
     }
 
-    /* Container khusus elemen agar rapi */
+    .buddy-preview-root a,
+    .buddy-preview-root button,
+    .buddy-preview-root input,
+    .buddy-preview-root select,
+    .buddy-preview-root textarea {
+      pointer-events: auto !important;
+    }
+
     .buddy-preview-root {
       width: 100%;
-      padding: 12px;
+      max-width: 100%;
+      padding: 10px;
       box-sizing: border-box;
       overflow: hidden;
+      background: #fff;
     }
 
-    /* Sembunyikan elemen loader bawaan Moodle jika terbawa */
+    .buddy-preview-root form,
+    .buddy-preview-root .login-card,
+    .buddy-preview-root .card,
+    .buddy-preview-root article,
+    .buddy-preview-root section {
+      max-width: 100% !important;
+    }
+
+    .buddy-preview-root input,
+    .buddy-preview-root select,
+    .buddy-preview-root textarea {
+      max-width: 100% !important;
+    }
+
     .preloader, .loader, #loader, [id*="loading"] {
       display: none !important;
       opacity: 0 !important;
@@ -466,7 +629,7 @@ export function buildElementPreviewSrcdoc(matchedEl) {
 </head>
 <body>
   <div class="buddy-preview-root">
-    ${matchedEl.html || matchedEl.text}
+    ${safeHtml}
   </div>
 </body>
 </html>`;
@@ -885,9 +1048,9 @@ export function showOnboardingCarousel() {
         Asisten belajarmu siap membantu saat belajar di VClass.
         <br><br>
         <span class="tour-label tour-label-primary">
-          <i class="fa-solid fa-circle-info"></i> Catatan
+          <i class="fa-solid fa-circle-info"></i> Tujuan
         </span>
-        AI ini bukan untuk memberikan jawaban instan, tapi membantumu memahami materi dan menemukan jawabannya sendiri.
+        AI ini membantumu memahami materi dan cara pakai VClass, bukan sekadar memberi jawaban instan.
       `,
       target: null,
       placement: "center"
@@ -896,9 +1059,9 @@ export function showOnboardingCarousel() {
       title: "Panel Konteks Halaman",
       icon: "fa-list",
       desc: `
-        Panel di sebelah kiri berisi daftar bagian penting dari halaman VClass yang sedang kamu buka.
+        Panel di sebelah kiri membaca bagian penting dari halaman VClass yang sedang kamu buka.
         <br><br>
-        Kamu bisa memilih salah satu item di panel tersebut agar AI tahu bagian mana yang ingin kamu tanyakan.
+        Kamu bisa memilih salah satu elemen di panel tersebut agar AI tahu persis bagian mana yang ingin kamu tanyakan.
       `,
       target: "#context-sidebar",
       placement: "center",
@@ -910,25 +1073,15 @@ export function showOnboardingCarousel() {
       }
     },
     {
-      title: "Batas Sesi Chat",
-      icon: "fa-battery-three-quarters",
+      title: "Mode Jawaban",
+      icon: "fa-sliders",
       desc: `
-        Sistem dibatasi
-        <span class="tour-label tour-label-warning">
-          <i class="fa-solid fa-bolt"></i> 3 chat berurut
-        </span>
-        agar server tetap stabil.
-        <br><br>
-        Jika batas tercapai, AI Buddy akan masuk mode
-        <span class="tour-label tour-label-danger">
-          <i class="fa-solid fa-hourglass-half"></i> cooldown 3 menit
-        </span>.
-        <br><br>
-        Selama cooldown berjalan, AI tidak bisa digunakan sampai waktu jeda selesai.
+        Kamu bisa mengatur cara AI menjawab:<br><br>
+        <span class="tour-label tour-label-success">Jawaban Sistem</span> untuk teknis VClass (tugas, kuis, forum) dan <b>tidak memotong kuota</b>.<br><br>
+        <span class="tour-label tour-label-primary">AI Singkat</span> & <span class="tour-label tour-label-primary">AI Detail</span> untuk penjelasan materi, ini akan <b>memakai kuota AI</b>.
       `,
-      target: "#btn-session-info",
+      target: "#response-mode-dropdown",
       placement: "center",
-      cloneTarget: true,
       onEnter: () => {
         if (window.innerWidth < 768) {
           $('#btn-close-context').click();
@@ -936,50 +1089,56 @@ export function showOnboardingCarousel() {
       }
     },
     {
-      title: "Input & Shortcut Pintasan",
-      icon: "fa-keyboard",
+      title: "Batas Topik Pertanyaan",
+      icon: "fa-filter-circle-xmark",
       desc: `
-        Ketik pertanyaanmu di kolom input ini.
+        AI Buddy <b class="text-ink">hanya menjawab</b> seputar materi guru (misal: Media Sosial, Dampaknya) dan VClass.
         <br><br>
-        Gunakan kata sandi
-        <span class="tour-label tour-label-primary">
-          <i class="fa-solid fa-message"></i> tanya
-        </span>
-        atau
-        <span class="tour-label tour-label-success">
-          <i class="fa-solid fa-book-open"></i> materi
-        </span>
-        untuk memunculkan saran pertanyaan kilat secara otomatis.
+        <span class="tour-label tour-label-danger"><i class="fa-solid fa-xmark"></i> Dilarang</span>
+        Bertanya topik di luar materi seperti hitungan matematika bebas, game, resep, pencipta lampu, dll.
+      `,
+      target: null,
+      placement: "center"
+    },
+    {
+      title: "Saran Pertanyaan Otomatis",
+      icon: "fa-wand-magic-sparkles",
+      desc: `
+        Saat kamu mengetik, sistem akan otomatis memunculkan <span class="tour-label tour-label-primary">chip saran pertanyaan</span>.
+        <br><br>
+        Klik saran tersebut agar pertanyaanmu lebih rapi dan AI bisa menjawab dengan lebih akurat!
       `,
       target: "#chat-form",
       placement: "center"
     },
     {
-      title: "Aturan & Bantuan Instruktur",
+      title: "Kuota AI & Cooldown",
+      icon: "fa-battery-three-quarters",
+      desc: `
+        Mode AI Singkat/Detail dibatasi
+        <span class="tour-label tour-label-warning">
+          <i class="fa-solid fa-bolt"></i> 3/3 Sesi
+        </span>
+        <br><br>
+        Jika habis dan kamu mencoba pakai AI lagi, sistem akan masuk
+        <span class="tour-label tour-label-danger">
+          <i class="fa-solid fa-hourglass-half"></i> cooldown 3 menit
+        </span>.
+        <br><br>
+        <span class="tour-label tour-label-success">Tips</span> Gunakan Jawaban Sistem untuk menghemat kuota!
+      `,
+      target: "#btn-session-info",
+      placement: "center",
+      cloneTarget: true
+    },
+    {
+      title: "Aturan & Bantuan Guru",
       icon: "fa-shield-halved",
       desc: `
-        Gunakan AI Buddy dengan sopan saat belajar.
+        Gunakan bahasa yang sopan. Melanggar aturan bisa membuat chat dikunci dan butuh <span class="tour-label tour-label-warning"><i class="fa-solid fa-key"></i> Unlock Key</span> dari guru.
         <br><br>
-        Jika terdeteksi kata kasar, sistem bisa memberi
-        <span class="tour-label tour-label-danger">
-          <i class="fa-solid fa-triangle-exclamation"></i> strike Lockdown
-        </span>
-        dan chat akan dikunci.
-        <br><br>
-        Jika terkena Lockdown, kamu harus menunggu guru memberikan
-        <span class="tour-label tour-label-warning">
-          <i class="fa-solid fa-key"></i> unlock key
-        </span>
-        untuk membuka kembali chat.
-        <br><br>
-        Kalau benar-benar kesulitan, ketik
-        <span class="tour-label tour-label-primary">
-          <i class="fa-solid fa-circle-question"></i> bingung
-        </span>
-        agar muncul bantuan menuju
-        <span class="tour-label tour-label-success">
-          <i class="fa-brands fa-whatsapp"></i> WhatsApp Guru
-        </span>.
+        Kalau benar-benar kesulitan atau butuh bantuan lanjutan, sistem menyediakan tombol untuk menghubungi
+        <span class="tour-label tour-label-success"><i class="fa-brands fa-whatsapp"></i> WhatsApp Guru</span>.
       `,
       target: null,
       placement: "center"
@@ -1186,70 +1345,79 @@ export function highlightElementInPreview(elementKey) {
 }
 
 // --- FUNGSI BARU: TRIGGER CHIPS ---
-export function handleTriggerWords(text) {
-  const value = text.toLowerCase();
+// Mengambil string saran berdasarkan keyword cepat
+export function getTriggerSuggestions(text) {
+  const value = String(text || '').toLowerCase();
   const isTanya = value.includes('tanya');
   const isMateri = value.includes('materi');
   const isBingung = value.includes('bingung');
 
-  // Jika tidak ada trigger word, tutup area chips secara halus
-  if (!isTanya && !isMateri && !isBingung) {
-     this.$suggestionWrapper.stop(true, true).slideUp(200, () => {
-         this.$suggestionWrapper.addClass('hidden pointer-events-none');
-     });
-     this.isSuggestionHidden = true;
-     return;
-  }
-
   let suggestions = [];
+  if (!isTanya && !isMateri && !isBingung) return suggestions;
 
-  // Deteksi trigger dari template yang aktif
   if (this.activeTemplate && Array.isArray(this.activeTemplate.question_suggestions_json)) {
-      suggestions = this.activeTemplate.question_suggestions_json.filter(q => value.includes((q.trigger_word || '').toLowerCase()));
+      const templSugg = this.activeTemplate.question_suggestions_json.filter(q => value.includes((q.trigger_word || '').toLowerCase()));
+      templSugg.forEach(q => suggestions.push(q.suggestion_text));
   }
 
-  // Jika belum ada template aktif, gunakan fallback bawaan
   if (suggestions.length === 0) {
       if (isTanya) {
-          suggestions.push({ suggestion_text: "Tanya cara login/masuk" });
-          suggestions.push({ suggestion_text: "Tanya cara mengumpulkan tugas" });
+          suggestions.push("Tanya cara login/masuk");
+          suggestions.push("Tanya cara mengumpulkan tugas");
       }
       if (isMateri) {
-          suggestions.push({ suggestion_text: "Buka ringkasan materi terbaru" });
+          suggestions.push("Buka ringkasan materi terbaru");
       }
       if (isBingung) {
-          suggestions.push({ suggestion_text: "Saya bingung, tolong hubungkan ke guru" });
+          suggestions.push("Saya bingung, tolong hubungkan ke guru");
       }
   }
+  return suggestions;
+}
 
-  if (suggestions.length > 0) {
-     this.$suggestionChips.empty();
-
-     suggestions.forEach(q => {
-       const $btn = $(`<button type="button" class="shrink-0 bg-surface-card border border-primary/30 text-[13px] font-medium text-primary px-4 py-1.5 rounded-full hover:bg-primary hover:text-white transition-colors whitespace-nowrap shadow-sm"><i class="fa-solid fa-lightbulb mr-1"></i> ${this.escapeHtml(q.suggestion_text)}</button>`);
-
-       $btn.on('click', () => {
-        this.$inputArea.val(q.suggestion_text);
-
-        // Sembunyikan chips saat diklik
-        this.$suggestionWrapper.stop(true, true).slideUp(200, () => {
-            this.$suggestionWrapper.addClass('hidden pointer-events-none');
-        });
-        this.isSuggestionHidden = true;
-
-        // LANGSUNG KIRIM PESAN SETELAH CHIP DIKLIK
-        setTimeout(() => {
-           this.$btnSend.click();
-        }, 100);
-     });
-
-       this.$suggestionChips.append($btn);
-     });
-
-     // PAKSA Munculkan chips dengan mulus
-     this.$suggestionWrapper.removeClass('hidden pointer-events-none').stop(true, true).slideDown(200);
-     this.isSuggestionHidden = false;
+// Terpusat untuk menyembunyikan wrapper agar animasi tidak patah
+export function hideSuggestionWrapper() {
+  if (!this.isSuggestionHidden) {
+    this.$suggestionWrapper.stop(true, true).slideUp(200, () => {
+        this.$suggestionWrapper.addClass('hidden pointer-events-none');
+    });
+    this.isSuggestionHidden = true;
   }
+  this.currentSuggestionSource = null;
+}
+
+// Terpusat untuk me-render chip dengan state Source
+export function renderCentralSuggestionChips(suggestions, source) {
+  this.$suggestionChips.empty();
+  if (!suggestions || suggestions.length === 0) {
+      this.hideSuggestionWrapper();
+      return;
+  }
+
+  suggestions.forEach(text => {
+      const icon = source === 'trigger' ? 'fa-lightbulb' : 'fa-wand-magic-sparkles';
+      const colorClass = source === 'trigger'
+          ? 'border-primary/30 text-primary hover:bg-primary hover:text-white'
+          : 'border-hairline-strong text-ink hover:bg-surface-strong';
+
+      const $btn = $(`<button type="button" class="shrink-0 bg-surface-card border ${colorClass} text-[13px] font-medium px-4 py-1.5 rounded-full transition-colors whitespace-nowrap shadow-sm"><i class="fa-solid ${icon} mr-1"></i> ${this.escapeHtml(text)}</button>`);
+
+      $btn.on('click', () => {
+         this.$inputArea.val(text);
+         this.hideSuggestionWrapper();
+         this.$inputArea.focus();
+
+         // Sesuai aturan: Trigger auto-submit, sedangkan Canonical tidak
+         if (source === 'trigger') {
+             setTimeout(() => { this.$btnSend.click(); }, 100);
+         }
+      });
+      this.$suggestionChips.append($btn);
+  });
+
+  this.$suggestionWrapper.removeClass('hidden pointer-events-none').stop(true, true).slideDown(200);
+  this.isSuggestionHidden = false;
+  this.currentSuggestionSource = source;
 }
 
 export async function renderPersistentManualContextSelector() {

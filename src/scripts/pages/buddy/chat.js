@@ -26,11 +26,34 @@ export function appendTypingIndicator() {
     </div>`;
 
   this.$chatArea.append(html);
+
   this.scrollToBottom();
 }
 
 export function removeTypingIndicator() {
   $('#typing-indicator').remove();
+}
+
+function disableSupersededFeedbackActions(context) {
+  const $chatArea = context?.$chatArea;
+  if (!$chatArea || !$chatArea.length) return false;
+
+  const $pendingWraps = $chatArea.find('.alb-system-message-wrap[data-waiting-feedback="1"]');
+  if (!$pendingWraps.length) return false;
+
+  $pendingWraps.each((_, wrap) => {
+    const $wrap = $(wrap);
+    // Saat ada chat baru, tombol feedback lama tidak boleh lagi mengunci input.
+    // Yang dimatikan hanya tombol "Tanya AI/Belum jelas" dan "Sudah jelas" pada bubble lama.
+    $wrap.find('.btn-system-feedback-ok, .btn-system-feedback-ai, .btn-ask-ai-fallback')
+      .prop('disabled', true)
+      .addClass('opacity-60 cursor-not-allowed pointer-events-none')
+      .attr('title', 'Tombol ini sudah digantikan oleh percakapan terbaru.');
+
+    $wrap.removeAttr('data-waiting-feedback').attr('data-superseded-feedback', '1');
+  });
+
+  return true;
 }
 
 export function scrollToBottom() {
@@ -40,6 +63,12 @@ export function scrollToBottom() {
 export function appendBubble(rawText, isUser = false, source = 'ai', actions = []) {
   let text = rawText;
   let isTutorialMode = false;
+
+  // Kalau user mengirim chat baru lewat input/sidebar saat bubble lama masih menunggu tombol "Sudah jelas",
+  // bubble lama dianggap tertimpa. Jangan biarkan input terus terkunci karena tombol lama.
+  if (isUser && disableSupersededFeedbackActions(this)) {
+    this._unlockInputAfterCurrentResponse = true;
+  }
 
   // 1. Deteksi & Parse JSON khusus dari AI
   if (!isUser && typeof text === 'string' && text.includes('"answer_mode"') && text.includes('tutorial_steps')) {
@@ -74,56 +103,80 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   let formattedText = '';
 
   if (isTutorialMode) {
-    // RENDER UI TUTORIAL LANGKAH-LANGKAH
-    formattedText = `<div class="mb-4 text-[14px] leading-relaxed text-ink">${this.escapeHtml(text.answer_text)}</div>`;
+    // RENDER UI TUTORIAL LANGKAH-LANGKAH + VISUAL PER LANGKAH
+    formattedText = `<div class="mb-4 text-[14px] leading-relaxed text-ink">${this.formatResponseText ? this.formatResponseText(text.answer_text || '') : this.escapeHtml(text.answer_text || '')}</div>`;
     formattedText += `<div class="space-y-4">`;
 
-    // TAMBAHAN: Set Tracking untuk Mencegah Visual Duplikat
-    let renderedElements = new Set();
+    const templateElements = [
+      ...(Array.isArray(text.template_elements) ? text.template_elements : []),
+      ...(Array.isArray(text.elements) ? text.elements : []),
+      ...(Array.isArray(this.contextData?.elements) ? this.contextData.elements : [])
+    ];
 
-    (text.steps || []).forEach(step => {
-      formattedText += `
-        <div class="border border-primary/20 bg-primary/5 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
-          <div class="font-bold text-[13px] text-primary mb-1">Langkah ${step.step_number}: ${this.escapeHtml(step.title)}</div>
-          <div class="text-[13px] text-body leading-relaxed">${this.escapeHtml(step.description)}</div>`;
+    const findVisualElement = (step) => {
+      const refs = [step.element_ref, step.element_key, step.key, step.ref, step.name]
+        .filter(Boolean)
+        .map((v) => String(v).toLowerCase().trim());
 
-      if (step.element_ref) {
-        const refName = String(step.element_ref).toLowerCase();
-
-        // Cek jika ID visual belum pernah dirender di tutorial ini
-        if (!renderedElements.has(refName)) {
-          const matchedEl = (this.contextData?.elements || []).find(e =>
-            String(e.name).toLowerCase() === refName ||
-            String(e.title).toLowerCase() === refName ||
-            String(e.key).toLowerCase() === refName
-          );
-
-          if (matchedEl) {
-            renderedElements.add(refName); // Kunci agar step berikutnya tidak render lagi
-
-            const previewSrcdoc = this.buildElementPreviewSrcdoc
-              ? this.buildElementPreviewSrcdoc(matchedEl)
-              : `<!doctype html><html><body>${matchedEl.html || matchedEl.text}</body></html>`;
-
-            formattedText += `
-              <div class="mt-3 border border-hairline rounded-lg overflow-hidden">
-                <div class="px-3 py-1.5 bg-slate-50 border-b border-hairline text-[10px] font-bold text-slate-500 uppercase tracking-wide flex items-center gap-1.5">
-                  <i class="fa-solid fa-eye"></i> Visual: ${this.escapeHtml(matchedEl.name)}
-                </div>
-                <iframe class="w-full bg-white pointer-events-none border-0 block"
-                        style="min-height: 80px;"
-                        onload="try { this.style.height = this.contentWindow.document.documentElement.scrollHeight + 'px'; } catch(e){}"
-                        sandbox="allow-scripts allow-same-origin"
-                        referrerpolicy="no-referrer"
-                        srcdoc="${this.escapeHtml(previewSrcdoc)}"></iframe>
-              </div>
-            `;
-          }
-        }
+      if (step.html) {
+        return {
+          key: step.element_key || step.element_ref || step.key,
+          name: step.element_ref || step.element_key || step.title,
+          title: step.title,
+          text: step.description,
+          html: step.html,
+          template_styles: step.template_styles || text.template_styles || ''
+        };
       }
+
+      return templateElements.find((el) => {
+        return [el.key, el.name, el.title, el.selector]
+          .filter(Boolean)
+          .some((value) => refs.includes(String(value).toLowerCase().trim()));
+      }) || null;
+    };
+
+    (text.steps || []).forEach((step, index) => {
+      const stepNumber = step.step_number || step.step || index + 1;
+      formattedText += `
+        <div class="alb-visual-step border border-primary/20 bg-primary/5 rounded-xl p-3 shadow-[0_2px_8px_rgba(0,0,0,0.02)]">
+          <div class="font-bold text-[13px] text-primary mb-1">Langkah ${this.escapeHtml(stepNumber)} - ${this.escapeHtml(step.title || 'Panduan')}</div>
+          <div class="text-[13px] text-body leading-relaxed">${this.escapeHtml(step.description || '')}</div>`;
+
+      const matchedEl = findVisualElement(step);
+      if (matchedEl) {
+        const previewSrcdoc = this.buildElementPreviewSrcdoc
+          ? this.buildElementPreviewSrcdoc(matchedEl)
+          : `<!doctype html><html><body>${matchedEl.html || matchedEl.text || ''}</body></html>`;
+
+        formattedText += `
+          <div class="mt-3 border border-hairline rounded-xl overflow-hidden bg-white">
+            <div class="px-3 py-2 bg-slate-50 border-b border-hairline text-[11px] font-bold text-slate-500 uppercase tracking-wide flex items-center justify-between gap-2">
+              <span class="inline-flex items-center gap-1.5"><i class="fa-solid fa-eye"></i> Visual: ${this.escapeHtml(matchedEl.name || matchedEl.title || 'Elemen')}</span>
+              <span class="text-[10px] normal-case font-semibold bg-white border border-hairline px-2 py-0.5 rounded-full">dari template DB</span>
+            </div>
+            <iframe class="buddy-inline-preview-frame w-full bg-white border-0 block"
+                    style="min-height: 150px; height: 190px;"
+                    sandbox="allow-popups allow-top-navigation-by-user-activation"
+                    referrerpolicy="no-referrer"
+                    loading="lazy"
+                    srcdoc="${this.escapeHtml(previewSrcdoc)}"></iframe>
+          </div>
+        `;
+      }
+
       formattedText += `</div>`;
     });
+
     formattedText += `</div>`;
+
+    if (text.faq_reference && (text.faq_reference.title || text.faq_reference.content)) {
+      const faqTitle = text.faq_reference.title || 'Referensi FAQ terkait';
+      const faqContent = text.faq_reference.content || '';
+      formattedText += this.formatResponseText
+        ? this.formatResponseText(`\n\n[ACCORDION=${faqTitle}]\n${faqContent}\n[/ACCORDION]`)
+        : '';
+    }
   } else {
     // RENDER TEXT BIASA (Materi / Element Explanation)
     formattedText = isUser ? this.escapeHtml(String(text)) : this.formatResponseText(String(text));
@@ -203,7 +256,7 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
             <div class="p-3">
               <iframe
                 class="buddy-inline-preview-frame w-full h-[180px] rounded-xl bg-white border border-hairline"
-                sandbox=""
+                sandbox="allow-popups allow-top-navigation-by-user-activation"
                 referrerpolicy="no-referrer"
                 loading="lazy"
                 srcdoc="${safePreviewSrcdoc}"
@@ -237,6 +290,13 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           actionsHtml += `<button type="button" class="btn-return-source inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm" data-url="${url}" data-page-type="${safePageType}"><i class="fa-solid fa-arrow-right"></i> ${label}</button>`;
         } else if (act.type === 'wa_teacher') {
           actionsHtml += `<button type="button" class="btn-wa-action inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-[13px] font-medium text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-brands fa-whatsapp"></i> ${label}</button>`;
+        } else if (act.type === 'open_moodle_materials' || act.type === 'open_moodle_material_picker') {
+          const safePayload = encodeURIComponent(JSON.stringify({
+            title: act.type === 'open_moodle_material_picker' ? 'Pilih Materi Moodle' : 'Materi Terkait',
+            mode: act.type,
+            materials: Array.isArray(act.materials) ? act.materials : []
+          }));
+          actionsHtml += `<button type="button" class="btn-open-moodle-materials inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-book-open"></i> ${label}</button>`;
         } else if (act.type === 'open_pdf_viewer') {
           const payload = {
             title: act.label ? act.label.replace('Buka ', '') : 'Materi Referensi',
@@ -265,10 +325,29 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           const pendingMsg = this.escapeHtml(act.pending_message || '');
           actionsHtml += `<button type="button" class="btn-switch-context inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-medium text-white px-4 py-2 rounded-full transition-colors shadow-sm" data-template="${safePayload}" data-message="${pendingMsg}"><i class="fa-solid fa-exchange-alt"></i> ${label}</button>`;
 
+        } else if (act.type === 'static_tutorial_carousel') {
+          const safePayload = encodeURIComponent(JSON.stringify(act.payload || {}));
+          const stepCount = Array.isArray(act.payload?.steps) ? act.payload.steps.length : 0;
+          const tutorialTitle = this.escapeHtml(act.payload?.title || act.label || 'Tutorial VClass');
+          actionsHtml += `
+            <button type="button"
+              class="btn-static-tutorial group inline-flex items-center gap-2.5 bg-white border border-slate-200 hover:border-primary/40 hover:bg-primary/5 text-slate-800 px-3.5 py-2.5 rounded-xl transition-all shadow-sm"
+              data-payload="${safePayload}">
+              <span class="w-8 h-8 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[14px] group-hover:bg-primary/15 transition-colors">
+                <i class="fa-solid fa-book-open-reader"></i>
+              </span>
+              <span class="flex flex-col items-start min-w-0 text-left">
+                <span class="text-[12px] font-black text-slate-900 leading-tight truncate max-w-[160px]">${tutorialTitle}</span>
+                <span class="text-[10px] text-slate-500 leading-none mt-0.5">${stepCount ? `${stepCount} langkah · klik untuk buka` : 'Lihat tutorial visual'}</span>
+              </span>
+              <i class="fa-solid fa-chevron-right text-[11px] text-slate-400 group-hover:text-primary transition-colors ml-auto shrink-0"></i>
+            </button>
+          `;
+
         } else if (act.type === 'ask_ai') {
           // RENDER TOMBOL TANYA AI DARI FAQ (SEKARANG AMAN)
           const safePayload = encodeURIComponent(JSON.stringify(act.payload || {}));
-          actionsHtml += `<button type="button" class="btn-ask-ai-fallback inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-medium text-white px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
+          actionsHtml += `<button type="button" class="btn-ask-ai-fallback inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
 
         } else if (act.type === 'show_steps' || act.type === 'highlight_element') {
           actionsHtml += `<button type="button" class="inline-flex items-center gap-1.5 bg-surface-strong border border-hairline hover:bg-hairline-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-bolt"></i> ${label}</button>`;
@@ -297,6 +376,9 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     }
   }
 
+  const shouldWaitForSystemFeedback = !isUser && Array.isArray(actions) && actions.some((act) => act?.type === 'system_feedback_ok');
+  if (!isUser) this._lastBotMessageWaitsForFeedback = shouldWaitForSystemFeedback;
+
   const avatarHtml = isUser
     ? `<div class="w-10 h-10 rounded-full bg-surface-strong border border-hairline text-muted flex items-center justify-center shrink-0 text-[15px]"><i class="fa-solid fa-user"></i></div>`
     : `<div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shrink-0 text-[15px] shadow-sm"><i class="fa-solid fa-robot"></i></div>`;
@@ -307,9 +389,20 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
 
   const html = isUser
     ? `<div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div>`
-    : `<div class="alb-system-message-wrap"><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div></div>`;
+    : `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div></div>`;
 
   this.$chatArea.append(html);
+
+  // Untuk jawaban sistem yang meminta konfirmasi, tahan input dulu supaya siswa
+  // tidak lanjut bertanya sebelum memilih "Sudah jelas" atau "Belum jelas".
+  // Tombol "Sudah jelas" akan mengaktifkan input lagi dari events.js.
+  if (shouldWaitForSystemFeedback && this.$inputArea?.length && this.$btnSend?.length) {
+    this.$inputArea
+      .prop('disabled', true)
+      .attr('placeholder', 'Klik "Sudah jelas" jika panduan sudah cukup, atau pilih "Belum jelas" untuk minta AI.');
+    this.$btnSend.prop('disabled', true);
+  }
+
   this.scrollToBottom();
 }
 
@@ -360,7 +453,7 @@ export function inferSystemActions(userMessage = '', existingActions = []) {
     // "saya sudah login tinggal cari materi" mengandung kata login sebagai status, bukan permintaan login.
     { type: 'materi', words: ['materi', 'modul', 'pelajaran', 'nyari materi', 'cari materi', 'buka materi'], label: 'Buka halaman materi' },
     { type: 'dashboard', words: ['dashboard', 'beranda', 'daftar course', 'kursus saya'], label: 'Buka dashboard / kursus saya' },
-    { type: 'course', words: ['course', 'kursus', 'kelas', 'mata pelajaran', 'mata kuliah', 'detail kursus'], label: 'Buka halaman kelas/course' },
+    { type: 'course', words: ['course', 'kursus', 'kelas', 'mata pelajaran', 'pelajaran', 'detail kursus'], label: 'Buka halaman kelas/course' },
     { type: 'login', words: ['login', 'masuk', 'signin', 'sign in'], label: 'Buka halaman login' },
     { type: 'activities', words: ['aktifitas', 'aktivitas', 'list aktifitas', 'daftar aktivitas', 'kegiatan course'], label: 'Lihat list aktivitas course' },
     { type: 'grade', words: ['nilai', 'lihat nilai', 'grade', 'hasil nilai'], label: 'Lihat nilai yang didapat' },
@@ -463,6 +556,3 @@ export function resolveTemplateNavigationUrl(template = {}, pageType = '') {
 
   return '';
 }
-
-
-

@@ -1,0 +1,40 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+import MoodleConfigForm from '../../components/forms/MoodleConfigForm.astro';
+---
+
+<DashboardLayout title="Moodle Config">
+  <div class="max-w-[1200px] mx-auto w-full relative">
+
+    <div class="absolute -top-24 -right-24 w-96 h-96 bg-gradient-to-br from-[#a8c8e8] to-transparent opacity-20 blur-3xl rounded-full pointer-events-none z-0"></div>
+
+    <div class="mb-10 relative z-10">
+      <h1 class="font-serif text-[36px] text-ink font-light tracking-tight mb-2">Integrasi LMS</h1>
+      <div class="text-body text-[16px] flex items-center flex-wrap gap-3">
+        <span>Kelola koneksi REST Web Service untuk</span>
+
+        <div class="relative inline-block">
+          <select id="project-selector" class="appearance-none bg-surface-strong border border-hairline-strong text-ink px-4 py-1.5 pr-8 rounded-full text-[14px] font-medium focus:outline-none focus:border-ink transition-colors cursor-pointer min-w-[160px]">
+            <option value="">Memuat project...</option>
+          </select>
+          <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-muted pointer-events-none"></i>
+        </div>
+      </div>
+    </div>
+
+    <div id="loading-state" class="text-center py-16 text-muted-soft">
+      <i class="fa-solid fa-spinner fa-spin text-3xl mb-4"></i>
+      <p class="text-[15px]">Menyiapkan data...</p>
+    </div>
+
+    <div id="empty-state" class="hidden bg-surface-card border border-hairline text-body p-6 rounded-[16px] shadow-sm relative z-10">
+      <i class="fa-solid fa-circle-exclamation text-semantic-error mr-2"></i> Belum ada project yang dibuat. Silakan buat project baru di halaman Dashboard terlebih dahulu.
+    </div>
+
+    <div id="config-form-container" class="hidden relative z-10">
+      <MoodleConfigForm />
+    </div>
+  </div>
+
+  <script src="../../scripts/pages/moodle-config.page.js"></script>
+</DashboardLayout>

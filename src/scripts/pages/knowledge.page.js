@@ -2,6 +2,7 @@ import $ from 'jquery';
 import { ApiService } from '../fetch/api.js';
 import { DocumentAPI } from '../fetch/document.fetch.js';
 import { KnowledgeAPI } from '../fetch/knowledge.fetch.js';
+import { MoodleApi } from '../fetch/moodle.fetch.js';
 import { SourceViewer } from '../components/source-viewer.js';
 
 $(document).ready(function () {
@@ -16,6 +17,15 @@ $(document).ready(function () {
     faqs: { data: [], page: 1, limit: 10 },
     activities: { data: [], page: 1, limit: 10 },
     templates: { data: [], page: 1, limit: 10 } // [TAMBAH INI]
+  };
+
+  const moodleKbState = {
+    config: null,
+    configCache: new Map(),
+    syncSummary: null,
+    ready: false,
+    mode: 'moodle',
+    syncProgressTimers: []
   };
 
   // ==========================================
@@ -45,6 +55,280 @@ $(document).ready(function () {
   $(document).on('click', '.kb-source-type-btn', function () {
     setKbSourceType($(this).data('source-type'), $(this).data('empty-message'));
   });
+
+  // ==========================================
+  // MATERIAL SOURCE SWITCHER + MOODLE SYNC
+  // ==========================================
+  function setMaterialSourceMode(mode = 'moodle') {
+    const normalizedMode = mode === 'manual' ? 'manual' : 'moodle';
+    moodleKbState.mode = normalizedMode;
+
+    $('.material-source-btn')
+      .removeClass('bg-white shadow-sm text-ink')
+      .addClass('text-muted hover:text-ink');
+
+    $(`.material-source-btn[data-source="${normalizedMode}"]`)
+      .addClass('bg-white shadow-sm text-ink')
+      .removeClass('text-muted hover:text-ink');
+
+    $('.material-source-panel').addClass('hidden');
+    $(`#material-source-${normalizedMode}`).removeClass('hidden');
+
+    // Daftar materi hanya muncul saat admin memilih Upload Manual.
+    // Saat Integrasi Moodle aktif, halaman fokus ke proses sinkron saja.
+    $('#manual-document-list-card').toggleClass('hidden', normalizedMode !== 'manual');
+
+    if (normalizedMode === 'moodle') loadMoodleKnowledgePanel();
+  }
+
+  $(document).on('click', '.material-source-btn', function () {
+    setMaterialSourceMode($(this).data('source'));
+  });
+
+  function getMoodleConfigBlockMessage(config = null) {
+    const hasConfig = Boolean(config);
+    const hasEndpoint = Boolean(config?.hasEndpoint || config?.rest_endpoint);
+    const hasToken = Boolean(config?.hasToken || config?.token);
+    const courseMap = config?.course_map || {};
+    const courseRoutes = normalizeArray(config?.course_routes);
+    const courseCount = courseRoutes.length || Object.keys(courseMap).length;
+
+    if (!activeProjectId) return 'Pilih project terlebih dahulu.';
+    if (!hasConfig) return 'Project ini belum memiliki konfigurasi Moodle. Silakan simpan endpoint dan token Moodle terlebih dahulu.';
+    if (!hasEndpoint || !hasToken) return 'Project ini belum memiliki endpoint dan token Moodle aktif. Silakan lengkapi konfigurasi Moodle terlebih dahulu.';
+    if (courseCount <= 0) return 'Course map Moodle belum dipetakan. Silakan sinkronkan course map di konfigurasi Moodle terlebih dahulu.';
+    return '';
+  }
+
+  function setMoodleSyncButtonState(enabled, message = '') {
+    const $btn = $('#btn-sync-moodle-materials');
+    const $wrap = $('#moodle-sync-button-wrap');
+
+    $btn.prop('disabled', !enabled);
+    $wrap.attr('title', enabled ? 'Sinkronkan materi Moodle ke RAG' : (message || 'Konfigurasi Moodle belum lengkap'));
+
+    if (enabled) {
+      $btn
+        .removeClass('opacity-60 cursor-not-allowed pointer-events-none')
+        .addClass('hover:bg-primary-active');
+      $wrap.removeClass('cursor-not-allowed');
+    } else {
+      $btn
+        .addClass('opacity-60 cursor-not-allowed pointer-events-none')
+        .removeClass('hover:bg-primary-active');
+      $wrap.addClass('cursor-not-allowed');
+    }
+  }
+
+  function renderMoodleKbConfig(config = null) {
+    const hasConfig = Boolean(config);
+    const hasEndpoint = Boolean(config?.hasEndpoint || config?.rest_endpoint);
+    const hasToken = Boolean(config?.hasToken || config?.token);
+    const courseMap = config?.course_map || {};
+    const courseRoutes = normalizeArray(config?.course_routes);
+    const courseCount = courseRoutes.length || Object.keys(courseMap).length;
+    const ready = hasConfig && hasEndpoint && hasToken && courseCount > 0;
+    const blockMessage = getMoodleConfigBlockMessage(config);
+
+    moodleKbState.ready = ready;
+
+    $('#moodle-kb-endpoint').text(config?.rest_endpoint || '-').attr('title', config?.rest_endpoint || '-');
+    $('#moodle-kb-token').text(hasToken ? 'Tersimpan' : 'Belum ada');
+    $('#moodle-kb-courses').text(courseCount > 0 ? `${courseCount} course` : 'Belum dipetakan');
+    setMoodleSyncButtonState(Boolean(activeProjectId) && ready, blockMessage);
+
+    if (ready) {
+      $('#moodle-kb-status-badge')
+        .removeClass()
+        .addClass('text-[11px] px-2.5 py-1 rounded-full bg-[#16a34a]/10 border border-[#16a34a]/20 text-[#16a34a]')
+        .text('Terhubung');
+      return;
+    }
+
+    const message = !hasConfig
+      ? 'Config belum ada'
+      : !hasEndpoint || !hasToken
+        ? 'Endpoint/token belum lengkap'
+        : 'Course map belum ada';
+
+    $('#moodle-kb-status-badge')
+      .removeClass()
+      .addClass('text-[11px] px-2.5 py-1 rounded-full bg-[#f59e0b]/10 border border-[#f59e0b]/20 text-[#b45309]')
+      .text(message);
+  }
+
+  async function loadMoodleKnowledgePanel(options = {}) {
+    if (!activeProjectId) return;
+
+    const cached = moodleKbState.configCache.get(activeProjectId);
+    if (cached && !options.force) {
+      moodleKbState.config = cached;
+      renderMoodleKbConfig(cached);
+      return;
+    }
+
+    $('#moodle-kb-status-badge')
+      .removeClass()
+      .addClass('text-[11px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted')
+      .text('Memuat...');
+
+    try {
+      const res = await MoodleApi.getConfig(activeProjectId);
+      moodleKbState.config = res?.data || null;
+      if (moodleKbState.config) moodleKbState.configCache.set(activeProjectId, moodleKbState.config);
+      renderMoodleKbConfig(moodleKbState.config);
+    } catch (error) {
+      moodleKbState.config = null;
+      moodleKbState.ready = false;
+      renderMoodleKbConfig(null);
+      $('#moodle-kb-status-badge')
+        .removeClass()
+        .addClass('text-[11px] px-2.5 py-1 rounded-full bg-red-50 border border-red-100 text-red-600')
+        .text('Gagal memuat');
+    }
+  }
+
+  function clearMoodleSyncProgressTimers() {
+    (moodleKbState.syncProgressTimers || []).forEach((timerId) => clearTimeout(timerId));
+    moodleKbState.syncProgressTimers = [];
+  }
+
+  function updateMoodleSyncProgress(percent, text) {
+    const safePercent = Math.max(0, Math.min(100, Number(percent || 0)));
+    $('#moodle-sync-progress-bar').css('width', `${safePercent}%`);
+    $('#moodle-sync-progress-percent').text(`${safePercent}%`);
+    if (text) $('#moodle-sync-progress-text').text(text);
+  }
+
+  function startMoodleSyncProgress() {
+    clearMoodleSyncProgressTimers();
+
+    $('#moodle-sync-result').removeClass('hidden').html(`
+      <div class="bg-white border border-hairline rounded-[14px] p-5 text-[13px] text-body">
+        <div class="flex items-start gap-3 mb-4">
+          <div class="w-10 h-10 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0">
+            <i class="fa-solid fa-cloud-arrow-down fa-bounce"></i>
+          </div>
+          <div class="min-w-0 flex-1">
+            <div class="font-semibold text-ink mb-1">Sedang menyinkronkan materi Moodle...</div>
+            <p class="text-muted-soft leading-relaxed">
+              Jangan berpindah halaman. Sistem sedang menghubungi Moodle, membaca materi Page/Resource HTML, membersihkan HTML, lalu menyimpan chunk ke RAG.
+            </p>
+          </div>
+        </div>
+
+        <div class="bg-canvas-soft border border-hairline rounded-full h-3 overflow-hidden mb-2">
+          <div id="moodle-sync-progress-bar" class="h-full bg-primary rounded-full transition-all duration-700 ease-out" style="width: 0%"></div>
+        </div>
+        <div class="flex justify-between items-center gap-3 text-[12px] text-muted-soft">
+          <span id="moodle-sync-progress-text">Menyiapkan proses sinkron...</span>
+          <span id="moodle-sync-progress-percent" class="font-semibold text-ink">0%</span>
+        </div>
+      </div>
+    `);
+
+    const steps = [
+      [150, 10, 'Mengambil konfigurasi endpoint dan token dari database...'],
+      [950, 50, 'Mengambil struktur course dan daftar materi dari Moodle...'],
+      [2800, 80, 'Membersihkan HTML dan membuat chunk RAG...'],
+      [5200, 95, 'Menyimpan materi dan chunk ke database...']
+    ];
+
+    steps.forEach(([delay, percent, text]) => {
+      const timerId = setTimeout(() => updateMoodleSyncProgress(percent, text), delay);
+      moodleKbState.syncProgressTimers.push(timerId);
+    });
+  }
+
+  function renderMoodleSyncResult(summary = {}) {
+    clearMoodleSyncProgressTimers();
+    updateMoodleSyncProgress(100, 'Sinkronisasi selesai.');
+
+    const errors = Array.isArray(summary.errors) ? summary.errors : [];
+    const errorHtml = errors.length
+      ? `<div class="mt-3 text-[12px] text-red-600 bg-red-50 border border-red-100 rounded-[10px] p-3">${errors.map(escapeHtml).join('<br>')}</div>`
+      : '';
+
+    setTimeout(() => {
+      $('#moodle-sync-result').removeClass('hidden').html(`
+        <div class="bg-[#16a34a]/10 border border-[#16a34a]/20 rounded-[14px] p-4 text-[13px] text-body">
+          <div class="font-semibold text-ink mb-2"><i class="fa-solid fa-circle-check text-[#16a34a] mr-1.5"></i>Sinkron Moodle selesai</div>
+          <div class="text-[12px] text-muted-soft mb-3">Hanya materi Moodle yang diproses. Quiz, assignment, dan forum tidak ikut disinkronkan dari menu Knowledge.</div>
+          <div class="grid grid-cols-2 md:grid-cols-5 gap-2">
+            <div class="bg-white border border-hairline rounded-[10px] p-3"><div class="text-[11px] text-muted-soft">Course</div><div class="font-semibold text-ink">${escapeHtml(summary.coursesProcessed ?? 0)}</div></div>
+            <div class="bg-white border border-hairline rounded-[10px] p-3"><div class="text-[11px] text-muted-soft">Materi</div><div class="font-semibold text-ink">${escapeHtml(summary.materialsSynced ?? 0)}</div></div>
+            <div class="bg-white border border-hairline rounded-[10px] p-3"><div class="text-[11px] text-muted-soft">Chunk</div><div class="font-semibold text-ink">${escapeHtml(summary.chunksCreated ?? 0)}</div></div>
+            <div class="bg-white border border-hairline rounded-[10px] p-3"><div class="text-[11px] text-muted-soft">Skip pendek</div><div class="font-semibold text-ink">${escapeHtml(summary.skippedTooShort ?? 0)}</div></div>
+            <div class="bg-white border border-hairline rounded-[10px] p-3"><div class="text-[11px] text-muted-soft">Reset</div><div class="font-semibold text-ink">${escapeHtml(summary.deletedMoodleDocs ?? 0)}</div></div>
+          </div>
+          ${errorHtml}
+        </div>
+      `);
+    }, 450);
+  }
+
+  async function syncMoodleMaterials() {
+    if (!activeProjectId) return showToast('Pilih project dulu', 'error');
+
+    if (!moodleKbState.ready) {
+      return showToast(getMoodleConfigBlockMessage(moodleKbState.config), 'error');
+    }
+
+    const resetMoodleChunks = $('#moodle-reset-chunks').is(':checked');
+    const $btn = $('#btn-sync-moodle-materials');
+
+    setButtonLoading($btn, true, 'Menyinkronkan...');
+    setMoodleSyncButtonState(false, 'Sinkronisasi sedang berjalan');
+    startMoodleSyncProgress();
+
+    try {
+      const res = await MoodleApi.syncAllCourses({
+        projectId: activeProjectId,
+        resetMoodleChunks,
+        materialOnly: true,
+        autoDiscover: false,
+        skipCourseInfo: true
+      });
+
+      if (res?.status === 'error') {
+        clearMoodleSyncProgressTimers();
+        showToast(res.message || 'Gagal sinkron Moodle', 'error');
+        $('#moodle-sync-result').removeClass('hidden').html(`
+          <div class="bg-red-50 border border-red-100 rounded-[12px] p-4 text-[13px] text-red-600">
+            <div class="font-semibold mb-1"><i class="fa-solid fa-circle-exclamation mr-1.5"></i>Sinkron gagal</div>
+            <div>${escapeHtml(res.message || 'Gagal sinkron Moodle')}</div>
+            <div class="text-[12px] mt-2 opacity-80">Pastikan config Moodle untuk project aktif sudah tersimpan di tabel moodle_configs.</div>
+          </div>
+        `);
+      } else {
+        moodleKbState.syncSummary = res?.data || {};
+        renderMoodleSyncResult(moodleKbState.syncSummary);
+        showToast('Materi Moodle berhasil disinkronkan ke RAG', 'success');
+
+        await Promise.all([loadDocuments(), loadMoodleKnowledgePanel({ force: true })]);
+        await loadKnowledgeValidation();
+      }
+    } catch (error) {
+      clearMoodleSyncProgressTimers();
+      showToast('Gagal sinkron Moodle', 'error');
+      $('#moodle-sync-result').removeClass('hidden').html(`
+        <div class="bg-red-50 border border-red-100 rounded-[12px] p-4 text-[13px] text-red-600">
+          <div class="font-semibold mb-1"><i class="fa-solid fa-circle-exclamation mr-1.5"></i>Sinkron gagal</div>
+          <div>Terjadi kesalahan saat sinkron Moodle.</div>
+        </div>
+      `);
+    }
+
+    setButtonLoading($btn, false);
+    setMoodleSyncButtonState(moodleKbState.ready, getMoodleConfigBlockMessage(moodleKbState.config));
+  }
+
+  $(document).on('click', '#moodle-sync-button-wrap', function () {
+    if (moodleKbState.ready) return;
+    showToast(getMoodleConfigBlockMessage(moodleKbState.config), 'error');
+  });
+
+  $(document).on('click', '#btn-sync-moodle-materials', syncMoodleMaterials);
 
 
   // ==========================================
@@ -626,6 +910,20 @@ $(document).ready(function () {
 
   async function loadAllData() {
     if (!activeProjectId) return;
+    moodleKbState.syncSummary = null;
+    moodleKbState.config = null;
+    moodleKbState.ready = false;
+    setMoodleSyncButtonState(false, 'Memuat konfigurasi Moodle...');
+    $('#moodle-sync-result').removeClass('hidden').html(`
+      <div class="bg-white border border-hairline rounded-[14px] p-5 text-[13px] text-body">
+        <div class="font-semibold text-ink mb-1"><i class="fa-solid fa-circle-info text-primary mr-1.5"></i>Belum ada proses sinkron berjalan.</div>
+        <p class="text-muted-soft">Tekan <b>Sinkron Moodle</b> untuk mengambil materi terbaru dari LMS. Sistem hanya memproses materi Page/Resource, bukan quiz, assignment, atau forum.</p>
+      </div>
+    `);
+    setMaterialSourceMode('moodle');
+
+    // setMaterialSourceMode('moodle') sudah memanggil loadMoodleKnowledgePanel().
+    // Jangan dipanggil dobel agar tidak hit config endpoint berulang saat project dimuat.
     await Promise.all([ loadDocuments(), loadFaqs(), loadActivities(), loadTemplates() ]);
     loadKnowledgeValidation();
   }
@@ -686,6 +984,14 @@ $(document).ready(function () {
         const badgeIcon = isIndexed ? 'fa-check-double' : 'fa-clock';
         const statusText = isIndexed ? 'Diindex' : 'Belum';
 
+        const sourceType = String(d.source_type || d.sourceType || '').toLowerCase();
+        const isMoodleSource = sourceType === 'moodle';
+        const sourceLabel = isMoodleSource ? 'Moodle' : 'Manual';
+        const sourceBadgeClass = isMoodleSource
+          ? 'bg-sky-50 text-sky-700 border border-sky-100'
+          : 'bg-canvas-soft text-muted border border-hairline';
+        const sourceIcon = isMoodleSource ? 'fa-plug-circle-bolt' : 'fa-upload';
+
         // Logika Tombol Aksi (Mobile: Bulat Icon Only | Desktop: Icon + Text)
         const btnIndexHtml = isIndexed
           ? ''
@@ -694,6 +1000,13 @@ $(document).ready(function () {
                <span class="hidden md:inline ml-1.5">Index AI</span>
              </button>`;
 
+        const btnOpenSourceHtml = d.source_url
+          ? `<a href="${escapeHtml(d.source_url)}" target="_blank" rel="noopener noreferrer" class="flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:px-4 md:py-1.5 bg-white text-ink border border-hairline-strong rounded-full text-[12px] font-medium hover:bg-canvas-soft transition-colors shadow-sm" title="Buka Sumber">
+              <i class="fa-solid fa-arrow-up-right-from-square"></i>
+              <span class="hidden md:inline ml-1.5">Sumber</span>
+            </a>`
+          : '';
+
         const btnDeleteHtml = `
           <button class="btn-del-doc flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:px-4 md:py-1.5 bg-red-50 text-red-600 border border-red-100 rounded-full text-[12px] font-medium hover:bg-red-100 transition-colors shadow-sm" data-id="${d.id}" title="Hapus Materi">
             <i class="fa-solid fa-trash"></i>
@@ -701,12 +1014,20 @@ $(document).ready(function () {
           </button>
         `;
 
-        const actionBtn = `<div class="flex items-center justify-end gap-2">${btnIndexHtml}${btnDeleteHtml}</div>`;
+        const actionBtn = `<div class="flex items-center justify-end gap-2">${btnOpenSourceHtml}${btnIndexHtml}${btnDeleteHtml}</div>`;
         const topicText = d.topic ? `${d.topic} (${d.file_type})` : `Materi (${d.file_type})`;
 
         rows += `
           <tr class="border-b border-hairline hover:bg-canvas-soft transition-colors">
             <td class="py-4 px-4 md:px-6 align-middle">
+              <div class="flex flex-wrap items-center gap-2 mb-1">
+                <span class="text-[11px] px-2 py-1 rounded-full ${sourceBadgeClass} font-medium">
+                  <i class="fa-solid ${sourceIcon} mr-1"></i>${sourceLabel}
+                </span>
+                <span class="text-[11px] px-2 py-1 rounded-full bg-canvas-soft border border-hairline text-muted font-medium">
+                  ${escapeHtml(d.file_type || 'file')}
+                </span>
+              </div>
               <div class="font-medium text-ink">${escapeHtml(d.title)}</div>
               <div class="text-[12px] text-muted-soft mt-1 truncate max-w-[180px] md:max-w-[350px]" title="${escapeHtml(topicText)}">
                 ${escapeHtml(topicText)}

@@ -48,88 +48,6 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
 
     <div id="knowledge-workspace" class="hidden flex flex-col mt-4">
 
-      <!-- ============================= -->
-      <!-- KB VALIDATION CORE SECTION -->
-      <!-- ============================= -->
-      <section id="kb-validation-core" class="bg-surface-card border border-hairline rounded-[16px] p-5 md:p-6 mb-6 shadow-sm shrink-0">
-        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
-          <div class="flex items-start gap-4">
-            <div class="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-              <i class="fa-solid fa-shield-halved text-lg"></i>
-            </div>
-
-            <div>
-              <div class="flex flex-wrap items-center gap-2 mb-1">
-                <h2 class="font-serif text-xl md:text-2xl text-ink">
-                  Validasi Knowledge Base
-                </h2>
-
-                <span id="kb-core-status-badge" class="text-[12px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted">
-                  Memuat...
-                </span>
-              </div>
-
-              <p class="text-[14px] text-body max-w-2xl">
-                Cek kesiapan data AI sebelum dipakai siswa. Testing detail bisa dibuka lewat panel khusus agar halaman utama tetap rapi.
-              </p>
-            </div>
-          </div>
-
-          <div class="flex items-center gap-2 shrink-0">
-            <button
-              type="button"
-              id="btn-refresh-kb-validation"
-              class="bg-white border border-hairline-strong text-ink px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-canvas-soft transition-colors"
-            >
-              <i class="fa-solid fa-rotate-right mr-1.5"></i>
-              Refresh
-            </button>
-
-            <button
-              type="button"
-              id="btn-open-kb-test-panel"
-              class="bg-primary text-white px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition-colors shadow-sm"
-            >
-              <i class="fa-solid fa-flask-vial mr-1.5"></i>
-              Uji Knowledge Base
-            </button>
-          </div>
-        </div>
-
-        <div class="grid grid-cols-2 md:grid-cols-5 gap-3 mt-5">
-          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4">
-            <p class="text-[12px] text-muted-soft mb-1">Materi</p>
-            <p id="kb-core-documents-count" class="font-serif text-2xl text-ink">0</p>
-          </div>
-
-          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4">
-            <p class="text-[12px] text-muted-soft mb-1">Indexed</p>
-            <p id="kb-core-indexed-count" class="font-serif text-2xl text-ink">0</p>
-          </div>
-
-          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4">
-            <p class="text-[12px] text-muted-soft mb-1">FAQ</p>
-            <p id="kb-core-faq-count" class="font-serif text-2xl text-ink">0</p>
-          </div>
-
-          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4">
-            <p class="text-[12px] text-muted-soft mb-1">Instruksi</p>
-            <p id="kb-core-activity-count" class="font-serif text-2xl text-ink">0</p>
-          </div>
-
-          <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4 col-span-2 md:col-span-1">
-            <p class="text-[12px] text-muted-soft mb-1">Chunks</p>
-            <p id="kb-core-chunk-count" class="font-serif text-2xl text-ink">0</p>
-          </div>
-        </div>
-
-        <div id="kb-core-warning-preview" class="mt-4">
-          <div class="text-[13px] text-muted-soft">
-            Validasi akan muncul setelah project dimuat.
-          </div>
-        </div>
-      </section>
-
       <div class="flex border-b border-hairline mb-6 overflow-x-auto hide-scrollbar gap-2 shrink-0">
         <button type="button" class="kb-tab-btn whitespace-nowrap px-6 py-3 border-b-2 border-primary text-ink font-medium transition-colors" data-target="tab-materi"><i class="fa-solid fa-file-pdf mr-2 text-muted-soft"></i>Materi (RAG)</button>
         <button type="button" class="kb-tab-btn whitespace-nowrap px-6 py-3 border-b-2 border-transparent text-muted hover:text-ink transition-colors" data-target="tab-faq"><i class="fa-solid fa-circle-question mr-2 text-muted-soft"></i>FAQ Umum</button>
@@ -138,7 +56,101 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
       </div>
 
       <div id="tab-materi" class="kb-tab-pane flex flex-col min-h-[600px]">
-        <div class="bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
+
+        <!-- ============================= -->
+        <!-- MATERIAL SOURCE SWITCHER -->
+        <!-- ============================= -->
+        <section id="material-source-card" class="bg-surface-card border border-hairline rounded-[16px] p-5 md:p-6 mb-6 shadow-sm">
+          <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5 mb-5">
+            <div class="flex items-start gap-4">
+              <div class="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
+                <i class="fa-solid fa-layer-group text-lg"></i>
+              </div>
+              <div>
+                <h2 class="font-serif text-xl md:text-2xl text-ink">Sumber Materi RAG</h2>
+                <p class="text-[14px] text-body max-w-2xl mt-1">
+                  Pilih sumber materi yang akan dipakai AI Buddy. Mode default adalah integrasi Moodle, sedangkan upload manual tetap tersedia sebagai tambahan materi.
+                </p>
+              </div>
+            </div>
+
+            <div class="flex bg-canvas-soft p-1 rounded-xl border border-hairline w-full lg:w-auto">
+              <button type="button" class="material-source-btn flex-1 lg:flex-none px-4 py-2 rounded-lg bg-white shadow-sm text-ink text-[13px] font-medium transition-colors" data-source="moodle">
+                <i class="fa-solid fa-plug-circle-bolt mr-1.5"></i> Integrasi Moodle
+              </button>
+              <button type="button" class="material-source-btn flex-1 lg:flex-none px-4 py-2 rounded-lg text-muted hover:text-ink text-[13px] font-medium transition-colors" data-source="manual">
+                <i class="fa-solid fa-upload mr-1.5"></i> Upload Manual
+              </button>
+            </div>
+          </div>
+
+          <div id="material-source-moodle" class="material-source-panel bg-canvas-soft border border-hairline rounded-[14px] p-4 md:p-5">
+            <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
+              <div class="flex-1 min-w-0">
+                <div class="flex flex-wrap items-center gap-2 mb-2">
+                  <h3 class="text-[16px] font-semibold text-ink">Integrasi Materi Moodle</h3>
+                  <span id="moodle-kb-status-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted">Memuat...</span>
+                </div>
+                <p class="text-[13px] text-body max-w-3xl">
+                  Klik tombol sinkron untuk mengambil endpoint dan token dari tabel <b>moodle_configs</b>, lalu membaca <b>materi saja</b> dari Moodle seperti Page dan Resource HTML. Quiz, assignment, dan forum tidak ikut disinkronkan di menu ini.
+                </p>
+
+                <div id="moodle-kb-summary" class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div class="bg-white border border-hairline rounded-[12px] p-3">
+                    <p class="text-[11px] text-muted-soft mb-1">Endpoint</p>
+                    <p id="moodle-kb-endpoint" class="text-[12px] font-medium text-ink truncate">-</p>
+                  </div>
+                  <div class="bg-white border border-hairline rounded-[12px] p-3">
+                    <p class="text-[11px] text-muted-soft mb-1">Token</p>
+                    <p id="moodle-kb-token" class="text-[12px] font-medium text-ink">-</p>
+                  </div>
+                  <div class="bg-white border border-hairline rounded-[12px] p-3">
+                    <p class="text-[11px] text-muted-soft mb-1">Course Map</p>
+                    <p id="moodle-kb-courses" class="text-[12px] font-medium text-ink">-</p>
+                  </div>
+                </div>
+              </div>
+
+              <div class="w-full xl:w-[300px] bg-white border border-hairline rounded-[14px] p-4 shrink-0">
+                <label class="flex items-start gap-3 text-[13px] text-body cursor-pointer mb-4">
+                  <input type="checkbox" id="moodle-reset-chunks" class="mt-1 rounded border-hairline-strong text-primary focus:ring-primary" checked />
+                  <span>
+                    <b class="text-ink">Reset materi Moodle lama</b><br />
+                    <span class="text-muted-soft">Materi upload manual tidak ikut dihapus.</span>
+                  </span>
+                </label>
+                <div id="moodle-sync-button-wrap" class="w-full" title="Klik untuk sinkronisasi materi Moodle">
+                  <button type="button" id="btn-sync-moodle-materials" class="w-full bg-primary text-white px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition-colors shadow-sm">
+                    <i class="fa-solid fa-cloud-arrow-down mr-1.5"></i> Sinkron Moodle
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <div id="moodle-sync-result" class="mt-5">
+              <div class="bg-white border border-hairline rounded-[14px] p-5 text-[13px] text-body">
+                <div class="font-semibold text-ink mb-1"><i class="fa-solid fa-circle-info text-primary mr-1.5"></i>Belum ada proses sinkron berjalan.</div>
+                <p class="text-muted-soft">Tekan <b>Sinkron Moodle</b> untuk mengambil materi terbaru dari LMS dan langsung memasukkannya ke RAG.</p>
+              </div>
+            </div>
+          </div>
+
+          <div id="material-source-manual" class="material-source-panel hidden bg-canvas-soft border border-hairline rounded-[14px] p-4 md:p-5">
+            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+              <div>
+                <h3 class="text-[16px] font-semibold text-ink mb-1">Upload Materi Manual</h3>
+                <p class="text-[13px] text-body max-w-2xl">
+                  Gunakan mode ini untuk mengunggah PDF, DOCX, atau TXT sebagai sumber tambahan. Setelah diindex, materi akan masuk ke daftar materi dan siap dibaca RAG.
+                </p>
+              </div>
+              <button type="button" class="btn-open-drawer bg-primary text-white px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm shrink-0" data-form="doc">
+                <i class="fa-solid fa-plus mr-1.5"></i> Upload Materi Manual
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <div id="manual-document-list-card" class="hidden bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
           <div class="p-5 border-b border-hairline flex justify-between items-center bg-white shrink-0">
             <h2 class="font-serif text-xl text-ink">Daftar Materi</h2>
             <div class="flex items-center gap-3">
@@ -152,7 +164,7 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
             <table class="w-full text-left border-collapse bg-white">
               <thead class="sticky top-0 bg-canvas-soft z-10 shadow-sm">
                 <tr class="border-b border-hairline text-[13px] text-muted-soft uppercase font-medium tracking-wider">
-                  <th class="py-3 px-6">Judul & Topik</th>
+                  <th class="py-3 px-6">Judul, Topik & Sumber</th>
                   <th class="py-3 px-6 text-center">Status</th>
                   <th class="py-3 px-6 text-right">Aksi</th>
                 </tr>
