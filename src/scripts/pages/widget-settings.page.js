@@ -39,6 +39,37 @@ function showIntegrationCard(show = true) {
   else $card.addClass('hidden');
 }
 
+
+function cleanUrl(value = '') {
+  const text = String(value || '').trim();
+
+  if (!text || text === 'undefined' || text === 'null' || text === '#') {
+    return '';
+  }
+
+  return text.replace(/\/$/, '');
+}
+
+function stripApiSuffix(value = '') {
+  return cleanUrl(value).replace(/\/api\/?$/, '');
+}
+
+function getDashboardApiBase() {
+  return (
+    stripApiSuffix(import.meta.env.PUBLIC_API_BASE_URL) ||
+    stripApiSuffix(import.meta.env.PUBLIC_BACKEND_API_BASE_URL) ||
+    stripApiSuffix(window.location.origin)
+  );
+}
+
+function getDashboardAppUrl() {
+  return (
+    cleanUrl(import.meta.env.PUBLIC_APP_URL) ||
+    cleanUrl(import.meta.env.PUBLIC_FRONTEND_APP_URL) ||
+    cleanUrl(window.location.origin)
+  );
+}
+
 const WidgetSettingsPage = {
   init() {
     this.cacheDOM();
@@ -160,14 +191,14 @@ const WidgetSettingsPage = {
     if (config.active_from) $('#active_from').val(new Date(config.active_from).toISOString().slice(0, 16));
     if (config.active_until) $('#active_until').val(new Date(config.active_until).toISOString().slice(0, 16));
 
-    const API_BASE = import.meta.env.PUBLIC_API_BASE_URL.replace('/api', '');
-    const APP_URL = import.meta.env.APP_URL;
+    const API_BASE = getDashboardApiBase();
+    const APP_URL = getDashboardAppUrl();
 
     const embedCode = `<script\n  src="${API_BASE}/api/widget/loader.js"\n  data-project-key="${projectKey}"\n  data-api-base="${API_BASE}">\n</script>`;
 
     const extScriptCode = `<script\n  src="${API_BASE}/api/widget/external-loader.js"\n  data-project-key="${projectKey}"\n  data-api-base="${API_BASE}"\n  data-app-url="${APP_URL}">\n</script>`;
 
-    const externalLink = `${APP_URL}/buddy?projectKey=${projectKey}`;
+    const externalLink = `${APP_URL}/buddy?projectKey=${encodeURIComponent(projectKey)}`;
 
     $('#embed-code').val(embedCode);
     $('#ext-link').val(externalLink);
