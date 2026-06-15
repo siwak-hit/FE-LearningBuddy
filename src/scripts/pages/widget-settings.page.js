@@ -161,7 +161,7 @@ const WidgetSettingsPage = {
     if (config.active_until) $('#active_until').val(new Date(config.active_until).toISOString().slice(0, 16));
 
     const API_BASE = import.meta.env.PUBLIC_API_BASE_URL.replace('/api', '');
-    const APP_URL = import.meta.env.PUBLIC_APP_URL;
+    const APP_URL = import.meta.env.APP_URL;
 
     const embedCode = `<script\n  src="${API_BASE}/api/widget/loader.js"\n  data-project-key="${projectKey}"\n  data-api-base="${API_BASE}">\n</script>`;
 
