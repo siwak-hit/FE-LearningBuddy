@@ -5,150 +5,66 @@ import DashboardPage from './pages/dashboard.page.js';
 import WidgetSettingsPage from './pages/widget-settings.page.js';
 import BuddyPage from './pages/buddy.page.js'; // IMPORT BARU
 
-const PWA_CONFIG = {
-  manifestPath: '/manifest.webmanifest',
-  serviceWorkerPath: '/sw.js',
-  serviceWorkerScope: '/',
-  themeColor: '#2563eb'
-};
+// Catatan PWA:
+// Manifest dan service worker tidak lagi di-inject dari main.js.
+// Pasang <link rel="manifest" href="/manifest.json" /> langsung di layout/head.
 
-const PWAService = {
-  deferredInstallPrompt: null,
-  registration: null,
+const ADMIN_TOKEN_KEYS = ['alb_token', 'token', 'admin_token'];
 
-  init() {
-    this.injectManifest();
-    this.injectThemeColor();
-    this.bindInstallPrompt();
-    this.registerServiceWorker();
-  },
-
-  injectManifest() {
-    // Manifest tetap ditaruh di /public/manifest.webmanifest,
-    // tapi link-nya dipasang lewat entry point main.js agar tidak perlu edit layout/head satu-satu.
-    const existing = document.querySelector('link[rel="manifest"]');
-    if (existing) {
-      existing.setAttribute('href', PWA_CONFIG.manifestPath);
-      return;
-    }
-
-    const manifestLink = document.createElement('link');
-    manifestLink.rel = 'manifest';
-    manifestLink.href = PWA_CONFIG.manifestPath;
-    document.head.appendChild(manifestLink);
-  },
-
-  injectThemeColor() {
-    let themeMeta = document.querySelector('meta[name="theme-color"]');
-    if (!themeMeta) {
-      themeMeta = document.createElement('meta');
-      themeMeta.name = 'theme-color';
-      document.head.appendChild(themeMeta);
-    }
-    themeMeta.content = PWA_CONFIG.themeColor;
-  },
-
-  bindInstallPrompt() {
-    // Browser akan men-trigger event ini kalau app memenuhi syarat install PWA.
-    window.addEventListener('beforeinstallprompt', (event) => {
-      event.preventDefault();
-      this.deferredInstallPrompt = event;
-
-      // Bisa dipakai tombol custom nanti:
-      // window.dispatchEvent(new CustomEvent('alb:pwa-install-ready'));
-      window.dispatchEvent(new CustomEvent('alb:pwa-install-ready'));
-    });
-
-    window.addEventListener('appinstalled', () => {
-      this.deferredInstallPrompt = null;
-      localStorage.setItem('alb_pwa_installed', '1');
-      window.dispatchEvent(new CustomEvent('alb:pwa-installed'));
-    });
-
-    // Helper global kalau nanti mau bikin tombol "Install App" manual.
-    window.ALB_PWA = {
-      install: async () => this.promptInstall(),
-      isStandalone: () => this.isStandalone(),
-      getRegistration: () => this.registration
-    };
-  },
-
-  async promptInstall() {
-    if (!this.deferredInstallPrompt) {
-      return { ok: false, reason: 'install_prompt_not_ready' };
-    }
-
-    this.deferredInstallPrompt.prompt();
-    const choiceResult = await this.deferredInstallPrompt.userChoice;
-    this.deferredInstallPrompt = null;
-
-    return {
-      ok: choiceResult?.outcome === 'accepted',
-      outcome: choiceResult?.outcome || 'unknown'
-    };
-  },
-
-  canRegisterServiceWorker() {
-    if (!('serviceWorker' in navigator)) return false;
-
-    // Service worker butuh HTTPS, kecuali localhost memang diizinkan browser.
-    const host = window.location.hostname;
-    const isLocalhost = ['localhost', '127.0.0.1', '0.0.0.0'].includes(host);
-    const isHttps = window.location.protocol === 'https:';
-
-    return isHttps || isLocalhost;
-  },
-
-  registerServiceWorker() {
-    if (!this.canRegisterServiceWorker()) {
-      console.info('[AI Buddy PWA] Service Worker tidak diregister karena bukan HTTPS/localhost.');
-      return;
-    }
-
-    window.addEventListener('load', async () => {
-      try {
-        const registration = await navigator.serviceWorker.register(PWA_CONFIG.serviceWorkerPath, {
-          scope: PWA_CONFIG.serviceWorkerScope
-        });
-
-        this.registration = registration;
-        console.info('[AI Buddy PWA] Service Worker aktif:', registration.scope);
-
-        registration.addEventListener('updatefound', () => {
-          const newWorker = registration.installing;
-          if (!newWorker) return;
-
-          newWorker.addEventListener('statechange', () => {
-            if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-              window.dispatchEvent(new CustomEvent('alb:pwa-update-ready', { detail: { registration } }));
-            }
-          });
-        });
-      } catch (error) {
-        console.warn('[AI Buddy PWA] Gagal register Service Worker:', error);
-      }
-    });
-  },
-
-  isStandalone() {
-    return window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone === true;
+function hasAdminSession() {
+  try {
+    return ADMIN_TOKEN_KEYS.some((key) => Boolean(localStorage.getItem(key)));
+  } catch (error) {
+    return false;
   }
-};
+}
+
+function getSafeRedirectPath(defaultPath = '/dashboard') {
+  const params = new URLSearchParams(window.location.search);
+  const redirect = params.get('redirect') || defaultPath;
+
+  // Hindari open redirect ke domain luar.
+  if (!redirect.startsWith('/') || redirect.startsWith('//')) return defaultPath;
+  return redirect;
+}
+
+function buildLoginRedirectUrl() {
+  const currentPath = `${window.location.pathname}${window.location.search}`;
+  const redirect = encodeURIComponent(currentPath || '/dashboard');
+  return `/auth/login?redirect=${redirect}`;
+}
+
+function isAdminProtectedPath(path) {
+  return path === '/dashboard' || path === '/dashboard/' || path.startsWith('/dashboard/');
+}
+
+function isLoginPath(path) {
+  return path.includes('/auth/login');
+}
 
 const AppRouter = {
   init() {
-    // PWA diinisialisasi dari entry point utama.
-    // Jadi manifest + sw.js berlaku di semua halaman yang memakai main.js ini.
-    PWAService.init();
+    const path = window.location.pathname;
+
+    // Guard admin dashboard.
+    // Halaman /buddy tidak ikut dikunci karena itu workspace siswa/external loader.
+    if (isAdminProtectedPath(path) && !hasAdminSession()) {
+      window.location.replace(buildLoginRedirectUrl());
+      return;
+    }
+
+    // Kalau admin sudah login lalu buka /auth/login, langsung arahkan ke dashboard/redirect.
+    if (isLoginPath(path) && hasAdminSession()) {
+      window.location.replace(getSafeRedirectPath('/dashboard'));
+      return;
+    }
 
     Modal.init();
     this.initSidebar();
     this.initGlobal();
 
-    const path = window.location.pathname;
-
     // Routing System
-    if (path.includes('/auth/login')) {
+    if (isLoginPath(path)) {
       AuthPage.init();
     }
     else if (path.includes('/dashboard/widget')) {
@@ -166,13 +82,13 @@ const AppRouter = {
     const $sidebar = $('#main-sidebar');
     const $overlay = $('#sidebar-overlay');
 
-    function toggleSidebar(show) {
-      if (!$sidebar.length || !$overlay.length) return;
+    if (!$sidebar.length || !$overlay.length) return;
 
+    function toggleSidebar(show) {
       if (show) {
         $sidebar.removeClass('-translate-x-full');
         $overlay.removeClass('hidden');
-        $overlay[0].offsetHeight; // Reflow
+        $overlay[0]?.offsetHeight; // Reflow
         $overlay.removeClass('opacity-0');
       } else {
         $sidebar.addClass('-translate-x-full');
@@ -187,8 +103,11 @@ const AppRouter = {
 
   initGlobal() {
     const currentPath = window.location.pathname;
+
     $('aside nav a').each(function() {
       const linkPath = $(this).attr('href');
+      if (!linkPath) return;
+
       $(this).removeClass('bg-hairline-soft text-ink font-medium');
       if (currentPath === linkPath || (currentPath.startsWith(linkPath) && linkPath !== '/dashboard')) {
         $(this).addClass('bg-hairline-soft text-ink font-medium');

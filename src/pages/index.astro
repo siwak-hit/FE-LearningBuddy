@@ -6,6 +6,8 @@ import '../styles/global.css';
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>AI Learning Buddy - Portal</title>
+  <meta name="theme-color" content="#2563eb" />
+  <link rel="manifest" href="/manifest.json" />
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500&family=Playfair+Display:wght@300;400&display=swap" rel="stylesheet">
 
@@ -24,8 +26,7 @@ import '../styles/global.css';
 
   <nav class="relative z-10 flex justify-between items-center px-12 py-8">
     <div class="font-serif font-light text-2xl text-ink tracking-tight"><i class="fa-solid fa-feather-pointed mr-2"></i>AI Buddy</div>
-    <!-- LINK DIPERBAIKI -->
-    <a href="/dashboard" class="text-ink font-medium text-[15px] hover:opacity-70 transition-opacity">Masuk Dashboard</a>
+    <a href="/auth/login?redirect=/dashboard" data-admin-dashboard-link class="text-ink font-medium text-[15px] hover:opacity-70 transition-opacity">Masuk Dashboard</a>
   </nav>
 
   <main class="relative z-10 flex-1 flex flex-col justify-center items-center text-center px-6 -mt-10">
@@ -37,11 +38,10 @@ import '../styles/global.css';
     </p>
 
     <div class="flex gap-4">
-      <!-- LINK DIPERBAIKI -->
-      <a href="/dashboard" class="bg-primary text-white rounded-full px-8 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm">
+      <a href="/auth/login?redirect=/dashboard" data-admin-dashboard-link class="bg-primary text-white rounded-full px-8 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm">
         Buka Teacher Dashboard
       </a>
-      <!-- LINK DIPERBAIKI: Harus ambil project_key aslimu dari DB, pakai dummy dulu -->
+      <!-- Harus ambil project_key asli dari DB. Dummy hanya untuk demo lokal. -->
       <a href="/buddy?projectKey=alb_dummy" class="bg-transparent border border-hairline-strong text-ink rounded-full px-8 py-3 text-[15px] font-medium hover:bg-canvas-soft transition-colors">
         Lihat Demo Siswa
       </a>
@@ -51,6 +51,21 @@ import '../styles/global.css';
   <footer class="relative z-10 text-center py-8 text-muted-soft text-[14px]">
     Skripsi Project &copy; 2026. Designed with Editorial Guidelines.
   </footer>
+
+  <script is:inline>
+    (() => {
+      const tokenKeys = ['alb_token', 'token', 'admin_token'];
+      const hasAdminSession = tokenKeys.some((key) => {
+        try { return Boolean(localStorage.getItem(key)); }
+        catch (error) { return false; }
+      });
+
+      const dashboardHref = hasAdminSession ? '/dashboard' : '/auth/login?redirect=/dashboard';
+      document.querySelectorAll('[data-admin-dashboard-link]').forEach((link) => {
+        link.setAttribute('href', dashboardHref);
+      });
+    })();
+  </script>
 
 </body>
 </html>
