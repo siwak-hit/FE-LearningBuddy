@@ -1,0 +1,80 @@
+---
+import DashboardLayout from '../../layouts/DashboardLayout.astro';
+---
+
+<DashboardLayout title="Analitik Pembelajaran">
+  <div class="max-w-[1200px] mx-auto w-full flex-1 flex flex-col min-h-0">
+
+    <div class="mb-6 shrink-0 flex flex-wrap items-end justify-between gap-4">
+      <div>
+        <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Analitik Pembelajaran</h1>
+        <p class="text-body text-[16px] text-muted">Deteksi tingkat kesulitan siswa &amp; efektivitas rekomendasi AI — dari pola interaksi dengan AI Buddy.</p>
+      </div>
+      <div class="flex items-center gap-2">
+        <select id="filter-project" class="bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-2.5 text-[14px] text-ink focus:outline-none min-w-[170px] cursor-pointer">
+          <option value="all">Semua Project</option>
+        </select>
+        <button id="btn-refresh" class="bg-ink text-white rounded-[8px] px-4 py-2.5 text-[14px] font-semibold hover:opacity-90 transition"><i class="fa-solid fa-rotate mr-1"></i> Muat</button>
+      </div>
+    </div>
+
+    <!-- Kartu ringkasan -->
+    <div id="summary-cards" class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 shrink-0"></div>
+
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+      <!-- Distribusi tingkat kesulitan -->
+      <div class="bg-surface-card border border-hairline rounded-[16px] p-5 shadow-sm">
+        <h2 class="text-[15px] font-bold text-ink mb-1"><i class="fa-solid fa-gauge-high text-primary mr-1.5"></i> Distribusi Tingkat Kesulitan Siswa</h2>
+        <p class="text-[12px] text-muted mb-4">Berapa banyak sesi yang Lancar vs mulai/sedang kesulitan.</p>
+        <div id="difficulty-chart"></div>
+      </div>
+
+      <!-- Topik tersulit -->
+      <div class="bg-surface-card border border-hairline rounded-[16px] p-5 shadow-sm">
+        <h2 class="text-[15px] font-bold text-ink mb-1"><i class="fa-solid fa-triangle-exclamation text-amber-500 mr-1.5"></i> Topik Paling Membingungkan</h2>
+        <p class="text-[12px] text-muted mb-4">Topik yang paling sering muncul saat siswa kesulitan.</p>
+        <div id="confusing-chart"></div>
+      </div>
+
+      <!-- Efisiensi sistem -->
+      <div class="bg-surface-card border border-hairline rounded-[16px] p-5 shadow-sm">
+        <h2 class="text-[15px] font-bold text-ink mb-1"><i class="fa-solid fa-bolt text-emerald-500 mr-1.5"></i> Efisiensi Jawaban (Hemat Kuota AI)</h2>
+        <p class="text-[12px] text-muted mb-4">Berapa persen dijawab Sistem/Cache vs AI.</p>
+        <div id="efficiency-chart"></div>
+      </div>
+
+      <!-- Topik terbanyak -->
+      <div class="bg-surface-card border border-hairline rounded-[16px] p-5 shadow-sm">
+        <h2 class="text-[15px] font-bold text-ink mb-1"><i class="fa-solid fa-fire text-rose-500 mr-1.5"></i> Topik Paling Sering Ditanya</h2>
+        <p class="text-[12px] text-muted mb-4">Kebutuhan bantuan siswa secara umum.</p>
+        <div id="topics-chart"></div>
+      </div>
+    </div>
+
+    <div id="analytics-empty" class="hidden text-center py-16 text-muted">
+      <i class="fa-solid fa-chart-pie text-4xl mb-3 opacity-40"></i>
+      <p>Belum ada data interaksi untuk dianalisis.</p>
+    </div>
+
+    <!-- Evaluasi Model (Fase 4 / Skripsi) -->
+    <div class="bg-surface-card border border-hairline rounded-[16px] p-5 shadow-sm mt-6">
+      <h2 class="text-[15px] font-bold text-ink mb-1"><i class="fa-solid fa-flask text-violet-500 mr-1.5"></i> Evaluasi Model Deteksi (untuk Skripsi)</h2>
+      <p class="text-[12px] text-muted mb-4 leading-relaxed">
+        Langkah: <b>(1)</b> Unduh dataset prediksi. <b>(2)</b> Isi kolom <code>actual</code> dengan label asli hasil anotasi
+        (<code>lancar</code> / <code>mulai_bingung</code> / <code>kesulitan</code>). <b>(3)</b> Unggah lagi untuk menghitung
+        akurasi, precision, recall, F1, &amp; confusion matrix.
+      </p>
+      <div class="flex flex-wrap items-center gap-3 mb-4">
+        <button id="btn-export-eval" class="bg-ink text-white rounded-[8px] px-4 py-2.5 text-[13px] font-semibold hover:opacity-90"><i class="fa-solid fa-download mr-1"></i> Unduh Dataset Prediksi (CSV)</button>
+        <label class="bg-violet-600 text-white rounded-[8px] px-4 py-2.5 text-[13px] font-semibold hover:opacity-90 cursor-pointer">
+          <i class="fa-solid fa-upload mr-1"></i> Unggah CSV Berlabel &amp; Hitung
+          <input type="file" id="file-eval" accept=".csv" class="hidden">
+        </label>
+        <span id="eval-status" class="text-[12px] text-muted"></span>
+      </div>
+      <div id="eval-results"></div>
+    </div>
+
+  </div>
+  <script src="../../scripts/pages/analytics.page.js"></script>
+</DashboardLayout>

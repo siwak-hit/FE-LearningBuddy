@@ -2,8 +2,9 @@ import $ from 'jquery';
 
 export const Modal = {
   init() {
-    // Tombol close atau klik di luar (overlay) menutup modal
-    $(document).on('click', '.modal-close, .modal-overlay', function(e) {
+    // Tombol close atau klik di luar (overlay) menutup modal.
+    // `.btn-close-modal` dipakai tombol "Saya Mengerti" / "Tetap di sini" pada workspace.
+    $(document).on('click', '.modal-close, .btn-close-modal, .modal-overlay', function(e) {
       e.preventDefault();
       const id = $(this).closest('.custom-modal').attr('id');
       if(id) Modal.close(id);

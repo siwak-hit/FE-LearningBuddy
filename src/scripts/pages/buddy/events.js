@@ -2,6 +2,7 @@ import $ from 'jquery';
 import Toast from '../../components/toast.js';
 import { Modal } from '../../components/modal.js';
 import { ApiService } from '../../fetch/api.js';
+import { resolvePageKeyFromText, PAGE_ELEMENTS } from './pageElements.js';
 
 const LMS_BASE_URL = 'https://lms.smpn167jakarta.sch.id';
 const DEFAULT_COURSE_ID = '2';
@@ -367,6 +368,7 @@ function getCanonicalSuggestions(rawInput = '') {
     const topic = /wordpress/i.test(seed) ? 'WordPress' : /plugin/i.test(seed) ? 'plugin' : 'CMS';
     pushClean(`Apa itu ${topic}?`);
     pushClean(`Apa fungsi ${topic}?`);
+    pushClean(`Buka materi ${topic}`);
   } else if (/\b(forum|diskusi|reply|balas)\b/i.test(seed)) {
     pushClean(isGreenFlag ? 'Bagaimana cara menjawab forum?' : 'Apa cara menjawab forum?');
   } else if (/\b(quiz|kuis|ujian|soal)\b/i.test(seed)) {
@@ -404,17 +406,65 @@ function updateModeUI(context, selectedMode = 'system') {
 
   $('.opt-response-mode').removeClass('text-primary').addClass('text-ink');
   $(`.opt-response-mode[data-mode="${normalizedMode}"]`).removeClass('text-ink').addClass('text-primary');
+
+  updateModeReminder(context);
+}
+
+// [v0.4.0] Banner pengingat mode di atas kolom input. Mencegah "yah kepencet AI"
+// dengan menyorot ketika user sedang di mode AI (yang memakai kuota).
+function updateModeReminder(context) {
+  const mode = context?.currentResponseMode || 'system';
+  const isAi = mode === 'ai_short' || mode === 'ai_detail';
+
+  let $bar = $('#alb-mode-reminder');
+  if (!$bar.length) {
+    if (!$('#chat-form').length) return;
+    $('#chat-form').before('<div id="alb-mode-reminder" class="mb-1.5 hidden"></div>');
+    $bar = $('#alb-mode-reminder');
+  }
+
+  if (isAi) {
+    const modeName = mode === 'ai_detail' ? 'AI Detail' : 'AI Singkat';
+    // [v0.9.2] Dibuat 1 baris ringkas supaya area bawah tidak penuh.
+    $bar.html(`
+      <div class="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-2.5 py-1 text-[11px]">
+        <span class="flex items-center gap-1.5 min-w-0"><i class="fa-solid fa-sparkles shrink-0 text-[10px]"></i> <span class="truncate">Mode <b>${modeName}</b> — pakai kuota AI</span></span>
+        <button type="button" id="alb-switch-to-system" class="shrink-0 bg-white border border-amber-300 text-amber-800 hover:bg-amber-100 rounded-full px-2 py-0.5 font-semibold transition-colors">Pakai Sistem</button>
+      </div>`).removeClass('hidden');
+  } else {
+    $bar.addClass('hidden').empty();
+  }
+
+  $(document).off('click.albModeSwitch').on('click.albModeSwitch', '#alb-switch-to-system', () => {
+    updateModeUI(context, 'system');
+    Toast.show('Beralih ke Jawaban Sistem. Kuota AI aman.', 'success');
+  });
+}
+
+// [v0.4.3] Kirim pesan secara langsung TANPA mengisi kolom input & tanpa
+// mengandalkan $btnSend.click() (yang tidak selalu memicu submit form di jQuery).
+// Dipanggil sebagai method: this.sendDirectMessage({ message, forceAI, ... }).
+export function sendDirectMessage(options = {}) {
+  return sendChatMessage(this, options);
 }
 
 async function sendChatMessage(context, options = {}) {
   const modeConfig = getModeConfig(context.currentResponseMode);
   const messageText = String(options.message ?? context.$inputArea?.val() ?? '').trim();
 
+  // [v0.4.3] Ambil & reset gambar elemen lebih awal supaya kalau kirim dibatalkan,
+  // gambar tidak ikut terbawa ke pesan berikutnya.
+  const pendingUserImage = options.userImage || context._pendingUserImage || null;
+  context._pendingUserImage = null;
+
   if (!messageText || context.isRequesting) return;
 
   context.isRequesting = true;
 
-  context.appendBubble(messageText, true, 'user');
+  // suppressUserBubble: bubble pertanyaan sudah ditampilkan pemanggil (mis. auto-pindah konteks).
+  if (!options.suppressUserBubble) {
+    context.appendBubble(messageText, true, 'user', [], { image: pendingUserImage });
+  }
   context.$inputArea?.val('');
   context.resetInputHeight?.();
   context.hideSuggestionWrapper?.();
@@ -452,7 +502,8 @@ async function sendChatMessage(context, options = {}) {
     responseMode: selectedResponseMode,
     forceFAQ: options.forceFAQ ?? (materialQuestion ? false : modeConfig.forceFAQ),
     forceAI: selectedForceAI,
-    intent: options.intent || null
+    intent: options.intent || null,
+    mention: options.mention || null
   };
 
   try {
@@ -485,6 +536,21 @@ async function sendChatMessage(context, options = {}) {
         context.appendBubble(botMessage.message || 'Jawaban berhasil diterima.', false, res.data.response_source || 'system', botMessage.actions || []);
       }
 
+      // [v0.8.2 Fase 2] Rekomendasi bantuan adaptif — tampilkan saat level kesulitan
+      // BERUBAH (escalation), bukan tiap pesan, biar tidak spam.
+      const diff = res.data.difficulty;
+      const reco = res.data.recommendation;
+      if (diff && diff.level === 'lancar') {
+        context._lastRecoLevel = null;
+      } else if (reco && diff && diff.level !== context._lastRecoLevel) {
+        context._lastRecoLevel = diff.level;
+        setTimeout(() => {
+          // Rekomendasi proaktif — jangan kunci input (boleh diabaikan/ditindaklanjuti).
+          context.appendBubble(reco.message, false, 'system', reco.actions || [], { noFeedbackLock: true });
+          context.scrollToBottom?.();
+        }, 450);
+      }
+
       if (res.data.is_locked) {
         ensureLocalLockOverlay(context, { warnings: res.data.warnings || 3, reason: res.data.lock_reason || 'profanity_limit' });
       }
@@ -498,6 +564,9 @@ async function sendChatMessage(context, options = {}) {
   } finally {
     context.isRequesting = false;
     context.forceNextAI = false;
+
+    // [v0.4.0] Ingatkan user mode aktif (terutama AI) sesudah chat terkirim.
+    updateModeReminder(context);
 
     if (context._unlockInputAfterCurrentResponse && !context._lastBotMessageWaitsForFeedback) {
       enableChatInputAfterFeedback(context);
@@ -634,10 +703,28 @@ function writeActiveStudentIdentity(context, identity = {}) {
 }
 
 function persistReusableStudentSession(context, identity = {}) {
-  const email = identity.email || identity.student_email || identity.username || '';
-  const classCode = identity.class_code || identity.classCode || identity.kelas || '';
+  // [FIX SM-4] Email & kelas sering tidak ada di `identity` yang dioper (mis. saat
+  // dipanggil setelah kirim pesan). Ambil dari identitas terverifikasi di
+  // sessionStorage / contextData supaya kunci reuse benar-benar tertulis.
+  let lmsIdentity = {};
+  try { lmsIdentity = JSON.parse(sessionStorage.getItem('alb_student_lms_identity') || '{}') || {}; } catch (_) { lmsIdentity = {}; }
+  const meta = (context?.contextData && context.contextData.session_meta) || {};
+
+  const email = identity.email || identity.student_email || identity.username
+    || lmsIdentity.email || sessionStorage.getItem('alb_student_email') || meta.email || '';
+  const classCode = identity.class_code || identity.classCode || identity.kelas
+    || lmsIdentity.class_code || sessionStorage.getItem('alb_student_class_code') || meta.class_code || '';
   const sessionId = identity.sessionId || identity.session_id || context?.sessionId || '';
   if (!email || !classCode || !sessionId) return;
+
+  // Lengkapi atribut lain dari identitas terverifikasi bila kosong.
+  identity = {
+    moodle_user_id: lmsIdentity.moodle_user_id || meta.moodle_user_id,
+    fullname: lmsIdentity.fullname || meta.display_name,
+    course_id: lmsIdentity.course_id || meta.course_id,
+    course_title: lmsIdentity.course_title || meta.course_title,
+    ...identity
+  };
 
   const payload = {
     sessionId,
@@ -958,30 +1045,85 @@ function selfHealDisabledInput(context) {
   }
 }
 
+// [v0.9.1] Bar pemakaian AI BERSAMA (global) — kuota gratis Gemini dipakai semua user
+// dan direset tiap hari. Tujuannya: siswa paham kalau AI "lambat/sibuk" itu karena
+// kuota bersama menipis, bukan internet mereka. Polling tiap beberapa detik.
+function initGlobalAiUsageBar(context) {
+  const $anchor = $('#suggestion-wrapper');
+  if (!$anchor.length || $('#alb-global-ai-usage').length) {
+    // Sudah ada atau tidak ada tempat pasang → cukup pastikan polling jalan.
+  } else {
+    $anchor.before(`
+      <div id="alb-global-ai-usage" class="mb-1.5 select-none" title="Kuota AI gratis dipakai bersama semua siswa & direset tiap hari (tengah malam WIB).">
+        <div class="flex items-center gap-2">
+          <i class="fa-solid fa-bolt text-[11px] text-amber-500 shrink-0"></i>
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center justify-between gap-2 mb-0.5">
+              <span class="text-[10px] font-semibold text-muted">Kuota AI bersama hari ini</span>
+              <span id="alb-global-ai-usage-pct" class="text-[10px] font-bold text-muted-soft">…</span>
+            </div>
+            <div class="h-1.5 w-full bg-hairline rounded-full overflow-hidden">
+              <div id="alb-global-ai-usage-fill" class="h-full rounded-full bg-emerald-500 transition-all duration-500" style="width:0%"></div>
+            </div>
+          </div>
+        </div>
+        <div id="alb-global-ai-usage-note" class="hidden text-[10px] leading-snug mt-1.5 rounded-lg px-2 py-1.5"></div>
+      </div>
+    `);
+  }
+
+  const render = (data = {}) => {
+    const pct = Number(data.percent || 0);
+    const $fill = $('#alb-global-ai-usage-fill');
+    const $pct = $('#alb-global-ai-usage-pct');
+    const $note = $('#alb-global-ai-usage-note');
+    if (!$fill.length) return;
+
+    $fill.css('width', `${pct}%`)
+      .removeClass('bg-emerald-500 bg-amber-500 bg-red-500')
+      .addClass(pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500');
+    $pct.text(`${pct}%`).removeClass('text-muted-soft text-amber-600 text-red-600')
+      .addClass(pct >= 90 ? 'text-red-600' : pct >= 70 ? 'text-amber-600' : 'text-muted-soft');
+
+    if (data.rate_limited) {
+      // Baru saja kena 429 dari Google — biasanya batas per-menit, pulih beberapa menit.
+      $note.removeClass('hidden bg-amber-50 text-amber-800 border-amber-200')
+        .addClass('bg-red-50 text-red-700 border border-red-200')
+        .html('<i class="fa-solid fa-circle-exclamation mr-1"></i> AI sedang kena <b>batas pemakaian</b> (dipakai banyak siswa). Tunggu beberapa menit lalu coba lagi, atau gunakan <b>Jawaban Sistem</b> dulu.');
+    } else if (data.exhausted) {
+      $note.removeClass('hidden bg-amber-50 text-amber-800 border-amber-200')
+        .addClass('bg-red-50 text-red-700 border border-red-200')
+        .html(`<i class="fa-solid fa-circle-exclamation mr-1"></i> Kuota AI bersama hari ini sudah penuh. ${data.resets_at_label ? '<b>' + data.resets_at_label + '</b>. ' : ''}Sementara ini gunakan <b>Jawaban Sistem</b> ya.`);
+    } else if (data.busy) {
+      $note.removeClass('hidden bg-red-50 text-red-700 border-red-200')
+        .addClass('bg-amber-50 text-amber-800 border border-amber-200')
+        .html('<i class="fa-solid fa-hourglass-half mr-1"></i> Kuota AI bersama hampir penuh — jawaban AI mungkin lebih lambat. Kalau gagal, coba lagi nanti atau pakai <b>Jawaban Sistem</b>.');
+    } else {
+      $note.addClass('hidden').empty();
+    }
+  };
+
+  const poll = () => {
+    ApiService.get('/chat/ai-usage-global')
+      .then((res) => { if (res?.status === 'success' && res.data) render(res.data); })
+      .catch(() => {});
+  };
+
+  poll();
+  if (window.__albGlobalUsageTimer) clearInterval(window.__albGlobalUsageTimer);
+  window.__albGlobalUsageTimer = setInterval(poll, 8000);
+}
+
 function registerAlbPwa(context) {
+  // Simpan projectKey terakhir → dipakai index.astro untuk mengarahkan user PWA ke AIworkspace.
+  try { if (context?.projectKey) localStorage.setItem('alb:lastProjectKey', context.projectKey); } catch (_) {}
+
   if (!('serviceWorker' in navigator) || window.__albPwaRegistered) return;
   window.__albPwaRegistered = true;
   navigator.serviceWorker.register('/sw.js').catch(() => {});
 
-  const standalone = window.matchMedia?.('(display-mode: standalone)')?.matches || window.navigator.standalone;
-  const active = readActiveStudentIdentity(context);
-  if (standalone && !active?.sessionId && !sessionStorage.getItem('alb_pwa_vclass_hint_shown')) {
-    sessionStorage.setItem('alb_pwa_vclass_hint_shown', '1');
-    $('body').append(`
-      <div id="alb-pwa-first-run" class="fixed inset-0 z-[100001] bg-slate-950/80 backdrop-blur-md flex items-center justify-center p-4">
-        <div class="max-w-[460px] w-full rounded-3xl bg-white p-6 shadow-2xl text-center">
-          <div class="w-16 h-16 mx-auto rounded-full bg-primary/10 text-primary flex items-center justify-center text-2xl mb-4"><i class="fa-solid fa-mobile-screen-button"></i></div>
-          <h2 class="text-[22px] font-black text-ink mb-2">Mulai dari VClass dulu</h2>
-          <p class="text-[14px] text-body leading-6 mb-5">Untuk mengaitkan akun dan kelas, buka VClass lalu tekan tombol AI Learning Buddy di pojok kanan bawah. Setelah email dan kelas valid, aplikasi akan melanjutkan session yang sama.</p>
-          <div class="flex gap-2 justify-center">
-            <a href="${LMS_BASE_URL}/my/courses.php" class="bg-primary text-white rounded-full px-4 py-2 text-[13px] font-bold">Buka VClass</a>
-            <button type="button" id="alb-pwa-first-run-close" class="border border-hairline rounded-full px-4 py-2 text-[13px] font-bold text-muted">Nanti</button>
-          </div>
-        </div>
-      </div>
-    `);
-    $('#alb-pwa-first-run-close').on('click', () => $('#alb-pwa-first-run').remove());
-  }
+  // [v0.9.0] Tidak lagi memaksa "buka VClass dulu". Kalau masuk lewat PWA tanpa sesi,
+  // AIworkspace akan menampilkan form email + kelas (cek email) — lihat init.js.
 }
 
 function getNotesIdentity(context) {
@@ -1214,6 +1356,7 @@ export function bindWorkspaceEvents() {
   hydrateReusableSessionIfAvailable(this);
   decorateAiUsageAutoReset(this);
   registerAlbPwa(this);
+  initGlobalAiUsageBar(this);
   applyPersistedCooldownIfNeeded(this);
   applyPersistedLockdownIfNeeded(this);
   selfHealDisabledInput(this);
@@ -1223,6 +1366,8 @@ export function bindWorkspaceEvents() {
   bindInputEvents(this, () => suggestionTimer, (timer) => { suggestionTimer = timer; });
   bindFormSubmit(this);
   bindFastGuideButtons(this);
+  this.bindMentionEvents?.();        // [v0.7.0] klik item mention "@"
+  this.loadMateriMentions?.();       // [v0.7.0] muat daftar materi untuk @materi-N
   bindBasicButtons(this);
   bindUnlockForm(this);
   bindChatActionButtons(this);
@@ -1278,6 +1423,10 @@ function bindInputEvents(context, getSuggestionTimer, setSuggestionTimer) {
       const val = context.$inputArea.val();
       const trimmedVal = val.trim();
 
+      // [v0.7.0] Saran mention "@" — jika sedang mengetik token "@...", tampilkan dropdown
+      // mention dan jangan tampilkan suggestion chips biasa.
+      if (context.handleMentionInput?.()) return;
+
       if (!val.match(/@\w+/)) {
         context.selectedElement = null;
         context.$selectedBar.addClass('hidden').removeClass('flex');
@@ -1328,15 +1477,95 @@ function bindInputEvents(context, getSuggestionTimer, setSuggestionTimer) {
   });
 }
 
+// [v0.6.0] Auto-pindah konteks halaman: kalau pertanyaan user mengarah ke halaman
+// LAIN dari konteks aktif, beri tahu + pindahkan fokus sidebar, lalu jawab via SISTEM.
+async function handleAutoContextSwitch(context, targetKey, text) {
+  const page = PAGE_ELEMENTS.find((p) => p.key === targetKey);
+  const label = page?.label || 'halaman lain';
+
+  context.appendBubble(text, true, 'user');
+  context.appendBubble(
+    `Sepertinya pertanyaanmu lebih mengarah ke konteks **${label}**. Aku pindahkan dulu fokusnya ke sana ya 🔄`,
+    false, 'system'
+  );
+  context.$inputArea.val('');
+  context.hideSuggestionWrapper?.();
+  context.toggleSuggestions?.();
+
+  try { await context.applyPageElements?.(targetKey, { silent: true }); } catch (_) {}
+
+  // Jawab dalam mode SISTEM (bukan AI) sesuai konteks halaman baru.
+  sendChatMessage(context, {
+    message: text,
+    responseMode: 'system',
+    forceAI: false,
+    forceFAQ: false,
+    suppressUserBubble: true
+  });
+}
+
 function bindFormSubmit(context) {
   bindIfExists(context.$form, 'submit', (e) => {
     e.preventDefault();
 
-    const text = context.$inputArea.val().trim();
+    // [v0.9.2] Tag mention kini berupa chip (di luar teks). Gabungkan dengan teks
+    // pertanyaan untuk membentuk pesan lengkap ke BE.
+    const rawText = context.$inputArea.val().trim();
+    const chipMention = (context.activeMention && context.activeMention.token) ? context.activeMention : null;
+    const text = chipMention ? `@${chipMention.token} ${rawText}`.trim() : rawText;
     if (!text || context.isRequesting) return;
 
     const currentElementContext = context.selectedElement;
     const modeConfig = getModeConfig(context.currentResponseMode);
+
+    // [v0.7.0] Mention "@" punya prioritas tertinggi (chip ATAU ketik manual).
+    const mention = chipMention || context.resolveMentionForSend?.(text);
+    if (mention) {
+      context.hideMentionDropdown?.();
+      context.hideMateriFollowupDropdown?.();
+      context.hideSuggestionWrapper?.();
+
+      if (mention.type === 'elemen' && mention.el) {
+        const userQ = (chipMention ? rawText : text.replace(/@[\w-]+/g, '')).trim();
+        context.clearInputMention?.();
+        context.$inputArea.val('');
+        context.answerElementViaSystem(mention.el, userQ);
+        return;
+      }
+      if (mention.type === 'materi') {
+        context.clearInputMention?.();
+        context.$inputArea.val('');
+        // Materi terkunci → tolak, jangan kirim ke BE.
+        if (mention.locked) {
+          context.appendBubble(text, true, 'user');
+          context.appendBubble(`Materi **${mention.label}** masih **terkunci** 🔒 di VClass. Selesaikan dulu materi/aktivitas sebelumnya agar bisa diakses ya.`, false, 'system');
+          context.scrollToBottom?.();
+          return;
+        }
+        context.appendBubble(text, true, 'user');
+        // [v0.9.2] Hormati MODE yang dipilih user (dulu dipaksa 'system' → AI @materi tak jalan).
+        sendChatMessage(context, {
+          message: text,
+          mention: { type: 'materi', documentId: mention.documentId || null, title: mention.label, sourceUrl: mention.url || null, label: mention.label },
+          forceAI: context.forceNextAI === true ? true : modeConfig.forceAI,
+          forceFAQ: context.forceNextAI === true ? false : modeConfig.forceFAQ,
+          responseMode: modeConfig.responseMode,
+          suppressUserBubble: true
+        });
+        return;
+      }
+    }
+
+    // [v0.6.0] Deteksi pergeseran konteks halaman (hanya untuk pertanyaan bebas,
+    // bukan saat ada elemen yang sedang dipilih).
+    if (!currentElementContext) {
+      const targetPage = resolvePageKeyFromText(text);
+      const currentPage = context.contextData?.page_key || null;
+      if (targetPage && targetPage !== currentPage) {
+        handleAutoContextSwitch(context, targetPage, text);
+        return;
+      }
+    }
 
     context.selectedElement = null;
     context.$selectedBar.addClass('hidden').removeClass('flex');
@@ -1366,6 +1595,7 @@ function ensureExtendedFastGuideButtons(context) {
       title: 'Panduan Penggunaan Tambahan',
       subtitle: 'Tutorial sistem dengan visual elemen VClass.',
       items: [
+        { icon: 'fa-right-to-bracket', color: 'text-blue-600', msg: 'Cara login ke VClass', intent: 'tutorial_login', label: 'Cara Login VClass' },
         { icon: 'fa-pen-to-square', color: 'text-violet-500', msg: 'Cara membuat forum diskusi di VClass', intent: 'tutorial_buat_forum', label: 'Cara Buat Forum Diskusi' },
         { icon: 'fa-comments', color: 'text-fuchsia-500', msg: 'Cara reply atau balas diskusi forum di VClass', intent: 'tutorial_reply_forum', label: 'Cara Reply/Balas Diskusi' },
         { icon: 'fa-cloud-arrow-up', color: 'text-emerald-500', msg: 'Cara mengumpulkan tugas di VClass', intent: 'tutorial_kumpulin_tugas', label: 'Cara Mengumpulkan Tugas' },
@@ -2041,9 +2271,87 @@ function bindChatActionButtons(context) {
       Toast.show('Terima kasih. Jawaban sistem ditandai membantu.', 'success');
     });
 
+  // [v0.8.1] Tombol konfirmasi tipe SCORING — memengaruhi deteksi kesulitan.
+  // Fungsinya sama (buka input lagi), tapi mengirim sinyal "terbantu/teratasi" ke server.
+  context.$chatArea
+    .off('click', '.btn-feedback-resolved')
+    .on('click', '.btn-feedback-resolved', (e) => {
+      e.preventDefault();
+
+      const $btn = $(e.currentTarget);
+      const $wrap = $btn.closest('.alb-system-message-wrap');
+
+      $wrap.find('.alb-action-group button')
+        .prop('disabled', true)
+        .addClass('opacity-60 cursor-not-allowed');
+
+      $btn
+        .removeClass('bg-emerald-50 opacity-60 cursor-not-allowed')
+        .addClass('bg-emerald-600 text-white')
+        .html('<i class="fa-solid fa-circle-check"></i> Terbantu, makasih!');
+
+      $wrap.removeAttr('data-waiting-feedback');
+      enableChatInputAfterFeedback(context);
+
+      // Kirim sinyal resolusi ke server (memengaruhi skor kesulitan).
+      ApiService.post('/chat/feedback', { sessionId: context.sessionId, type: 'resolved' }).catch(() => {});
+      Toast.show('Senang bisa membantu! 🎉', 'success');
+    });
+
   context.$chatArea
     .off('click', '.btn-system-feedback-ai')
     .on('click', '.btn-system-feedback-ai', (e) => handleSystemFeedbackAi(context, e));
+
+  // [v0.4.0] Salin pertanyaan user.
+  context.$chatArea
+    .off('click', '.btn-user-copy')
+    .on('click', '.btn-user-copy', function () {
+      const msg = decodeURIComponent($(this).attr('data-msg') || '');
+      if (!msg) return;
+      const done = () => Toast.show('Pertanyaan disalin ke clipboard.', 'success');
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(msg).then(done).catch(() => Toast.show('Gagal menyalin.', 'error'));
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = msg; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (_) {}
+        document.body.removeChild(ta);
+      }
+    });
+
+  // [v0.9.1] Salin jawaban bot (hanya teks, tombol/visual tidak ikut).
+  context.$chatArea
+    .off('click', '.btn-bot-copy')
+    .on('click', '.btn-bot-copy', function () {
+      const msg = decodeURIComponent($(this).attr('data-copy') || '');
+      if (!msg) return;
+      const done = () => Toast.show('Jawaban disalin ke clipboard.', 'success');
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(msg).then(done).catch(() => Toast.show('Gagal menyalin.', 'error'));
+      } else {
+        const ta = document.createElement('textarea');
+        ta.value = msg; document.body.appendChild(ta); ta.select();
+        try { document.execCommand('copy'); done(); } catch (_) {}
+        document.body.removeChild(ta);
+      }
+    });
+
+  // [v0.4.3] Kirim ulang pertanyaan yang sama — panggil sendChatMessage langsung
+  // (lebih andal daripada $btnSend.click() yang tidak selalu memicu submit form).
+  context.$chatArea
+    .off('click', '.btn-user-reload')
+    .on('click', '.btn-user-reload', function () {
+      const msg = decodeURIComponent($(this).attr('data-msg') || '');
+      if (!msg || context.isRequesting) return;
+      if (isCooldownBlocking(context)) { showCooldownToast(context); return; }
+      const modeConfig = getModeConfig(context.currentResponseMode);
+      sendChatMessage(context, {
+        message: msg,
+        forceAI: modeConfig.forceAI,
+        forceFAQ: modeConfig.forceFAQ,
+        responseMode: modeConfig.responseMode
+      });
+    });
 
   context.$chatArea
     .off('click', '.btn-continue-prompt')
@@ -2202,8 +2510,11 @@ function handleAskAiFallback(context, event) {
     .addClass('opacity-60 cursor-not-allowed');
 
   try {
-    const payloadData = $btn.data('payload') || JSON.parse(decodeURIComponent(rawPayload));
-    const aiMessage = payloadData.message || payloadData.ai_message || 'Jelaskan cara menggunakan fitur ini secara jelas dan singkat.';
+    // [FIX] JANGAN pakai $btn.data('payload') — jQuery mengembalikan string ter-encode
+    // (%7B...) sehingga .message jadi undefined dan jatuh ke prompt generik.
+    // Selalu decode dari atribut mentah.
+    const payloadData = JSON.parse(decodeURIComponent(rawPayload));
+    const aiMessage = payloadData.message || payloadData.ai_message || payloadData.original_message || 'Jelaskan materi ini secara jelas dan singkat.';
     const sourceAnswer = payloadData.source_answer || '';
 
     updateModeUI(context, 'ai_short');

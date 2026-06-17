@@ -54,20 +54,64 @@ function stripApiSuffix(value = '') {
   return cleanUrl(value).replace(/\/api\/?$/, '');
 }
 
-function getDashboardApiBase() {
-  return (
-    stripApiSuffix(import.meta.env.PUBLIC_API_BASE_URL) ||
-    stripApiSuffix(import.meta.env.PUBLIC_BACKEND_API_BASE_URL) ||
-    stripApiSuffix(window.location.origin)
-  );
+function isLocalRuntime() {
+  const host = String(window.location.hostname || '').toLowerCase();
+  return host === 'localhost' || host === '127.0.0.1' || host === '0.0.0.0' || host.startsWith('192.168.') || host.startsWith('10.') || host.endsWith('.local');
 }
 
-function getDashboardAppUrl() {
+function getRuntimeParams() {
+  return new URLSearchParams(window.location.search || '');
+}
+
+function getEmbedEnvironment() {
+  const params = getRuntimeParams();
+  const raw = String(params.get('embedEnv') || params.get('env') || '').toLowerCase().trim();
+
+  if (['local', 'localhost', 'dev', 'development'].includes(raw)) return 'local';
+  if (['prod', 'production', 'hosted', 'vercel'].includes(raw)) return 'production';
+
+  return isLocalRuntime() ? 'local' : 'production';
+}
+
+function getRuntimeAppUrl() {
+  const params = getRuntimeParams();
+  const queryAppUrl = cleanUrl(params.get('appUrl') || params.get('frontendUrl'));
+  if (queryAppUrl) return queryAppUrl;
+
+  const env = getEmbedEnvironment();
+
+  if (env === 'local') {
+    return cleanUrl(window.location.origin);
+  }
+
   return (
     cleanUrl(import.meta.env.PUBLIC_APP_URL) ||
     cleanUrl(import.meta.env.PUBLIC_FRONTEND_APP_URL) ||
     cleanUrl(window.location.origin)
   );
+}
+
+function getRuntimeApiBase() {
+  const params = getRuntimeParams();
+  const queryApiBase = stripApiSuffix(params.get('apiBase') || params.get('backendUrl'));
+  if (queryApiBase) return queryApiBase;
+
+  const env = getEmbedEnvironment();
+
+  if (env === 'local') {
+    const localApiBase = cleanUrl(import.meta.env.PUBLIC_LOCAL_API_BASE_URL);
+    return stripApiSuffix(localApiBase || 'http://localhost:3000');
+  }
+
+  return stripApiSuffix(
+    import.meta.env.PUBLIC_API_BASE_URL ||
+    import.meta.env.PUBLIC_BACKEND_API_BASE_URL ||
+    'https://be-learning-buddy.vercel.app/api'
+  );
+}
+
+function getEmbedEnvLabel() {
+  return getEmbedEnvironment() === 'local' ? 'Localhost / Development' : 'Hosting / Production';
 }
 
 const WidgetSettingsPage = {
@@ -191,12 +235,24 @@ const WidgetSettingsPage = {
     if (config.active_from) $('#active_from').val(new Date(config.active_from).toISOString().slice(0, 16));
     if (config.active_until) $('#active_until').val(new Date(config.active_until).toISOString().slice(0, 16));
 
-    const API_BASE = getDashboardApiBase();
-    const APP_URL = getDashboardAppUrl();
+    const API_BASE = getRuntimeApiBase();
+    const APP_URL = getRuntimeAppUrl();
+    const ENV_LABEL = getEmbedEnvLabel();
 
-    const embedCode = `<script\n  src="${API_BASE}/api/widget/loader.js"\n  data-project-key="${projectKey}"\n  data-api-base="${API_BASE}">\n</script>`;
+    const embedCode = `<!-- AI Learning Buddy | ${ENV_LABEL} -->
+<script
+  src="${API_BASE}/api/widget/loader.js"
+  data-project-key="${projectKey}"
+  data-api-base="${API_BASE}">
+</script>`;
 
-    const extScriptCode = `<script\n  src="${API_BASE}/api/widget/external-loader.js"\n  data-project-key="${projectKey}"\n  data-api-base="${API_BASE}"\n  data-app-url="${APP_URL}">\n</script>`;
+    const extScriptCode = `<!-- AI Learning Buddy External Launcher | ${ENV_LABEL} -->
+<script
+  src="${API_BASE}/api/widget/external-loader.js"
+  data-project-key="${projectKey}"
+  data-api-base="${API_BASE}"
+  data-app-url="${APP_URL}">
+</script>`;
 
     const externalLink = `${APP_URL}/buddy?projectKey=${encodeURIComponent(projectKey)}`;
 

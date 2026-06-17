@@ -14,6 +14,17 @@ const { title } = Astro.props;
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" type="text/css" href="https://cdn.jsdelivr.net/npm/toastify-js/src/toastify.min.css">
   <link rel="manifest" href="/manifest.json" />
+  <style>
+    /* Active navigation state — ink-tinted pill mengikuti DESIGN.md */
+    #dashboard-nav .nav-item.is-active {
+      background-color: rgba(41, 37, 36, 0.06);
+      color: var(--color-ink, #0c0a09);
+      font-weight: 600;
+    }
+    #dashboard-nav .nav-item.is-active i { color: var(--color-ink, #0c0a09); }
+    #dashboard-nav .nav-group.is-open .nav-group-caret { transform: rotate(180deg); }
+    #dashboard-nav .nav-group.is-open .nav-group-toggle { color: var(--color-ink, #0c0a09); }
+  </style>
 </head>
 <body class="bg-canvas text-body font-sans h-screen flex overflow-hidden relative">
 
@@ -24,20 +35,50 @@ const { title } = Astro.props;
       <h2 class="font-serif text-2xl text-ink font-light tracking-tight"><i class="fa-solid fa-feather-pointed mr-2"></i>AI Buddy</h2>
       <button id="btn-close-sidebar" class="md:hidden text-muted text-xl p-2 -mr-2"><i class="fa-solid fa-xmark"></i></button>
     </div>
-    <nav class="flex-1 px-4 py-8 space-y-2">
-      <a href="/dashboard" class="flex items-center px-4 py-3 rounded-lg transition-colors text-[15px] text-body hover:bg-hairline-soft"><i class="fa-solid fa-chart-line w-6"></i> Dashboard</a>
-      <a href="/dashboard/widget" class="flex items-center px-4 py-3 rounded-lg transition-colors text-[15px] text-body hover:bg-hairline-soft"><i class="fa-solid fa-sliders w-6"></i> Widget Config</a>
-
-      <a href="/dashboard/moodle" class="flex items-center px-4 py-3 rounded-lg transition-colors text-[15px] text-body hover:bg-hairline-soft">
-        <i class="fa-solid fa-graduation-cap w-6"></i> Moodle Config
+    <nav id="dashboard-nav" class="flex-1 px-4 py-6 space-y-1 overflow-y-auto">
+      <!-- 1. Dashboard -->
+      <a href="/dashboard" data-nav-link data-match="/dashboard" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-[15px] text-body hover:bg-hairline-soft">
+        <i class="fa-solid fa-chart-line w-5 text-center text-[15px] text-muted-soft"></i> Dashboard
       </a>
 
-      <a href="/dashboard/knowledge" class="flex items-center px-4 py-3 rounded-lg transition-colors text-[15px] text-body hover:bg-hairline-soft">
-        <i class="fa-solid fa-book-open w-6"></i> Knowledge Base
+      <!-- 2. Basis Pengetahuan -->
+      <a href="/dashboard/knowledge" data-nav-link data-match="/dashboard/knowledge" class="nav-item flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-[15px] text-body hover:bg-hairline-soft">
+        <i class="fa-solid fa-book-open w-5 text-center text-[15px] text-muted-soft"></i> Basis Pengetahuan
       </a>
-      <a href="/dashboard/logs" class="flex items-center px-4 py-3 rounded-lg transition-colors text-[15px] text-body hover:bg-hairline-soft">
-        <i class="fa-solid fa-shield-halved w-6"></i> Logs Percakapan
-      </a>
+
+      <!-- 3. Konfigurasi (grup) -->
+      <div class="nav-group" data-nav-group data-children="/dashboard/widget,/dashboard/moodle">
+        <button type="button" class="nav-group-toggle w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-[15px] text-body hover:bg-hairline-soft">
+          <i class="fa-solid fa-sliders w-5 text-center text-[15px] text-muted-soft"></i>
+          <span class="flex-1 text-left">Konfigurasi</span>
+          <i class="fa-solid fa-chevron-down nav-group-caret text-[11px] text-muted-soft transition-transform"></i>
+        </button>
+        <div class="nav-group-body mt-1 ml-4 pl-3 border-l border-hairline space-y-1 hidden">
+          <a href="/dashboard/widget" data-nav-link data-match="/dashboard/widget" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-[14px] text-body hover:bg-hairline-soft">
+            <i class="fa-solid fa-puzzle-piece w-5 text-center text-[13px] text-muted-soft"></i> Widget
+          </a>
+          <a href="/dashboard/moodle" data-nav-link data-match="/dashboard/moodle" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-[14px] text-body hover:bg-hairline-soft">
+            <i class="fa-solid fa-graduation-cap w-5 text-center text-[13px] text-muted-soft"></i> Moodle / VClass
+          </a>
+        </div>
+      </div>
+
+      <!-- 4. Analitik & Log (grup) -->
+      <div class="nav-group" data-nav-group data-children="/dashboard/analytics,/dashboard/logs">
+        <button type="button" class="nav-group-toggle w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-colors text-[15px] text-body hover:bg-hairline-soft">
+          <i class="fa-solid fa-brain w-5 text-center text-[15px] text-muted-soft"></i>
+          <span class="flex-1 text-left">Analitik &amp; Log</span>
+          <i class="fa-solid fa-chevron-down nav-group-caret text-[11px] text-muted-soft transition-transform"></i>
+        </button>
+        <div class="nav-group-body mt-1 ml-4 pl-3 border-l border-hairline space-y-1 hidden">
+          <a href="/dashboard/analytics" data-nav-link data-match="/dashboard/analytics" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-[14px] text-body hover:bg-hairline-soft">
+            <i class="fa-solid fa-chart-pie w-5 text-center text-[13px] text-muted-soft"></i> Analitik Pembelajaran
+          </a>
+          <a href="/dashboard/logs" data-nav-link data-match="/dashboard/logs" class="nav-item flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-[14px] text-body hover:bg-hairline-soft">
+            <i class="fa-solid fa-shield-halved w-5 text-center text-[13px] text-muted-soft"></i> Logs Percakapan
+          </a>
+        </div>
+      </div>
     </nav>
   </aside>
 
@@ -53,6 +94,41 @@ const { title } = Astro.props;
   </div>
 
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>
+
+  <script is:inline>
+    // Sidebar: highlight menu aktif + buka grup yang memuat halaman saat ini.
+    (() => {
+      const path = window.location.pathname.replace(/\/+$/, '') || '/dashboard';
+      const matchPath = (target) => {
+        const t = String(target || '').replace(/\/+$/, '');
+        if (!t) return false;
+        if (t === '/dashboard') return path === '/dashboard';
+        return path === t || path.startsWith(t + '/');
+      };
+
+      // Tandai link aktif.
+      document.querySelectorAll('#dashboard-nav [data-nav-link]').forEach((link) => {
+        if (matchPath(link.getAttribute('data-match'))) link.classList.add('is-active');
+      });
+
+      // Grup accordion: auto-buka grup yang anaknya aktif, toggle saat diklik.
+      document.querySelectorAll('#dashboard-nav [data-nav-group]').forEach((group) => {
+        const body = group.querySelector('.nav-group-body');
+        const toggle = group.querySelector('.nav-group-toggle');
+        const children = (group.getAttribute('data-children') || '').split(',');
+        const hasActiveChild = children.some((c) => matchPath(c));
+
+        const setOpen = (open) => {
+          group.classList.toggle('is-open', open);
+          if (body) body.classList.toggle('hidden', !open);
+        };
+        setOpen(hasActiveChild);
+
+        toggle?.addEventListener('click', () => setOpen(body?.classList.contains('hidden')));
+      });
+    })();
+  </script>
+
   <script src="../scripts/main.js"></script>
 </body>
 </html>

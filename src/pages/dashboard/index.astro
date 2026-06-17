@@ -3,20 +3,32 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import Modal from '../../components/common/Modal.astro';
 ---
 <DashboardLayout title="Dashboard Utama">
-  <div class="max-w-[1200px] mx-auto w-full">
-    <div class="flex flex-col md:flex-row md:justify-between md:items-end gap-4 mb-10">
+  <div class="max-w-[1200px] mx-auto w-full flex flex-col gap-8">
+    <!-- Header band -->
+    <header class="flex flex-col md:flex-row md:justify-between md:items-end gap-4">
       <div>
-        <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Daftar Project</h1>
+        <div class="text-[12px] font-semibold uppercase tracking-[0.96px] text-muted-soft mb-2">Teacher Dashboard</div>
+        <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2 font-light">Daftar Project</h1>
         <p class="text-body text-[16px]">Kelola asisten AI untuk setiap mata pelajaran.</p>
       </div>
-      <button id="btn-open-create-modal" class="bg-primary text-white rounded-full px-6 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm w-full md:w-auto">
+      <button id="btn-open-create-modal" class="bg-primary text-white rounded-full px-6 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm w-full md:w-auto shrink-0">
         <i class="fa-solid fa-plus mr-2"></i> Buat Project
       </button>
-    </div>
+    </header>
 
-    <div id="project-list" class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-      <div class="col-span-full text-center py-10 text-muted-soft"><i class="fa-solid fa-spinner fa-spin text-2xl"></i><br>Memuat data...</div>
-    </div>
+    <!-- Section: daftar project dalam container -->
+    <section class="bg-surface-card border border-hairline rounded-2xl p-5 md:p-7 shadow-[0_4px_16px_rgba(0,0,0,0.03)]">
+      <div class="flex items-center justify-between gap-3 mb-5 pb-4 border-b border-hairline">
+        <h2 class="text-[16px] font-semibold text-ink flex items-center gap-2">
+          <i class="fa-solid fa-folder-open text-muted-soft"></i> Project Aktif
+        </h2>
+        <span class="text-[12px] text-muted-soft">Klik kartu untuk mengelola</span>
+      </div>
+
+      <div id="project-list" class="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-5">
+        <div class="col-span-full text-center py-12 text-muted-soft"><i class="fa-solid fa-spinner fa-spin text-2xl"></i><br>Memuat data...</div>
+      </div>
+    </section>
   </div>
 
   <Modal id="modal-create-project" title="Project Baru">

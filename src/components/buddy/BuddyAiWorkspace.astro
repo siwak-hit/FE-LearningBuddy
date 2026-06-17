@@ -152,15 +152,15 @@ const { API_BASE } = Astro.props;
       </div>
     </div>
 
-    <div class="shrink-0 p-4 md:p-6 lg:p-8 bg-gradient-to-t from-canvas via-canvas to-transparent border-t border-hairline/50">
-      <div id="selected-bar" class="hidden items-center justify-between bg-surface-strong border border-hairline-strong rounded-xl px-4 py-3 mb-4 shadow-sm">
+    <div class="shrink-0 p-3 md:p-4 lg:p-5 bg-gradient-to-t from-canvas via-canvas to-transparent border-t border-hairline/50">
+      <div id="selected-bar" class="hidden items-center justify-between bg-surface-strong border border-hairline-strong rounded-xl px-4 py-2.5 mb-2 shadow-sm">
         <div class="text-[14px] text-ink font-medium truncate flex-1" id="selected-text">@element dipilih</div>
         <button id="btn-clear-selected" type="button" class="text-muted hover:text-semantic-error ml-4 px-1 transition-colors">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
 
-      <div id="suggestion-wrapper" class="pb-4 transition-all duration-300">
+      <div id="suggestion-wrapper" class="pb-2 transition-all duration-300">
         <div class="flex gap-2 overflow-x-auto no-scrollbar" id="suggestion-chips"></div>
       </div>
 

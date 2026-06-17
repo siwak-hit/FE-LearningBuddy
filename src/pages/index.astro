@@ -64,6 +64,40 @@ import '../styles/global.css';
       document.querySelectorAll('[data-admin-dashboard-link]').forEach((link) => {
         link.setAttribute('href', dashboardHref);
       });
+
+      // [v0.9.0] Entry-point PWA: index.astro adalah start_url ("/").
+      // Saat app terinstall dibuka → tentukan ini ADMIN atau USER (siswa):
+      //   • Admin (punya token)        → tetap di landing ini.
+      //   • User (tanpa token admin)   → arahkan ke AIworkspace (/buddy).
+      // Redirect hanya saat mode standalone (PWA), agar pengunjung browser biasa
+      // tetap melihat landing.
+      try {
+        const isStandalone =
+          window.matchMedia?.('(display-mode: standalone)')?.matches ||
+          window.navigator.standalone === true;
+
+        if (isStandalone && !hasAdminSession) {
+          // Cari projectKey siswa: dari penyimpanan terakhir, atau scan kunci active-student.
+          let projectKey = localStorage.getItem('alb:lastProjectKey') || '';
+          if (!projectKey) {
+            const host = window.location.host || 'localhost';
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i) || '';
+              const m = k.match(new RegExp('^alb:' + host.replace(/[.:]/g, '\\$&') + ':(.+):active-student$'));
+              if (m) { projectKey = m[1]; break; }
+            }
+          }
+
+          if (projectKey) {
+            // Siswa yang pernah login → langsung ke AIworkspace (form/sesi ditangani buddy).
+            window.location.replace('/buddy?projectKey=' + encodeURIComponent(projectKey) + '&view=ai');
+          }
+          // Jika tak ada projectKey sama sekali (PWA benar-benar baru), biarkan di landing;
+          // siswa cukup membuka widget VClass sekali untuk mengaitkan kelas.
+        }
+      } catch (error) {
+        console.warn('[PWA entry] gagal menentukan rute:', error);
+      }
     })();
   </script>
 

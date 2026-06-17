@@ -1,6 +1,7 @@
 import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
 import { SourceViewer } from '../../components/source-viewer.js';
+import { getPageElementOptions, resolvePageKeyFromContext } from './pageElements.js';
 
 export function init() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -84,7 +85,8 @@ export function initWorkspace(isExternal = false) {
         await this.ensureLmsStudentIdentity({ silent: false });
       }
 
-      if (!localStorage.getItem('alb_external_onboarding_seen')) {
+      // [v0.9.1] Tampilkan carousel bila belum pernah, ATAU versi flag lama (carousel di-update).
+      if (localStorage.getItem('alb_external_onboarding_seen') !== 'v0.9.1') {
         this.showOnboardingCarousel();
       }
 
@@ -93,8 +95,33 @@ export function initWorkspace(isExternal = false) {
   } else {
     this.loadSessionData();
     this.renderElementList();
-    this.createOrLoadSession();
     this.toggleSuggestions();
+
+    // [v0.9.0] Entry langsung / PWA (bukan widget eksternal). Setelah sesi siap:
+    //  • simpan projectKey terakhir untuk routing entry-point PWA (index.astro),
+    //  • muat riwayat + state (agar divider "sesi dibuka kembali" & input aktif jalan),
+    //  • kalau belum ada identitas siswa, tampilkan form email + kelas (cek email saja).
+    Promise.resolve(this.createOrLoadSession()).then(async () => {
+      try { if (this.projectKey) localStorage.setItem('alb:lastProjectKey', this.projectKey); } catch (_) {}
+
+      if (this.sessionId) {
+        await this.loadSessionState?.();
+        await this.loadChatHistory?.();
+        this.loadMateriMentions?.();
+      }
+
+      const meta = this.contextData?.session_meta || {};
+      const hasVerifiedStudent = Boolean(meta.email && meta.class_code);
+      if (!hasVerifiedStudent && typeof this.ensureLmsStudentIdentity === 'function') {
+        await this.ensureLmsStudentIdentity({ silent: false });
+      }
+
+      // Setelah identitas siswa terkonfirmasi, tampilkan onboarding carousel
+      // bila belum pernah dilihat (sama dengan jalur external).
+      if (localStorage.getItem('alb_external_onboarding_seen') !== 'v0.9.1') {
+        this.showOnboardingCarousel?.();
+      }
+    }).catch((err) => console.error('[Buddy] gagal inisialisasi entry langsung:', err));
   }
 }
 
@@ -164,32 +191,23 @@ export async function renderPersistentManualContextSelector() {
   const $select = $('#modal-context-select');
   const $btnApply = $('#btn-apply-context-modal');
 
-  // Tarik data template dari backend
+  // [v0.3.0] Sumber konteks = folder /public/elements (manifest pageElements.js),
+  // bukan lagi template DB. Ini juga menghilangkan bug "template belum tersedia".
   try {
-    const res = await ApiService.get(`/page-templates/list?projectKey=${this.projectKey}&full=1`);
-    const templates = this.extractTemplateList(res.data)
-      .map(t => this.normalizeTemplatePayload(t))
-      .filter(t => t && (t.page_type || t.template_name));
+    const pages = getPageElementOptions();
+    const currentKey = resolvePageKeyFromContext(this.contextData || {});
 
-    this.availablePageTemplates = templates;
-
-    if (!templates.length) {
-      $select.html('<option value="" selected disabled>Belum ada template tersedia</option>');
-      $btnApply.prop('disabled', true);
-    } else {
-      let options = '<option value="" disabled selected>-- Pilih Halaman VClass --</option>';
-      templates.forEach((t, idx) => {
-        const label = t.template_name || t.page_type || `Template ${idx + 1}`;
-        options += `<option value="${idx}">${this.escapeHtml(label)}</option>`;
-      });
-      $select.html(options);
-    }
+    let options = '<option value="" disabled selected>-- Pilih Halaman VClass --</option>';
+    pages.forEach((p) => {
+      const selected = p.key === currentKey ? ' selected' : '';
+      options += `<option value="${p.key}"${selected}>${this.escapeHtml(p.label)} (${p.count} elemen)</option>`;
+    });
+    $select.html(options);
+    $btnApply.prop('disabled', false);
 
     // --- EVENT LISTENERS UNTUK MODAL ---
-    // Pakai $(document).on agar ke-bind secara global dan tidak hilang
     $(document).off('click', '#btn-open-context-modal').on('click', '#btn-open-context-modal', () => {
       $modal.removeClass('hidden');
-      // Kasih sedikit jeda agar transisi Tailwind berjalan
       setTimeout(() => $modalBox.removeClass('scale-95').addClass('scale-100'), 10);
     });
 
@@ -201,36 +219,33 @@ export async function renderPersistentManualContextSelector() {
     $('#btn-close-context-modal').off('click').on('click', closeModal);
 
     $btnApply.off('click').on('click', async () => {
-      const selectedIndex = $select.val();
-      if (!selectedIndex) {
+      const pageKey = $select.val();
+      if (!pageKey) {
         alert('Pilih halaman terlebih dahulu.');
         return;
       }
-
-      const template = templates[Number(selectedIndex)];
-      if (!template) return;
 
       $btnApply.html('<i class="fa-solid fa-spinner fa-spin"></i>').prop('disabled', true);
       $select.prop('disabled', true);
 
       try {
-        await this.applyTemplateToWorkspace(template, {
-          displayTitle: template.template_name || template.page_type
-        });
-        this.appendBubble(`Fokus sistem telah dipindahkan ke **${template.template_name || template.page_type}**. Apa yang ingin kamu tanyakan?`, false, 'system');
+        const ok = await this.applyPageElements(pageKey, { silent: true });
+        if (ok) {
+          const label = getPageElementOptions().find((p) => p.key === pageKey)?.label || pageKey;
+          this.appendBubble(`Fokus sistem dipindahkan ke **${label}**. Klik salah satu elemen di sidebar, atau tanyakan langsung di chat.`, false, 'system');
+        }
         closeModal();
       } catch (err) {
-        console.error('[BuddyPage] Gagal ganti konteks manual:', err);
+        console.error('[BuddyPage] Gagal ganti konteks halaman:', err);
         alert('Gagal mengganti konteks.');
       } finally {
         $btnApply.html('Terapkan Konteks').prop('disabled', false);
-        $select.prop('disabled', false).val('');
+        $select.prop('disabled', false);
       }
     });
-
   } catch (err) {
-    console.error('[BuddyPage] Gagal memuat daftar konteks manual:', err);
-    $select.html('<option value="" selected disabled>Gagal memuat konteks</option>');
+    console.error('[BuddyPage] Gagal menyiapkan konteks halaman:', err);
+    $select.html('<option value="" selected disabled>Gagal memuat daftar halaman</option>');
     $btnApply.prop('disabled', true);
   }
 }

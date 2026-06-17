@@ -1,5 +1,9 @@
 import { ApiService } from './api.js';
 
+// Sync materi Moodle biasanya lebih lama dari request chat biasa.
+// Default 120 detik, bisa dioverride lewat FE env: PUBLIC_MOODLE_SYNC_TIMEOUT_MS=120000
+const MOODLE_SYNC_TIMEOUT_MS = Number(import.meta.env.PUBLIC_MOODLE_SYNC_TIMEOUT_MS || 120000);
+
 export const MoodleApi = {
   getConfig(projectId) {
     return ApiService.fetch(`/moodle/config?projectId=${projectId}`);
@@ -32,15 +36,17 @@ export const MoodleApi = {
     return ApiService.fetch(`/moodle/course-contents?projectId=${projectId}&courseId=${courseId}`);
   },
   syncCourse(payload) {
-    return ApiService.fetch('/moodle/sync/course', { method: 'POST', body: JSON.stringify(payload) });
+    return ApiService.fetch('/moodle/sync/course', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: MOODLE_SYNC_TIMEOUT_MS
+    });
   },
   syncAllCourses(payload) {
-    return ApiService.fetch('/moodle/sync/all', { method: 'POST', body: JSON.stringify(payload) });
-  },
-  previewMaterials(projectId) {
-    return ApiService.fetch(`/moodle/preview-materials?projectId=${projectId}`);
-  },
-  getChunks(projectId) {
-    return ApiService.fetch(`/moodle/chunks?projectId=${projectId}`);
+    return ApiService.fetch('/moodle/sync/all', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: MOODLE_SYNC_TIMEOUT_MS
+    });
   }
 };

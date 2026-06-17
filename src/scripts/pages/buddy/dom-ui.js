@@ -1,6 +1,7 @@
 import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
 import Toast from '../../components/toast.js';
+import { buildElementsForPage, resolvePageKeyFromContext, PAGE_ELEMENTS } from './pageElements.js';
 
 function formatCooldownTime(seconds = 0) {
   const safeSeconds = Math.max(0, Number(seconds) || 0);
@@ -817,17 +818,40 @@ export async function autoMatchTemplateFromContext() {
 }
 export function renderElementList(skipFallback = false) {
   this.$elList.empty();
+
+  // [v0.4.2] Untuk halaman berbasis folder, SELALU bangun ulang elemen dari manifest.
+  // Tujuannya: abaikan URL gambar lama yang ter-cache di sessionStorage/DB
+  // (mis. base "/elements/" sebelum diperbaiki ke "/ELEMENTS/").
+  let folderPageKey = this.contextData?.page_key;
+  if (!folderPageKey) {
+    const looksLikeFolderElements = (this.contextData?.elements || []).some((e) => typeof e?.image === 'string');
+    if (looksLikeFolderElements) folderPageKey = resolvePageKeyFromContext(this.contextData || {});
+  }
+  if (folderPageKey && PAGE_ELEMENTS.some((p) => p.key === folderPageKey)) {
+    const fresh = buildElementsForPage(folderPageKey);
+    if (fresh.length) {
+      this.contextData.elements = fresh;
+      this.contextData.page_key = folderPageKey;
+    }
+  }
+
   const elements = this.contextData.elements || [];
 
   if (elements.length === 0) {
+    // [v0.3.0] Coba petakan konteks (judul/heading dari widget) ke folder /elements.
+    const pageKey = resolvePageKeyFromContext(this.contextData || {});
+    if (pageKey) {
+      this.applyPageElements(pageKey, { silent: true, keepTitle: true });
+      return;
+    }
+
     if (skipFallback) {
       // Dipanggil setelah user memilih template manual — jangan loop fallback lagi.
-      // Template ini memang belum punya elements_json, tampilkan pesan informatif saja.
       this.$elList.html(`
         <div class="bg-surface-card border border-hairline rounded-xl p-4 text-center">
           <i class="fa-solid fa-circle-info text-muted-soft text-xl mb-2"></i>
-          <p class="text-[13px] text-muted leading-relaxed">Template <span class="font-semibold text-ink">${this.escapeHtml(this.$elTitle.text())}</span> belum memiliki elemen terdaftar.</p>
-          <p class="text-[12px] text-muted-soft mt-1">Kamu tetap bisa bertanya langsung di kolom chat.</p>
+          <p class="text-[13px] text-muted leading-relaxed">Halaman <span class="font-semibold text-ink">${this.escapeHtml(this.$elTitle.text())}</span> belum memiliki elemen terdaftar.</p>
+          <p class="text-[12px] text-muted-soft mt-1">Kamu tetap bisa bertanya langsung di kolom chat, atau pilih konteks halaman lewat tombol "Ganti".</p>
         </div>
       `);
       return;
@@ -839,56 +863,168 @@ export function renderElementList(skipFallback = false) {
   this._renderElementCards(elements);
 }
 
+// [v0.3.0] Pasang konteks "Element Halaman" dari folder /public/elements (statis-visual).
+// Tidak bergantung ke template DB — sumber kebenaran adalah manifest pageElements.js.
+export async function applyPageElements(pageKey, options = {}) {
+  const page = PAGE_ELEMENTS.find((p) => p.key === pageKey);
+  if (!page) return false;
+
+  const elements = buildElementsForPage(pageKey);
+  const displayTitle = options.keepTitle && this.contextData?.title ? this.contextData.title : page.label;
+
+  this.contextData = {
+    ...(this.contextData || {}),
+    pageType: page.pageType,
+    templateName: page.label,
+    title: displayTitle,
+    heading: displayTitle,
+    sourceType: 'page_elements_folder',
+    page_key: page.key,
+    elements
+  };
+
+  this.selectedElement = null;
+  this.$selectedBar?.addClass('hidden').removeClass('flex');
+  this.$selectedText?.empty();
+  this.$elTitle?.text(displayTitle);
+  this.$elWelcome?.text(displayTitle);
+  this.$suggestionChips?.empty();
+  this.renderSuggestionChips?.(elements);
+  // [v0.4.3] WAJIB kosongkan dulu — kalau tidak, elemen konteks lama menumpuk
+  // dengan elemen konteks baru saat user pindah halaman (A→B menampilkan A+B).
+  this.$elList.empty();
+  this._renderElementCards(elements);
+
+  if (!options.silent) {
+    this.appendBubble?.(`Konteks halaman dipindahkan ke **${page.label}**. Silakan klik salah satu elemen, atau tanyakan langsung di chat.`, false, 'system');
+  }
+
+  if (typeof this.syncSessionContext === 'function') {
+    this.syncSessionContext(this.contextData).catch(() => {});
+  }
+  return true;
+}
+
+// [v0.7.0] Jawaban SISTEM untuk sebuah elemen (dipakai tombol "Tanya Sistem" & mention @elemen).
+// userText = pertanyaan spesifik user (opsional, dipakai untuk tombol "Jelaskan dengan AI").
+export function answerElementViaSystem(el = {}, userText = '') {
+  const name = el.name || 'elemen ini';
+  const onPage = el.page_label ? ` di ${el.page_label}` : '';
+  const desc = (el.text && String(el.text).trim()) || 'Belum ada keterangan untuk elemen ini. Kamu bisa minta penjelasan AI di bawah.';
+  const q = String(userText || '').trim() || `Apa fungsi "${name}"${onPage}?`;
+
+  this.appendBubble(q, true, 'user', [], { image: el.image });
+
+  const sysText = `**${name}**${el.page_label ? ` — ${el.page_label}` : ''}\n\n${desc}`;
+  const aiMessage = userText
+    ? `Tolong jelaskan "${name}"${onPage} secara singkat dan jelas, khususnya: ${userText}`
+    : `Tolong jelaskan "${name}"${onPage} secara singkat dan jelas.`;
+
+  this.appendBubble(sysText, false, 'system', [
+    {
+      type: 'ask_ai',
+      label: 'Belum jelas? Jelaskan dengan AI',
+      payload: { original_message: q, message: aiMessage, intent: 'penjelasan_materi', responseMode: 'short', forceAI: true, expectedSourceType: 'all' }
+    },
+    // Tombol SCORING (hijau): merekam apakah penjelasan ini benar-benar membantu.
+    { type: 'feedback_resolved', label: 'Terbantu, sudah teratasi' }
+  ]);
+
+  this.scrollToBottom?.();
+}
+
 export function _renderElementCards(elements) {
   elements.forEach((el, idx) => {
     const safeName = this.escapeHtml(el.name || `@element${idx + 1}`);
     const safeType = this.escapeHtml(el.type || 'Elemen');
     const safeTitle = this.escapeHtml(el.title || '');
     const safeText = this.escapeHtml(el.text || 'Tidak ada teks konten.');
+    const safeImage = el.image ? this.escapeHtml(el.image) : '';
 
     // Preview elemen wajib diisolasi. Jangan inject style/link template langsung ke DOM workspace.
     const previewSrcdoc = this.buildElementPreviewSrcdoc(el, this.activeTemplate);
     const safePreviewSrcdoc = this.escapeHtml(previewSrcdoc);
 
-    // Perhatikan tambahan atribut data-key dan ID agar mudah di-highlight oleh sistem tutorial
+    // Kartu visual (punya gambar) selalu menampilkan gambar + keterangan + tombol.
+    // Kartu non-visual tetap memakai accordion + preview iframe.
+    const isVisualCard = !!safeImage;
+
+    const headerHtml = `
+      <div class="p-4 bg-surface-strong ${isVisualCard ? '' : 'cursor-pointer buddy-accordion-toggle'} flex justify-between items-center group">
+        <div class="min-w-0">
+          <div class="font-bold text-ink text-[14px]">${safeName}</div>
+          <div class="text-[12px] text-muted-soft mt-0.5">${safeType} · ${safeTitle}</div>
+        </div>
+        ${isVisualCard
+          ? '<i class="fa-solid fa-image text-muted-soft"></i>'
+          : '<i class="fa-solid fa-chevron-down text-muted-soft transition-transform duration-300 buddy-accordion-icon"></i>'}
+      </div>`;
+
+    const imageBlockHtml = isVisualCard ? `
+      <div class="alb-element-img-wrap border-t border-hairline bg-slate-50">
+        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border-b border-hairline text-[10px] font-bold uppercase tracking-wide text-slate-500">
+          <i class="fa-solid fa-camera"></i> Tangkapan layar — contoh tampilan
+        </div>
+        <div class="relative p-3">
+          <img src="${safeImage}" alt="${safeName}" loading="lazy"
+               class="alb-element-img btn-zoom-element-image w-full h-auto block rounded-md border border-slate-300 shadow-sm cursor-zoom-in"
+               data-src="${safeImage}" data-title="${safeName}">
+          <div class="absolute bottom-5 right-5 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none">
+            <i class="fa-solid fa-magnifying-glass-plus"></i> klik perbesar
+          </div>
+        </div>
+        <div class="px-3 pb-2 -mt-1 text-[10px] text-slate-400 text-center leading-snug">
+          <i class="fa-regular fa-circle-info"></i> Ini hanya gambar ilustrasi, bukan tombol/kolom yang bisa diklik atau diisi.
+        </div>
+      </div>` : '';
+
+    const buttonsHtml = `
+      <div class="flex gap-2">
+        <button type="button" class="btn-ask-element flex-1 bg-surface-strong text-ink border border-hairline-strong rounded-lg py-2 text-[13px] font-medium hover:bg-hairline-strong transition-colors">
+          <i class="fa-solid fa-comments mr-1"></i> Tanya Sistem
+        </button>
+        <button type="button" class="btn-explain-element-ai flex-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg py-2 text-[13px] font-medium hover:bg-amber-100 transition-colors">
+          <i class="fa-solid fa-sparkles mr-1"></i> Jelaskan AI
+        </button>
+        ${isVisualCard ? '' : `<button type="button" class="btn-visualize-element flex-1 bg-transparent text-ink border border-hairline-strong rounded-lg py-2 text-[13px] font-medium hover:bg-surface-strong transition-colors">
+          <i class="fa-solid fa-eye mr-1"></i> Visual
+        </button>`}
+      </div>`;
+
+    const bodyHtml = `
+      <div class="${isVisualCard ? '' : 'hidden'} bg-white p-4 border-t border-hairline buddy-accordion-body">
+        <div class="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">${isVisualCard ? 'Keterangan' : 'Konten Teks'}</div>
+        <div class="text-[13px] text-body leading-relaxed mb-4 ${isVisualCard ? '' : 'line-clamp-4'}">${safeText}</div>
+        ${buttonsHtml}
+        ${isVisualCard ? '' : `
+        <div class="visual-container hidden mt-3 p-2 border border-hairline rounded-lg bg-[#f9fafb] overflow-hidden relative">
+           <iframe class="buddy-element-preview-frame w-full h-[220px] rounded-lg bg-white border-0" sandbox="" referrerpolicy="no-referrer" loading="lazy" srcdoc="${safePreviewSrcdoc}"></iframe>
+        </div>`}
+      </div>`;
+
     const cardHtml = `
       <div class="element-card bg-surface-card border border-hairline rounded-xl mb-3 overflow-hidden shadow-sm transition-all duration-300" id="accordion-${el.key}">
-
-        <div class="p-4 bg-surface-strong cursor-pointer buddy-accordion-toggle flex justify-between items-center group">
-          <div>
-            <div class="font-bold text-ink text-[14px]">${safeName}</div>
-            <div class="text-[12px] text-muted-soft mt-0.5">${safeType} · ${safeTitle}</div>
-          </div>
-          <i class="fa-solid fa-chevron-down text-muted-soft transition-transform duration-300 buddy-accordion-icon"></i>
-        </div>
-
-        <div class="hidden bg-white p-4 border-t border-hairline buddy-accordion-body">
-          <div class="text-[10px] font-bold text-muted uppercase tracking-wider mb-2">Konten Teks</div>
-          <div class="text-[13px] text-body leading-relaxed mb-4 line-clamp-4">${safeText}</div>
-
-          <div class="flex gap-2 mb-2">
-            <button type="button" class="btn-ask-element flex-1 bg-surface-strong text-ink border border-hairline-strong rounded-lg py-2 text-[13px] font-medium hover:bg-hairline-strong transition-colors">
-              <i class="fa-solid fa-comments mr-1"></i> Tanya
-            </button>
-            <button type="button" class="btn-visualize-element flex-1 bg-transparent text-ink border border-hairline-strong rounded-lg py-2 text-[13px] font-medium hover:bg-surface-strong transition-colors">
-              <i class="fa-solid fa-eye mr-1"></i> Visual
-            </button>
-          </div>
-
-          <div class="visual-container hidden mt-3 p-2 border border-hairline rounded-lg bg-[#f9fafb] overflow-hidden relative">
-             <iframe
-               class="buddy-element-preview-frame w-full h-[220px] rounded-lg bg-white border-0"
-               sandbox=""
-               referrerpolicy="no-referrer"
-               loading="lazy"
-               srcdoc="${safePreviewSrcdoc}"
-             ></iframe>
-          </div>
-        </div>
-      </div>
-    `;
+        ${headerHtml}${imageBlockHtml}${bodyHtml}
+      </div>`;
 
     const $card = $(cardHtml);
+
+    // Fallback gambar: jika 404/gagal, tampilkan placeholder + path (jangan hilang diam-diam).
+    const $img = $card.find('.alb-element-img');
+    if ($img.length) {
+      const showImgFallback = () => {
+        if ($card.find('.alb-img-fallback').length) return;
+        $img.closest('.alb-element-img-wrap').html(
+          `<div class="alb-img-fallback flex flex-col items-center justify-center gap-1 py-8 px-3 text-center text-muted-soft text-[12px]">
+             <i class="fa-regular fa-image text-2xl"></i>
+             <span>Gambar belum tersedia</span>
+             <span class="text-[10px] break-all opacity-70">${this.escapeHtml(el.image || '')}</span>
+           </div>`
+        );
+      };
+      $img.on('error', showImgFallback);
+      if ($img[0].complete && $img[0].naturalWidth === 0) showImgFallback();
+    }
 
     // Event: Buka Tutup Accordion Utama
     $card.find('.buddy-accordion-toggle').on('click', function() {
@@ -908,10 +1044,40 @@ export function _renderElementCards(elements) {
       }
     });
 
-    // Event: Klik Tombol "Tanya"
+    // Event: Klik Tombol "Tanya Sistem" — JAWABAN SISTEM deterministik dari keterangan elemen.
     $card.find('.btn-ask-element').on('click', () => {
-       this.handleSelectElement(el);
-       if(window.innerWidth < 768) this.closeContextSidebar(); // Auto tutup di mobile
+      this.answerElementViaSystem(el);
+      if (window.innerWidth < 768) this.closeContextSidebar?.();
+    });
+
+    // Event: Klik Tombol "Jelaskan AI" — kirim LANGSUNG ke AI (tanpa mengisi kolom input).
+    $card.find('.btn-explain-element-ai').on('click', () => {
+      const where = el.page_label ? ` pada ${el.page_label}` : '';
+      const q = `Tolong jelaskan "${el.name || 'elemen ini'}"${where} secara singkat dan jelas.`;
+      this.sendDirectMessage?.({
+        message: q,
+        userImage: el.image || null,
+        forceAI: true,
+        forceFAQ: false,
+        responseMode: 'short',
+        intent: 'penjelasan_materi',
+        expectedSourceType: 'all'
+      });
+      if (window.innerWidth < 768) this.closeContextSidebar?.();
+    });
+
+    // Event: Zoom gambar elemen (pakai overlay tutorial statis bila tersedia).
+    $card.find('.btn-zoom-element-image').on('click', function (e) {
+      e.stopPropagation();
+      const src = $(this).attr('data-src');
+      if (!src) return;
+      const $overlay = $('#alb-static-image-zoom');
+      if ($overlay.length) {
+        $('#alb-static-image-zoom-img').attr('src', src);
+        $overlay.removeClass('hidden');
+      } else {
+        window.open(src, '_blank');
+      }
     });
 
     // Event: Klik Tombol "Visual" (munculin HTML)
@@ -1112,13 +1278,69 @@ export function showOnboardingCarousel() {
       placement: "center"
     },
     {
-      title: "Kuota AI & Cooldown",
+      title: "Tanya Materi Tertentu dengan \"@\"",
+      icon: "fa-at",
+      desc: `
+        Ketik tanda <span class="tour-label tour-label-primary">@</span> di kolom chat untuk memilih <b>materi tertentu</b> dari kelasmu.
+        <br><br>
+        Setelah memilih (misal <span class="tour-label tour-label-primary">@materi-1</span>), akan muncul <b>daftar pilihan</b>:
+        <br>
+        <span class="tour-label tour-label-success"><i class="fa-solid fa-wand-magic-sparkles"></i> Rangkum materi ini</span>
+        <span class="tour-label tour-label-success"><i class="fa-solid fa-list-ul"></i> Poin penting</span>
+        <br><br>
+        Tinggal klik salah satu — AI akan merangkum atau menjawab dari isi materi itu. 😊
+      `,
+      target: "#chat-form",
+      placement: "center"
+    },
+    {
+      title: "Tombol Salin Jawaban",
+      icon: "fa-copy",
+      desc: `
+        Di bawah setiap jawaban ada tombol <span class="tour-label tour-label-primary"><i class="fa-regular fa-copy"></i> Salin</span>.
+        <br><br>
+        Klik untuk menyalin <b>teks jawaban saja</b> (tanpa tombol) — bisa kamu tempel ke catatan atau tugas.
+      `,
+      target: null,
+      placement: "center"
+    },
+    {
+      title: "Sesimu Tersimpan Otomatis",
+      icon: "fa-clock-rotate-left",
+      desc: `
+        Kalau kamu menutup aplikasi lalu membukanya lagi di hari yang sama, <b>percakapanmu tidak hilang</b>.
+        <br><br>
+        Akan muncul garis <span class="tour-label tour-label-primary"><i class="fa-solid fa-clock-rotate-left"></i> Sesi dibuka kembali</span>, dan kamu <b>langsung bisa mengetik lagi</b> tanpa mengulang dari awal.
+      `,
+      target: null,
+      placement: "center"
+    },
+    {
+      title: "Kuota AI Dipakai Bersama",
+      icon: "fa-bolt",
+      desc: `
+        AI ini gratis dan <b>dipakai bersama semua siswa</b>. Ada
+        <span class="tour-label tour-label-primary"><i class="fa-solid fa-bolt"></i> Bar Kuota AI</span>
+        kecil di atas kolom chat.
+        <br><br>
+        Kalau barnya hampir penuh / merah, artinya AI sedang
+        <span class="tour-label tour-label-warning"><i class="fa-solid fa-hourglass-half"></i> sibuk</span>
+        dipakai banyak orang. Kuota di-<b>reset tiap hari (tengah malam)</b>.
+        <br><br>
+        <span class="tour-label tour-label-success">Tips</span> Saat penuh, gunakan <b>Jawaban Sistem</b> yang tidak butuh kuota AI.
+      `,
+      target: null,
+      placement: "center"
+    },
+    {
+      title: "Batas Sesi & Cooldown",
       icon: "fa-battery-three-quarters",
       desc: `
-        Mode AI Singkat/Detail dibatasi
+        Untuk per-kamu, mode AI Singkat/Detail dibatasi
         <span class="tour-label tour-label-warning">
           <i class="fa-solid fa-bolt"></i> 3/3 Sesi
         </span>
+        beruntun.
         <br><br>
         Jika habis dan kamu mencoba pakai AI lagi, sistem akan masuk
         <span class="tour-label tour-label-danger">
@@ -1278,7 +1500,8 @@ export function showOnboardingCarousel() {
   };
 
   const finishTour = () => {
-    localStorage.setItem('alb_external_onboarding_seen', '1');
+    // [v0.9.1] Versi flag dinaikkan agar carousel yang sudah di-update muncul lagi sekali.
+    localStorage.setItem('alb_external_onboarding_seen', 'v0.9.1');
     clearHighlight();
 
     $overlay.addClass('hidden');

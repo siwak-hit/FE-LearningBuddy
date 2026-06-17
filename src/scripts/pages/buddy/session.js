@@ -1,5 +1,6 @@
 import { ApiService } from '../../fetch/api.js';
 import Toast from '../../components/toast.js';
+import { resolvePageKeyFromContext } from './pageElements.js';
 
 function getPrimaryCourseFromContext(contextData = {}) {
   const meta = contextData.session_meta || {};
@@ -41,6 +42,11 @@ export async function loadExternalSessionContext(sessionId) {
     const res = await ApiService.get(`/chat/session/${sessionId}`);
     if (res.status === 'success' && res.data?.session) {
       const session = res.data.session;
+      // [v0.7.0] Simpan projectId (UUID) untuk fetch daftar materi (mention @materi-N).
+      if (session.project_id) {
+        this.projectId = session.project_id;
+        this.loadMateriMentions?.();
+      }
       const pageContext = this.safeParseJson(session.page_context || session.pageContext, {});
 
       const alias = session.student_alias || pageContext.session_meta?.display_name;
@@ -79,7 +85,16 @@ export async function loadExternalSessionContext(sessionId) {
       }
 
       let matchedTemplate = false;
-      if (this.contextData.elements.length === 0 && typeof this.autoMatchTemplateFromContext === 'function') {
+
+      // [v0.3.0] Utamakan mapping konteks dari widget (judul/heading di sessionStorage)
+      // ke folder /public/elements. Folder = sumber kebenaran "Element Halaman".
+      const pageKey = resolvePageKeyFromContext(this.contextData || {});
+      if (this.contextData.elements.length === 0 && pageKey && typeof this.applyPageElements === 'function') {
+        matchedTemplate = await this.applyPageElements(pageKey, { silent: true, keepTitle: true });
+      }
+
+      // Fallback lama: coba template DB jika konteks tidak cocok ke folder manapun.
+      if (!matchedTemplate && this.contextData.elements.length === 0 && typeof this.autoMatchTemplateFromContext === 'function') {
         matchedTemplate = await this.autoMatchTemplateFromContext();
       }
 
@@ -122,13 +137,45 @@ export async function loadChatHistory() {
         const isUser = msg.role === 'user';
         const source = msg.context_used?.response_source || 'system';
         const actions = msg.context_used?.actions || [];
-        this.appendBubble(msg.message, isUser, source, actions);
+        // [v0.9.0] Riwayat lama TIDAK boleh mengunci input. Tombol feedback pada
+        // pesan historis sudah basi, jadi jangan picu lock "Klik Sudah jelas…".
+        // Lockdown/cooldown nyata tetap ditangani loadSessionState terpisah.
+        this.appendBubble(msg.message, isUser, source, actions, { noFeedbackLock: true });
       });
+
+      // [v0.9.0] Tandai bahwa sesi lama dibuka kembali: divider waktu di bawah
+      // riwayat, supaya siswa paham percakapan ini adalah lanjutan sesi sebelumnya.
+      this.appendSessionReopenDivider?.();
+
       this.scrollToBottom();
     }
   } catch (e) {
     console.error('Gagal memuat history', e);
   }
+}
+
+// Divider "Sesi chat dibuka kembali pada <jam>" — dipanggil setelah riwayat termuat.
+export function appendSessionReopenDivider() {
+  if (!this.$chatArea?.length) return;
+
+  const now = new Date();
+  const jam = now.toLocaleTimeString('id-ID', {
+    hour: '2-digit', minute: '2-digit', timeZone: 'Asia/Jakarta'
+  });
+  const tanggal = now.toLocaleDateString('id-ID', {
+    day: 'numeric', month: 'long', timeZone: 'Asia/Jakarta'
+  });
+
+  this.$chatArea.append(`
+    <div class="alb-session-reopen-divider flex items-center gap-3 my-2 select-none" data-alb-reopen-divider="1">
+      <div class="flex-1 h-px bg-hairline"></div>
+      <div class="inline-flex items-center gap-1.5 text-[11px] font-medium text-muted-soft bg-canvas-soft border border-hairline rounded-full px-3 py-1">
+        <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
+        Sesi dibuka kembali · ${tanggal}, ${jam} WIB
+      </div>
+      <div class="flex-1 h-px bg-hairline"></div>
+    </div>
+  `);
 }
 
 export async function createOrLoadSession() {
@@ -137,17 +184,43 @@ export async function createOrLoadSession() {
     sessionStorage.setItem('alb_ai_session_' + this.projectKey, this.sessionId);
     return;
   }
+
   let existingSession = sessionStorage.getItem('alb_ai_session_' + this.projectKey);
   if (existingSession) {
     this.sessionId = existingSession;
     return;
   }
+
+  // [PATCH] Cek localStorage untuk session reusable sebelum buat baru
+  try {
+    const host = window.location.host || 'localhost';
+    const activeStudentRaw = localStorage.getItem(`alb:${host}:${this.projectKey}:active-student`);
+    if (activeStudentRaw) {
+      const activeStudent = JSON.parse(activeStudentRaw);
+      if (activeStudent.email && activeStudent.class_code) {
+        const reuseQuery = new URLSearchParams({
+          projectKey: this.projectKey || '',
+          email: activeStudent.email,
+          classCode: activeStudent.class_code
+        }).toString();
+
+        const reuseRes = await ApiService.get(`/student-sessions/reuse?${reuseQuery}`).catch(() => null);
+        if (reuseRes?.status === 'success' && reuseRes.data?.found && reuseRes.data?.session?.session_id) {
+          this.sessionId = reuseRes.data.session.session_id;
+          sessionStorage.setItem('alb_ai_session_' + this.projectKey, this.sessionId);
+          return; // Berhasil melanjutkan sesi lama
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('Gagal membaca reusable session:', e);
+  }
+
+  // Fallback: Buat sesi baru jika tidak ada sesi yang bisa di-reuse
   try {
     const payload = {
       projectKey: this.projectKey,
       sourceUrl: this.contextData?.sourceUrl || window.location.href,
-      // PERBAIKAN KRUSIAL: Kirim SELURUH contextData, jangan hanya { title, summary }
-      // agar backend menerima elements_json dan metadatanya sejak sesi awal dibuat.
       pageContext: this.contextData || { title: document.title }
     };
     if (this.mode === 'external') payload.mode = 'external';

@@ -119,7 +119,7 @@ function disableSupersededFeedbackActions(context) {
 
   $pending.each((_, wrap) => {
     const $wrap = $(wrap);
-    $wrap.find('.btn-system-feedback-ok, .btn-system-feedback-ai, .btn-ask-ai-fallback')
+    $wrap.find('.btn-system-feedback-ok, .btn-system-feedback-ai, .btn-ask-ai-fallback, .btn-feedback-resolved')
       .prop('disabled', true)
       .addClass('opacity-60 cursor-not-allowed pointer-events-none')
       .attr('title', 'Tombol ini sudah digantikan oleh percakapan terbaru.');
@@ -134,7 +134,7 @@ export function scrollToBottom() {
   this.$chatArea.stop().animate({ scrollTop: this.$chatArea[0].scrollHeight }, 300);
 }
 
-export function appendBubble(rawText, isUser = false, source = 'ai', actions = []) {
+export function appendBubble(rawText, isUser = false, source = 'ai', actions = [], options = {}) {
   let text = rawText;
   let isTutorialMode = false;
 
@@ -251,7 +251,16 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     }
   } else {
     // RENDER TEXT BIASA (Materi / Element Explanation)
-    formattedText = isUser ? this.escapeHtml(String(text)) : this.formatResponseText(String(text));
+    if (isUser) {
+      // [v0.9.0] Beri style label pada token mention "@..." biar jadi pembeda visual.
+      // Hanya token di awal kata (didahului spasi/awal) supaya email tidak ikut tersorot.
+      formattedText = this.escapeHtml(String(text)).replace(
+        /(^|\s)@([a-z0-9][\w-]*)/gi,
+        '$1<span class="inline-flex items-center font-semibold text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-px text-[13px]"><i class="fa-solid fa-at text-[10px] mr-0.5 opacity-70"></i>$2</span>'
+      );
+    } else {
+      formattedText = this.formatResponseText(String(text));
+    }
   }
 
   let badgeHtml = '';
@@ -277,7 +286,7 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     const visualActions = [];
 
     actions.forEach(act => {
-      if (act.type === 'system_feedback_ok' || act.type === 'system_feedback_ai') {
+      if (act.type === 'system_feedback_ok' || act.type === 'system_feedback_ai' || act.type === 'feedback_resolved') {
         feedbackActions.push(act);
       } else if (act.type === 'inline_visual') {
         visualActions.push(act);
@@ -434,7 +443,11 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
       feedbackActions.forEach(act => {
         const label = this.escapeHtml(act.label || 'Aksi');
         if (act.type === 'system_feedback_ok') {
-          actionsHtml += `<button type="button" class="btn-system-feedback-ok inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-100 hover:bg-emerald-100 text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-check"></i> ${label}</button>`;
+          // Tipe BIASA (tidak memengaruhi skor) — warna netral/abu.
+          actionsHtml += `<button type="button" class="btn-system-feedback-ok inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-check"></i> ${label}</button>`;
+        } else if (act.type === 'feedback_resolved') {
+          // Tipe SCORING (memengaruhi deteksi kesulitan) — warna emerald/hijau.
+          actionsHtml += `<button type="button" class="btn-feedback-resolved inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-circle-check"></i> ${label}</button>`;
         } else if (act.type === 'system_feedback_ai') {
           const prompt = this.escapeHtml(act.prompt || 'Tolong jelaskan lebih detail dengan AI.');
           actionsHtml += `<button type="button" class="btn-system-feedback-ai inline-flex items-center gap-1.5 bg-sky-50 text-sky-700 border border-sky-100 hover:bg-sky-100 text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-sm" data-prompt="${prompt}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
@@ -449,20 +462,59 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   }
 
   const hasWaAction = !isUser && Array.isArray(actions) && actions.some((act) => ['wa_teacher', 'wa_specific_task'].includes(act?.type));
-  const shouldWaitForSystemFeedback = !isUser && !hasWaAction && Array.isArray(actions) && actions.some((act) => act?.type === 'system_feedback_ok');
+  const shouldWaitForSystemFeedback = !isUser && !hasWaAction && !options.noFeedbackLock && Array.isArray(actions) && actions.some((act) => act?.type === 'system_feedback_ok' || act?.type === 'feedback_resolved');
   if (!isUser) this._lastBotMessageWaitsForFeedback = shouldWaitForSystemFeedback;
 
   const avatarHtml = isUser
     ? `<div class="w-10 h-10 rounded-full bg-surface-strong border border-hairline text-muted flex items-center justify-center shrink-0 text-[15px]"><i class="fa-solid fa-user"></i></div>`
     : `<div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shrink-0 text-[15px] shadow-sm"><i class="fa-solid fa-robot"></i></div>`;
 
+  // [v0.4.3] Lampirkan gambar elemen pada bubble pertanyaan user (biar konteksnya jelas).
+  const userImageHtml = (isUser && options.image)
+    ? `<div class="mb-2.5 rounded-lg overflow-hidden border border-hairline-strong bg-white">
+         <div class="flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 text-[10px] font-bold uppercase tracking-wide text-slate-500"><i class="fa-solid fa-camera"></i> Elemen yang ditanyakan</div>
+         <img src="${this.escapeHtml(options.image)}" alt="elemen" loading="lazy" class="w-full h-auto block max-h-48 object-contain bg-slate-50">
+       </div>`
+    : '';
+
   const bubbleHtml = isUser
-    ? `<div class="bg-surface-strong border border-hairline rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[80%] text-[15px] text-ink shadow-[0_4px_16px_rgba(0,0,0,0.02)] leading-relaxed">${formattedText}</div>`
+    ? `<div class="bg-surface-strong border border-hairline rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[80%] text-[15px] text-ink shadow-[0_4px_16px_rgba(0,0,0,0.02)] leading-relaxed">${userImageHtml}${formattedText}</div>`
     : `<div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[80%] text-[15px] text-body shadow-[0_4px_16px_rgba(0,0,0,0.04)] leading-relaxed">${badgeHtml}${formattedText}${visualHtml}${actionsHtml}${disclaimerHtml}</div>`;
 
+  // [v0.4.0] Tombol Salin & Kirim ulang untuk setiap pesan user.
+  const encodedUserMsg = isUser ? encodeURIComponent(String(rawText ?? '')) : '';
+  const userActionsHtml = isUser ? `
+    <div class="flex items-center justify-end gap-1.5 mt-1 pr-[52px]">
+      <button type="button" class="btn-user-copy inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-ink bg-surface-strong hover:bg-hairline-strong border border-hairline rounded-full px-2.5 py-1 transition-colors" data-msg="${encodedUserMsg}" title="Salin pertanyaan">
+        <i class="fa-regular fa-copy"></i> Salin
+      </button>
+      <button type="button" class="btn-user-reload inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-primary bg-surface-strong hover:bg-primary/10 border border-hairline rounded-full px-2.5 py-1 transition-colors" data-msg="${encodedUserMsg}" title="Kirim ulang pertanyaan yang sama">
+        <i class="fa-solid fa-rotate-right"></i> Kirim ulang
+      </button>
+    </div>` : '';
+
+  // [v0.9.1] Tombol "Salin" untuk jawaban bot — hanya teksnya saja (tombol/visual tidak ikut).
+  let botActionsHtml = '';
+  if (!isUser) {
+    const copySource = (typeof text === 'object' && text) ? (text.answer_text || '') : String(rawText ?? '');
+    const plainCopy = copySource
+      .replace(/\[\/?ACCORDION[^\]]*\]/gi, '')   // buang penanda accordion
+      .replace(/\*\*/g, '')                        // buang bold markdown
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+    if (plainCopy) {
+      botActionsHtml = `
+        <div class="flex items-center gap-1.5 mt-1 pl-[52px]">
+          <button type="button" class="btn-bot-copy inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-ink bg-surface-strong hover:bg-hairline-strong border border-hairline rounded-full px-2.5 py-1 transition-colors" data-copy="${encodeURIComponent(plainCopy)}" title="Salin jawaban (teks saja)">
+            <i class="fa-regular fa-copy"></i> Salin
+          </button>
+        </div>`;
+    }
+  }
+
   const html = isUser
-    ? `<div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div>`
-    : `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div></div>`;
+    ? `<div><div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div>${userActionsHtml}</div>`
+    : `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div>${botActionsHtml}</div>`;
 
   this.$chatArea.append(html);
 
