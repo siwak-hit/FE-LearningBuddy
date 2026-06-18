@@ -1050,26 +1050,47 @@ function selfHealDisabledInput(context) {
 // kuota bersama menipis, bukan internet mereka. Polling tiap beberapa detik.
 function initGlobalAiUsageBar(context) {
   const $anchor = $('#suggestion-wrapper');
-  if (!$anchor.length || $('#alb-global-ai-usage').length) {
+  if (!$anchor.length || $('#alb-global-ai-usage-wrap').length) {
     // Sudah ada atau tidak ada tempat pasang → cukup pastikan polling jalan.
   } else {
+    // [v0.9.6] Default: panel kuota AI disembunyikan. Muncul hanya saat tombol
+    // kecil "Kuota AI" diklik (toggle), supaya area bawah tidak ramai.
     $anchor.before(`
-      <div id="alb-global-ai-usage" class="mb-1.5 select-none" title="Kuota AI gratis dipakai bersama semua siswa & direset tiap hari (tengah malam WIB).">
-        <div class="flex items-center gap-2">
-          <i class="fa-solid fa-bolt text-[11px] text-amber-500 shrink-0"></i>
-          <div class="flex-1 min-w-0">
-            <div class="flex items-center justify-between gap-2 mb-0.5">
-              <span class="text-[10px] font-semibold text-muted">Kuota AI bersama hari ini</span>
-              <span id="alb-global-ai-usage-pct" class="text-[10px] font-bold text-muted-soft">…</span>
-            </div>
-            <div class="h-1.5 w-full bg-hairline rounded-full overflow-hidden">
-              <div id="alb-global-ai-usage-fill" class="h-full rounded-full bg-emerald-500 transition-all duration-500" style="width:0%"></div>
+      <div id="alb-global-ai-usage-wrap" class="mb-1.5 select-none">
+        <button type="button" id="alb-global-ai-usage-toggle" class="inline-flex items-center gap-1.5 text-[10px] font-semibold text-muted-soft hover:text-ink bg-surface-strong border border-hairline rounded-full px-2.5 py-1 transition-colors" title="Lihat info kuota AI bersama">
+          <i class="fa-solid fa-bolt text-[10px] text-amber-500"></i>
+          <span>Kuota AI</span>
+          <span id="alb-global-ai-usage-toggle-pct" class="font-bold text-muted-soft"></span>
+          <i class="fa-solid fa-chevron-down text-[8px] opacity-60 transition-transform"></i>
+        </button>
+
+        <div id="alb-global-ai-usage" class="hidden mt-1.5 bg-surface-card border border-hairline rounded-xl p-2.5">
+          <div class="flex items-center gap-2">
+            <i class="fa-solid fa-bolt text-[11px] text-amber-500 shrink-0"></i>
+            <div class="flex-1 min-w-0">
+              <div class="flex items-center justify-between gap-2 mb-0.5">
+                <span class="text-[10px] font-semibold text-muted">Kuota AI bersama hari ini</span>
+                <span id="alb-global-ai-usage-pct" class="text-[10px] font-bold text-muted-soft">…</span>
+              </div>
+              <div class="h-1.5 w-full bg-hairline rounded-full overflow-hidden">
+                <div id="alb-global-ai-usage-fill" class="h-full rounded-full bg-emerald-500 transition-all duration-500" style="width:0%"></div>
+              </div>
             </div>
           </div>
+          <div id="alb-global-ai-usage-note" class="hidden text-[10px] leading-snug mt-1.5 rounded-lg px-2 py-1.5"></div>
+          <div class="text-[10px] leading-snug mt-1.5 text-muted-soft bg-canvas-soft rounded-lg px-2 py-1.5">
+            <i class="fa-solid fa-circle-info mr-1 text-muted"></i>
+            Angka ini cuma <b>perkiraan</b>, belum tentu pas 100%. Layanan AI-nya tidak memberi tahu sisa kuota yang sebenarnya, jadi anggap ini ancar-ancar saja ya.
+          </div>
         </div>
-        <div id="alb-global-ai-usage-note" class="hidden text-[10px] leading-snug mt-1.5 rounded-lg px-2 py-1.5"></div>
       </div>
     `);
+
+    // Toggle buka/tutup panel kuota.
+    $(document).off('click.albUsageToggle').on('click.albUsageToggle', '#alb-global-ai-usage-toggle', function () {
+      $('#alb-global-ai-usage').toggleClass('hidden');
+      $(this).find('.fa-chevron-down').toggleClass('rotate-180');
+    });
   }
 
   const render = (data = {}) => {
@@ -1083,6 +1104,11 @@ function initGlobalAiUsageBar(context) {
       .removeClass('bg-emerald-500 bg-amber-500 bg-red-500')
       .addClass(pct >= 90 ? 'bg-red-500' : pct >= 70 ? 'bg-amber-500' : 'bg-emerald-500');
     $pct.text(`${pct}%`).removeClass('text-muted-soft text-amber-600 text-red-600')
+      .addClass(pct >= 90 ? 'text-red-600' : pct >= 70 ? 'text-amber-600' : 'text-muted-soft');
+
+    // Tampilkan persen ringkas di tombol toggle (tanpa harus membuka panel).
+    $('#alb-global-ai-usage-toggle-pct').text(`~${pct}%`)
+      .removeClass('text-muted-soft text-amber-600 text-red-600')
       .addClass(pct >= 90 ? 'text-red-600' : pct >= 70 ? 'text-amber-600' : 'text-muted-soft');
 
     if (data.rate_limited) {

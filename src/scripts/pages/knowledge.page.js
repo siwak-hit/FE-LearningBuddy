@@ -15,8 +15,7 @@ $(document).ready(function () {
   const store = {
     documents: { data: [], page: 1, limit: 10 },
     faqs: { data: [], page: 1, limit: 10 },
-    activities: { data: [], page: 1, limit: 10 },
-    templates: { data: [], page: 1, limit: 10 } // [TAMBAH INI]
+    activities: { data: [], page: 1, limit: 10 }
   };
 
   const moodleKbState = {
@@ -24,7 +23,6 @@ $(document).ready(function () {
     configCache: new Map(),
     syncSummary: null,
     ready: false,
-    mode: 'moodle',
     syncProgressTimers: []
   };
 
@@ -57,34 +55,47 @@ $(document).ready(function () {
   });
 
   // ==========================================
-  // MATERIAL SOURCE SWITCHER + MOODLE SYNC
+  // SUB-TAB KONFIGURASI: Integrasi Moodle / Upload Manual
   // ==========================================
-  function setMaterialSourceMode(mode = 'moodle') {
-    const normalizedMode = mode === 'manual' ? 'manual' : 'moodle';
-    moodleKbState.mode = normalizedMode;
-
-    $('.material-source-btn')
+  function activateKbSubtab(targetId = 'subtab-moodle') {
+    $('.kb-subtab-btn')
       .removeClass('bg-white shadow-sm text-ink')
       .addClass('text-muted hover:text-ink');
-
-    $(`.material-source-btn[data-source="${normalizedMode}"]`)
+    $(`.kb-subtab-btn[data-subtarget="${targetId}"]`)
       .addClass('bg-white shadow-sm text-ink')
       .removeClass('text-muted hover:text-ink');
 
-    $('.material-source-panel').addClass('hidden');
-    $(`#material-source-${normalizedMode}`).removeClass('hidden');
+    $('.kb-subtab-pane').addClass('hidden').removeClass('flex');
+    $(`#${targetId}`).removeClass('hidden').addClass('flex');
 
-    // Daftar materi hanya muncul saat admin memilih Upload Manual.
-    // Saat Integrasi Moodle aktif, halaman fokus ke proses sinkron saja.
-    $('#manual-document-list-card').toggleClass('hidden', normalizedMode !== 'manual');
-
-    if (normalizedMode === 'moodle') loadMoodleKnowledgePanel();
+    if (targetId === 'subtab-moodle') loadMoodleKnowledgePanel();
   }
 
-  $(document).on('click', '.material-source-btn', function () {
-    setMaterialSourceMode($(this).data('source'));
+  $(document).on('click', '.kb-subtab-btn', function () {
+    activateKbSubtab($(this).data('subtarget'));
   });
 
+  // Switch button di dalam Upload Manual: Materi / Instruksi Aktivitas
+  function activateManualPane(target = 'documents') {
+    const normalized = target === 'activities' ? 'activities' : 'documents';
+    $('.kb-manual-switch-btn')
+      .removeClass('bg-white shadow-sm text-ink')
+      .addClass('text-muted hover:text-ink');
+    $(`.kb-manual-switch-btn[data-manual="${normalized}"]`)
+      .addClass('bg-white shadow-sm text-ink')
+      .removeClass('text-muted hover:text-ink');
+
+    $('.kb-manual-pane').addClass('hidden').removeClass('flex');
+    $(`#manual-pane-${normalized}`).removeClass('hidden').addClass('flex');
+  }
+
+  $(document).on('click', '.kb-manual-switch-btn', function () {
+    activateManualPane($(this).data('manual'));
+  });
+
+  // ==========================================
+  // MOODLE SYNC
+  // ==========================================
   function getMoodleConfigBlockMessage(config = null) {
     const hasConfig = Boolean(config);
     const hasEndpoint = Boolean(config?.hasEndpoint || config?.rest_endpoint);
@@ -361,12 +372,11 @@ $(document).ready(function () {
 
   const openDrawer = (formType, title) => {
     $('#drawer-title').text(title);
-    $('#drawer-doc, #drawer-faq, #drawer-act, #drawer-tpl').addClass('hidden').removeClass('block flex');
+    $('#drawer-doc, #drawer-faq, #drawer-act').addClass('hidden').removeClass('block flex');
 
     if (formType === 'doc') $('#drawer-doc').removeClass('hidden').addClass('block');
     if (formType === 'faq') $('#drawer-faq').removeClass('hidden').addClass('flex');
     if (formType === 'act') $('#drawer-act').removeClass('hidden').addClass('flex');
-    if (formType === 'tpl') $('#drawer-tpl').removeClass('hidden').addClass('flex'); // TAMBAHAN
 
     if(formType === 'faq' || formType === 'act') $(`#btn-${formType}-tab-excel`).click();
 
@@ -387,7 +397,6 @@ $(document).ready(function () {
     if(formType === 'doc') title = "Tambah Materi / Dokumen";
     if(formType === 'faq') title = "Tambah FAQ Baru";
     if(formType === 'act') title = "Tambah Instruksi Aktivitas";
-    if(formType === 'tpl') title = "Import Konteks HTML"; // TAMBAHAN
     openDrawer(formType, title);
   });
 
@@ -423,97 +432,6 @@ $(document).ready(function () {
     $(this).addClass('border-primary text-ink').removeClass('border-transparent text-muted');
     $('.kb-tab-pane').addClass('hidden').removeClass('flex');
     $(`#${$(this).data('target')}`).removeClass('hidden').addClass('flex');
-  });
-
-  // ==========================================
-  // DROPZONE HTML
-  // ==========================================
-  $('#dropzone-tpl').on('click', () => $('#file-import-tpl').click());
-  $('#file-import-tpl').on('change', function(e) {
-    const file = e.target.files[0];
-    if (file) {
-      const fileName = file.name;
-      const nameWithoutExt = fileName.replace(/\.[^/.]+$/, ""); // Hapus .html
-      $('#filename-tpl').removeClass('hidden').find('.name').text(fileName);
-
-      // AUTO-FILL: Jika input nama masih kosong, isi dengan nama file
-      if (!$('#tpl_name').val().trim()) {
-        $('#tpl_name').val(nameWithoutExt);
-      }
-    } else {
-      $('#filename-tpl').addClass('hidden');
-    }
-  });
-
-  $('#tpl_type').on('change', function() {
-    if ($(this).val() === 'custom') {
-      $('#tpl_type_custom').removeClass('hidden').prop('required', true).focus();
-    } else {
-      $('#tpl_type_custom').addClass('hidden').prop('required', false).val('');
-    }
-  });
-
-  // Update Logic Submit Form HTML
-  $('#form-template-html').on('submit', async function (e) {
-    e.preventDefault();
-
-    // Ambil project id dari variabel global yang sudah ada di knowledge.page.js
-    if(!activeProjectId) return Toastify({ text: "Pilih project dulu", backgroundColor: "var(--color-semantic-error)" }).showToast();
-
-    const file = $('#file-import-tpl')[0].files[0];
-    if (!file) return Toastify({ text: "Pilih file HTML", backgroundColor: "var(--color-semantic-error)" }).showToast();
-
-    const selectedType = $('#tpl_type').val();
-    const finalPageType = selectedType === 'custom' ? $('#tpl_type_custom').val().trim() : selectedType;
-
-    if (!finalPageType) return Toastify({ text: "Tipe halaman custom tidak boleh kosong", backgroundColor: "var(--color-semantic-error)" }).showToast();
-
-    const $btn = $('#btn-submit-tpl');
-    const originalHtml = $btn.html();
-    $btn.html('<i class="fa-solid fa-spinner fa-spin mr-2"></i> Mengunggah...').prop('disabled', true);
-
-    const formData = new FormData();
-    // Ini akan otomatis terisi dengan ID project yang sedang dipilih di dropdown atas
-    formData.append('project_id', activeProjectId);
-    formData.append('template_name', $('#tpl_name').val());
-    formData.append('page_type', finalPageType);
-    formData.append('file', file);
-
-    try {
-      // 1. Ambil Base URL API dari environment kamu
-      const API_BASE = import.meta.env.PUBLIC_API_BASE_URL || '/api';
-
-      // 2. Ambil token (opsional: sesuaikan jika kamu menggunakan nama key yang berbeda di localStorage)
-      const token = localStorage.getItem('token') || '';
-
-      // 3. Gunakan fetch native agar FormData dikirim sempurna tanpa diubah jadi JSON
-      const rawResponse = await fetch(`${API_BASE}/knowledge/templates/import-html`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${token}` // Hapus baris header ini jika auth kamu menggunakan Cookie HTTP-Only
-        },
-        body: formData
-      });
-
-      const res = await rawResponse.json();
-
-      if (res && res.status !== 'error') {
-        Toastify({ text: "Konteks HTML berhasil diunggah!", backgroundColor: "var(--color-primary)" }).showToast();
-        $('#form-template-html')[0].reset();
-        $('#filename-tpl').addClass('hidden');
-        $('#tpl_type_custom').addClass('hidden');
-        closeDrawer();
-        // BUG FIX: Reload tabel templates setelah upload berhasil agar tombol Hapus muncul
-        await loadTemplates();
-      } else {
-        Toastify({ text: res.message || "Gagal mengunggah konteks", backgroundColor: "var(--color-semantic-error)" }).showToast();
-      }
-    } catch (error) {
-      console.error(error);
-      Toastify({ text: "Terjadi kesalahan jaringan/sistem", backgroundColor: "var(--color-semantic-error)" }).showToast();
-    }
-
-    $btn.html(originalHtml).prop('disabled', false);
   });
 
   // ======================================================
@@ -926,11 +844,13 @@ $(document).ready(function () {
         <p class="text-muted-soft">Tekan <b>Sinkron Moodle</b> untuk mengambil materi terbaru dari LMS. Sistem hanya memproses materi Page/Resource, bukan quiz, assignment, atau forum.</p>
       </div>
     `);
-    setMaterialSourceMode('moodle');
+    // Reset sub-tab Konfigurasi ke Integrasi Moodle + materi manual ke daftar Materi.
+    activateKbSubtab('subtab-moodle');
+    activateManualPane('documents');
 
-    // setMaterialSourceMode('moodle') sudah memanggil loadMoodleKnowledgePanel().
+    // activateKbSubtab('subtab-moodle') sudah memanggil loadMoodleKnowledgePanel().
     // Jangan dipanggil dobel agar tidak hit config endpoint berulang saat project dimuat.
-    await Promise.all([ loadDocuments(), loadFaqs(), loadActivities(), loadTemplates() ]);
+    await Promise.all([ loadDocuments(), loadFaqs(), loadActivities() ]);
     loadKnowledgeValidation();
   }
 
@@ -939,23 +859,8 @@ $(document).ready(function () {
     if (type === 'documents') await loadDocuments();
     if (type === 'faqs') await loadFaqs();
     if (type === 'activities') await loadActivities();
-    if (type === 'templates') await loadTemplates(); // [TAMBAH INI]
     loadKnowledgeValidation();
   });
-
-  async function loadTemplates() {
-    $('#list-templates').html('<tr><td colspan="3" class="text-center py-6"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat template...</td></tr>');
-    try {
-       const res = await ApiService.get(`/knowledge/templates/project/${activeProjectId}`);
-       if (res && res.data) {
-         store.templates.data = res.data;
-         store.templates.page = 1;
-         renderTable('templates');
-       }
-    } catch(e) {
-       $('#list-templates').html('<tr><td colspan="3" class="text-center py-6 text-red-500">Gagal memuat template.</td></tr>');
-    }
-  }
 
 // ==========================================
   // PAGINATION RENDERER
@@ -973,8 +878,8 @@ $(document).ready(function () {
     const tbody = $(`#list-${type}`);
 
     if (data.length === 0) {
-      // documents: 3 kolom, templates: 3 kolom, faqs/activities: 2 kolom
-      const colSpan = (type === 'documents' || type === 'templates') ? 3 : 2;
+      // documents: 3 kolom, faqs/activities: 2 kolom
+      const colSpan = type === 'documents' ? 3 : 2;
       tbody.html(`<tr><td colspan="${colSpan}" class="text-center py-8 text-muted-soft">Belum ada data tersedia.</td></tr>`);
       return;
     }
@@ -1081,31 +986,6 @@ $(document).ready(function () {
               </button>
             </td>
           </tr>`;
-      }else if (type === 'templates') {
-        let elemCount = 0;
-        try {
-          const elements = typeof d.elements_json === 'string' ? JSON.parse(d.elements_json) : d.elements_json;
-          elemCount = Array.isArray(elements) ? elements.length : 0;
-        } catch(e) {}
-
-        rows += `
-          <tr class="border-b border-hairline hover:bg-canvas-soft">
-            <td class="py-4 px-4 md:px-6 align-middle">
-              <div class="text-[12px] uppercase font-bold text-primary mb-1 truncate max-w-[200px] md:max-w-[400px]">${escapeHtml(d.page_type)}</div>
-              <div class="font-medium text-ink mb-1 truncate max-w-[250px] md:max-w-[500px]">${escapeHtml(d.template_name)}</div>
-            </td>
-            <td class="py-4 px-4 md:px-6 align-middle text-center">
-              <span class="text-[13px] font-medium text-ink bg-canvas-soft px-3 py-1 rounded-full border border-hairline whitespace-nowrap">
-                ${elemCount} Elemen
-              </span>
-            </td>
-            <td class="py-4 px-4 md:px-6 align-middle text-right">
-              <button class="btn-del-tpl flex items-center justify-center w-8 h-8 md:w-auto md:h-auto md:px-4 md:py-1.5 ml-auto bg-red-50 text-red-600 border border-red-100 rounded-full text-[12px] font-medium hover:bg-red-100 transition-colors shadow-sm" data-id="${d.id}" title="Hapus Template">
-                <i class="fa-solid fa-trash"></i>
-                <span class="hidden md:inline ml-1.5">Hapus</span>
-              </button>
-            </td>
-          </tr>`;
       }
     });
     tbody.html(rows);
@@ -1138,25 +1018,11 @@ $(document).ready(function () {
     formData.append('project_id', activeProjectId); formData.append('title', $('#doc_title').val()); formData.append('topic', $('#doc_topic').val()); formData.append('file', file);
 
     const res = await DocumentAPI.uploadDocument(formData);
-    if (res && res.status !== 'error') { Toastify({ text: "Materi berhasil diunggah!", backgroundColor: "var(--color-primary)" }).showToast(); $('#form-upload-document')[0].reset(); await loadDocuments(); loadKnowledgeValidation(); await loadTemplates(); closeDrawer(); } else { Toastify({ text: "Gagal mengunggah", backgroundColor: "var(--color-semantic-error)" }).showToast(); }
+    if (res && res.status !== 'error') { Toastify({ text: "Materi berhasil diunggah!", backgroundColor: "var(--color-primary)" }).showToast(); $('#form-upload-document')[0].reset(); await loadDocuments(); loadKnowledgeValidation(); closeDrawer(); } else { Toastify({ text: "Gagal mengunggah", backgroundColor: "var(--color-semantic-error)" }).showToast(); }
     btn.html(ogHtml).prop('disabled', false);
   });
 
   $(document).on('click', '.btn-index-doc', async function() { const id = $(this).data('id'); $(this).html('<i class="fa-solid fa-spinner fa-spin"></i>').prop('disabled', true); const res = await DocumentAPI.indexDocument(id); if(res && res.status !== 'error') { Toastify({ text: "Dokumen berhasil diindex untuk AI", backgroundColor: "var(--color-primary)" }).showToast(); } else { Toastify({ text: "Gagal memproses index", backgroundColor: "var(--color-semantic-error)" }).showToast(); } await loadDocuments(); loadKnowledgeValidation(); });
-  $(document).on('click', '.btn-del-tpl', async function() {
-    if(!confirm("Yakin ingin menghapus template HTML ini?")) return;
-    $(this).html('<i class="fa-solid fa-spinner fa-spin"></i>').prop('disabled', true);
-    try {
-      const res = await ApiService.delete(`/knowledge/templates/${$(this).data('id')}`);
-      if(res && res.status !== 'error') {
-        Toastify({ text: "Template dihapus", backgroundColor: "var(--color-primary)" }).showToast();
-        await loadTemplates();
-      }
-    } catch(e) {
-      Toastify({ text: "Gagal menghapus", backgroundColor: "var(--color-semantic-error)" }).showToast();
-      $(this).html('<i class="fa-solid fa-trash"></i> Hapus').prop('disabled', false);
-    }
-  });
 
   $('#form-faq-manual').on('submit', async function (e) {
     e.preventDefault();

@@ -23,7 +23,12 @@ async function request(endpoint, options = {}) {
 
     clearTimeout(timeoutId);
 
-    if (response.status === 401 || response.status === 403) {
+    // [v0.9.6] Endpoint login TIDAK ikut auto-redirect saat 401. 401 di sini =
+    // "email/password salah" → biarkan handler login menampilkan pesan errornya.
+    // (Dulu 401 login ikut ke-redirect ke /auth/login → web cuma reload tanpa pesan.)
+    const isAuthLoginEndpoint = String(endpoint).startsWith('/auth/login');
+
+    if (!isAuthLoginEndpoint && (response.status === 401 || response.status === 403)) {
       localStorage.removeItem('alb_token');
       window.location.href = '/auth/login';
       return { status: 'error', message: 'Sesi berakhir, silakan login ulang.' };

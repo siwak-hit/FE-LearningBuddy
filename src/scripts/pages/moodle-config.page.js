@@ -294,6 +294,11 @@ $(async function() {
   const $drawer = $('#preview-drawer');
   let loadedMaterials = [];
 
+  // [v0.9.6] Pindahkan modal ke <body> agar lepas dari stacking-context konten
+  // (sidebar = flex item ber-transform + z-50 menutupi modal). Sekaligus naikkan
+  // z-index di atas sidebar. Tanpa ini, modal tampil di belakang sidebar.
+  $modalChunks.add($modalWizard).appendTo('body').css('z-index', 120);
+
   const openModal = ($modal) => {
     $modal.removeClass('hidden');
     setTimeout(() => $modal.children().removeClass('scale-95 opacity-0').addClass('scale-100 opacity-100'), 10);

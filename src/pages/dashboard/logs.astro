@@ -5,40 +5,48 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 <DashboardLayout title="Logs Percakapan">
   <div class="max-w-[1200px] mx-auto w-full flex-1 flex flex-col min-h-0">
 
-    <div class="mb-6 shrink-0">
-      <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Logs & Moderasi</h1>
-      <p class="text-body text-[16px] text-muted">Pantau interaksi siswa dengan asisten AI dan awasi anomali percakapan.</p>
+    <!-- Header editorial -->
+    <div class="mb-8 shrink-0">
+      <p class="text-[12px] font-semibold uppercase tracking-[0.18em] text-muted-soft mb-2">Pemantauan</p>
+      <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Logs &amp; Moderasi</h1>
+      <p class="text-body text-[15px] max-w-2xl">Pantau percakapan siswa dengan AI Buddy, tinjau jawaban, dan tangani peringatan keamanan (SARA, kata kasar, sinyal stres) dengan cepat.</p>
     </div>
 
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-5 mb-6 shrink-0" id="log-summary-container">
-    </div>
+    <!-- Kartu statistik -->
+    <div class="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6 shrink-0" id="log-summary-container"></div>
 
-    <div class="bg-surface-card border border-hairline rounded-[16px] p-4 mb-6 shadow-sm shrink-0 flex flex-wrap gap-4 items-center">
-        <div class="relative flex-1 min-w-[250px]">
-          <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-            <i class="fa-solid fa-search text-muted"></i>
+    <!-- Filter bar -->
+    <div class="bg-surface-card border border-hairline rounded-[16px] p-3 md:p-4 mb-6 shadow-sm shrink-0">
+      <div class="flex flex-col md:flex-row gap-3 md:items-center">
+        <div class="relative flex-1 min-w-[220px]">
+          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+            <i class="fa-solid fa-magnifying-glass text-muted-soft text-[13px]"></i>
           </div>
-          <input type="text" id="filter-search" placeholder="Cari pesan / keyword log..." class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] pl-10 pr-4 py-2.5 text-[14px] text-ink focus:outline-none focus:border-ink transition-colors">
+          <input type="text" id="filter-search" placeholder="Cari pesan atau nama siswa..." class="w-full bg-canvas-soft border border-hairline-strong rounded-full pl-10 pr-4 py-2.5 text-[14px] text-ink placeholder:text-muted-soft focus:outline-none focus:border-ink transition-colors">
         </div>
-
-        <select id="filter-project" class="bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-2.5 text-[14px] text-ink focus:outline-none min-w-[150px] cursor-pointer">
-          <option value="">Semua Project</option>
-        </select>
-
-        <input type="date" id="filter-date" class="w-full md:w-auto bg-white border border-hairline rounded-[8px] px-3 py-2 text-[13px] focus:border-primary outline-none text-ink text-muted" title="Filter berdasarkan tanggal">
-
-        <select id="filter-mod" class="bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-2.5 text-[14px] text-ink focus:outline-none min-w-[150px] cursor-pointer">
-          <option value="">Semua Alert</option>
-          <option value="hate_speech">SARA / Hate Speech</option>
-          <option value="profanity">Kata Kasar</option>
-          <option value="mental_health">Sinyal Stres / Burnout</option>
-        </select>
+        <div class="flex flex-wrap gap-2.5">
+          <select id="filter-project" class="bg-canvas-soft border border-hairline-strong rounded-full px-4 py-2.5 text-[13px] text-ink focus:outline-none focus:border-ink min-w-[140px] cursor-pointer">
+            <option value="">Semua Project</option>
+          </select>
+          <input type="date" id="filter-date" class="bg-canvas-soft border border-hairline-strong rounded-full px-4 py-2.5 text-[13px] text-ink focus:outline-none focus:border-ink cursor-pointer" title="Filter berdasarkan tanggal">
+          <select id="filter-mod" class="bg-canvas-soft border border-hairline-strong rounded-full px-4 py-2.5 text-[13px] text-ink focus:outline-none focus:border-ink min-w-[150px] cursor-pointer">
+            <option value="">Semua Alert</option>
+            <option value="hate_speech">SARA / Hate Speech</option>
+            <option value="profanity">Kata Kasar</option>
+            <option value="mental_health">Sinyal Stres / Burnout</option>
+          </select>
+        </div>
+      </div>
     </div>
 
+    <!-- Daftar sesi -->
     <div class="w-full flex flex-col bg-surface-card border border-hairline rounded-[16px] shadow-sm min-h-[400px] flex-1 mb-4 overflow-hidden shrink-0">
-      <div class="p-4 border-b border-hairline bg-canvas-soft flex items-center justify-between shrink-0">
-        <h3 class="font-serif text-lg text-ink font-medium">Daftar Sesi Aktivitas</h3>
-        <span class="bg-white border border-hairline-strong px-2.5 py-0.5 rounded-full text-xs font-medium text-muted" id="total-session-count">0 Sesi</span>
+      <div class="px-5 py-4 border-b border-hairline flex items-center justify-between shrink-0">
+        <div>
+          <h3 class="font-serif text-lg text-ink">Daftar Sesi</h3>
+          <p class="text-[12px] text-muted-soft mt-0.5">Klik sebuah sesi untuk membuka transkrip lengkap.</p>
+        </div>
+        <span class="bg-canvas-soft border border-hairline px-3 py-1 rounded-full text-[12px] font-medium text-muted" id="total-session-count">0</span>
       </div>
 
       <div id="session-list" class="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-canvas content-start">
@@ -47,35 +55,78 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
          </div>
       </div>
 
-      <div class="p-4 border-t border-hairline bg-canvas-soft flex justify-between items-center shrink-0">
-        <button id="btn-prev-page" class="w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+      <div class="px-5 py-3 border-t border-hairline flex justify-between items-center shrink-0">
+        <button id="btn-prev-page" class="w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-full text-ink hover:bg-canvas-soft transition disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-chevron-left text-[12px]"></i></button>
         <span id="page-info" class="text-[13px] text-muted-soft font-medium tracking-wide">1 / 1</span>
-        <button id="btn-next-page" class="w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+        <button id="btn-next-page" class="w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-full text-ink hover:bg-canvas-soft transition disabled:opacity-40 disabled:cursor-not-allowed"><i class="fa-solid fa-chevron-right text-[12px]"></i></button>
       </div>
     </div>
 
     <div class="h-6 md:h-10 w-full shrink-0 block pointer-events-none"></div>
 
+    <!-- Overlay + drawer transkrip -->
     <div id="chat-overlay" class="fixed inset-0 bg-ink/40 backdrop-blur-sm z-[55] invisible opacity-0 transition-all duration-300 cursor-pointer"></div>
 
-    <div id="chat-overlay" class="fixed inset-0 bg-ink/40 backdrop-blur-sm z-[55] invisible opacity-0 transition-all duration-300 cursor-pointer"></div>
+    <div id="chat-workspace" class="fixed bottom-0 inset-x-0 h-[88vh] translate-y-full md:inset-y-0 md:right-0 md:left-auto md:w-[580px] md:h-full md:translate-x-full md:translate-y-0 flex flex-col bg-surface-card border-t md:border-t-0 md:border-l border-hairline rounded-t-[24px] md:rounded-t-none md:rounded-l-[24px] shadow-2xl transition-transform duration-300 ease-in-out z-[60] overflow-hidden">
 
-    <div id="chat-workspace" class="fixed bottom-0 inset-x-0 h-[85vh] translate-y-full md:inset-y-0 md:right-0 md:left-auto md:w-[550px] md:h-full md:translate-x-full md:translate-y-0 flex flex-col bg-surface-card border-t md:border-t-0 md:border-l border-hairline rounded-t-[24px] md:rounded-t-none md:rounded-l-[24px] shadow-2xl transition-transform duration-300 ease-in-out z-[60] overflow-hidden">
+      <div id="detail-content" class="hidden flex-1 flex flex-col h-full min-h-0">
 
-      <div id="detail-content" class="hidden flex-1 flex flex-col h-full">
+        <!-- Header drawer -->
+        <div class="p-5 border-b border-hairline bg-white shrink-0">
+          <div class="flex items-center gap-3">
+            <button id="btn-close-chat" class="text-ink w-9 h-9 flex items-center justify-center hover:bg-canvas-soft rounded-full transition-colors shrink-0" title="Tutup">
+              <i class="fa-solid fa-xmark text-xl"></i>
+            </button>
+            <div class="w-10 h-10 rounded-full bg-canvas-soft border border-hairline flex items-center justify-center text-muted shrink-0">
+              <i class="fa-solid fa-user"></i>
+            </div>
+            <div class="flex-1 min-w-0">
+              <h3 id="det-student-name" class="font-serif text-lg text-ink truncate">Nama Siswa</h3>
+              <p id="det-project-class" class="text-[12px] text-muted-soft truncate">Nama Kelas</p>
+            </div>
+          </div>
 
-        <div class="p-5 border-b border-hairline bg-white shrink-0 flex items-center gap-4">
-          <button id="btn-close-chat" class="text-ink w-8 h-8 flex items-center justify-center hover:bg-canvas-soft rounded-full transition-colors shrink-0" title="Tutup">
-            <i class="fa-solid fa-xmark text-xl"></i>
-          </button>
-
-          <div class="flex-1 min-w-0">
-            <h3 id="det-student-name" class="font-serif text-lg md:text-xl text-ink font-medium truncate">Nama Siswa</h3>
-            <p id="det-project-class" class="text-[13px] text-muted truncate">Nama Kelas</p>
+          <!-- Filter waktu (berbasis divider hari) -->
+          <div id="det-day-filter-wrap" class="hidden mt-4 flex items-center gap-2">
+            <i class="fa-solid fa-clock-rotate-left text-[12px] text-muted-soft shrink-0"></i>
+            <select id="det-day-filter" class="flex-1 bg-canvas-soft border border-hairline-strong rounded-full px-3.5 py-2 text-[12px] text-ink focus:outline-none focus:border-ink cursor-pointer">
+              <option value="all">Semua waktu percakapan</option>
+            </select>
           </div>
         </div>
 
-        <div id="chat-timeline" class="flex-1 overflow-y-auto p-6 space-y-6 bg-canvas scroll-smooth">
+        <!-- Area transkrip (relative agar overlay SARA bisa menutupi) -->
+        <div class="relative flex-1 min-h-0">
+          <div id="chat-timeline" class="absolute inset-0 overflow-y-auto p-5 md:p-6 bg-canvas scroll-smooth"></div>
+
+          <!-- Overlay lockdown SARA: menutupi transkrip agar guru memprioritaskan key -->
+          <div id="sara-lock-overlay" class="hidden absolute inset-0 z-20 bg-red-50/95 backdrop-blur-sm flex items-center justify-center p-6">
+            <div class="w-full max-w-sm text-center">
+              <div class="w-14 h-14 bg-red-100 text-red-600 rounded-full flex items-center justify-center mb-4 mx-auto">
+                <i class="fa-solid fa-lock text-2xl"></i>
+              </div>
+              <h3 class="text-red-700 font-bold mb-1 text-lg font-serif">Sesi Diblokir</h3>
+              <p id="sara-lock-reason" class="text-[13px] text-red-600 mb-5">Percakapan ini terkena filter keamanan. Siswa perlu memasukkan nama &amp; kunci buka kunci pada widget untuk melanjutkan.</p>
+
+              <div class="w-full" id="sara-lock-ui">
+                <button id="btn-generate-key-detail" class="w-full bg-red-600 hover:bg-red-700 text-white font-semibold py-3 px-4 rounded-full transition-colors shadow-sm">
+                  <i class="fa-solid fa-key mr-1.5"></i> Buat Kunci Buka Blokir
+                </button>
+
+                <div id="sara-key-result" class="hidden items-center bg-white border border-red-200 rounded-full p-1.5 shadow-sm mt-3">
+                  <input type="text" id="sara-key-input" class="flex-1 bg-transparent border-none focus:ring-0 text-center font-mono font-bold text-red-700 text-[16px] outline-none" readonly value="">
+                  <button id="sara-key-copy" class="w-10 h-10 flex items-center justify-center text-red-600 hover:bg-red-50 rounded-full transition-colors cursor-pointer" title="Salin kunci">
+                    <i class="fa-regular fa-copy text-lg"></i>
+                  </button>
+                </div>
+                <p class="text-[11px] text-red-500/80 mt-3">Berikan kunci ini ke siswa hanya setelah ditindaklanjuti.</p>
+              </div>
+
+              <button id="btn-peek-conversation" class="mt-5 text-[12px] text-red-600/80 hover:text-red-700 underline underline-offset-2">
+                Lihat dulu percakapannya
+              </button>
+            </div>
+          </div>
         </div>
       </div>
     </div>
