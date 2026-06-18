@@ -178,6 +178,24 @@ export function appendSessionReopenDivider() {
   `);
 }
 
+// [v0.9.8] Divider khusus saat konteks halaman diganti (beda gaya dgn "sesi dibuka kembali").
+// Pakai aksen primary + ikon tukar agar jelas ini perpindahan konteks tab, bukan jawaban chat.
+export function appendContextSwitchDivider(label = '') {
+  if (!this.$chatArea?.length) return;
+  const safe = String(label || 'Halaman').replace(/[<>&"]/g, '');
+  this.$chatArea.append(`
+    <div class="alb-context-switch-divider flex items-center gap-3 my-2 select-none" data-alb-context-divider="1">
+      <div class="flex-1 h-px bg-primary/20"></div>
+      <div class="inline-flex items-center gap-1.5 text-[11px] font-semibold text-primary bg-primary/10 border border-primary/20 rounded-full px-3 py-1">
+        <i class="fa-solid fa-right-left text-[10px]"></i>
+        Konteks halaman: ${safe}
+      </div>
+      <div class="flex-1 h-px bg-primary/20"></div>
+    </div>
+  `);
+  this.$chatArea[0]?.scrollTo?.({ top: this.$chatArea[0].scrollHeight, behavior: 'smooth' });
+}
+
 export async function createOrLoadSession() {
   if (this.urlSessionId) {
     this.sessionId = this.urlSessionId;

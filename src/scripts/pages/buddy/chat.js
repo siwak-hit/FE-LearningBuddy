@@ -400,6 +400,11 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         } else if (act.type === 'continue_prompt') {
           const prompt = this.escapeHtml(act.prompt || label);
           actionsHtml += `<button type="button" class="btn-continue-prompt inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm" data-prompt="${prompt}"><i class="fa-solid fa-forward-step"></i> ${label}</button>`;
+        } else if (act.type === 'mention_regenerate') {
+          // [v0.9.8] Minta hasil @materi BARU (konteks sama, hasil beda) — bypass cache.
+          const token = this.escapeHtml(act.token || '');
+          const prompt = this.escapeHtml(act.prompt || label);
+          actionsHtml += `<button type="button" class="btn-mention-regenerate inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-sm" data-token="${token}" data-prompt="${prompt}"><i class="fa-solid fa-rotate"></i> ${label}</button>`;
         } else if (act.type === 'switch_context_and_ask') {
           // RENDER TOMBOL CROSS-CONTEXT
           const safePayload = encodeURIComponent(JSON.stringify(act.template || {}));

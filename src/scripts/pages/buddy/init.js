@@ -86,7 +86,7 @@ export function initWorkspace(isExternal = false) {
       }
 
       // [v0.9.1] Tampilkan carousel bila belum pernah, ATAU versi flag lama (carousel di-update).
-      if (localStorage.getItem('alb_external_onboarding_seen') !== 'v0.9.1') {
+      if (localStorage.getItem('alb_external_onboarding_seen') !== 'v0.9.8') {
         this.showOnboardingCarousel();
       }
 
@@ -118,7 +118,7 @@ export function initWorkspace(isExternal = false) {
 
       // Setelah identitas siswa terkonfirmasi, tampilkan onboarding carousel
       // bila belum pernah dilihat (sama dengan jalur external).
-      if (localStorage.getItem('alb_external_onboarding_seen') !== 'v0.9.1') {
+      if (localStorage.getItem('alb_external_onboarding_seen') !== 'v0.9.8') {
         this.showOnboardingCarousel?.();
       }
     }).catch((err) => console.error('[Buddy] gagal inisialisasi entry langsung:', err));

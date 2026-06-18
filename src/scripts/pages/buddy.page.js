@@ -6,6 +6,9 @@ import * as SessionModule from './buddy/session.js';
 import * as EventsModule from './buddy/events.js';
 import * as InitModule from './buddy/init.js';
 import * as MentionsModule from './buddy/mentions.js';
+import * as OnboardingModule from './buddy/onboarding.js';
+import * as TemplatePreviewModule from './buddy/template-preview.js';
+import * as ManualContextModule from './buddy/manual-context-selector.js';
 
 // Penggabungan Object (Object Composition) dari kumpulan library
 const BuddyPage = {
@@ -16,7 +19,10 @@ const BuddyPage = {
   ...SessionModule,
   ...EventsModule,
   ...InitModule,
-  ...MentionsModule
+  ...MentionsModule,
+  ...OnboardingModule,
+  ...TemplatePreviewModule,
+  ...ManualContextModule
 };
 
 export default BuddyPage;

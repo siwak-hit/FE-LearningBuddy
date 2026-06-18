@@ -45,7 +45,10 @@ const { API_BASE } = Astro.props;
       </button>
     </div>
 
-    <div class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px] mb-3">Preview Konteks</div>
+    <div class="flex items-center justify-between gap-2 mb-3">
+      <span class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px]">Preview Konteks</span>
+      <span id="manual-context-anchor" class="shrink-0"></span>
+    </div>
     <h2 id="context-title" class="font-serif font-light text-3xl text-ink leading-tight tracking-tight mb-2">Memuat Halaman...</h2>
     <p class="text-[15px] text-muted-soft">Pilih teks elemen yang ingin kamu tanyakan. Visual hanya perkiraan jika tersedia.</p>
   </div>
