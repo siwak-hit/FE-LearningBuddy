@@ -132,21 +132,32 @@ export function hydrateReusableSessionIfAvailable(context) {
 function ensureDeleteSessionModal(context) {
   if ($('#alb-delete-session-modal').length) return;
 
+  // [v0.9.27 #6] Dua pilihan jelas: bersihkan tampilan saja vs hapus sesi.
   $('body').append(`
     <div id="alb-delete-session-modal" class="hidden fixed inset-0 z-[9999] bg-slate-950/55 backdrop-blur-sm flex items-center justify-center p-4">
-      <div class="bg-white border border-hairline rounded-2xl shadow-2xl w-full max-w-[430px] overflow-hidden">
-        <div class="p-5 border-b border-hairline">
-          <div class="w-12 h-12 rounded-full bg-red-50 text-red-600 flex items-center justify-center mb-3">
-            <i class="fa-solid fa-trash-can"></i>
-          </div>
-          <h3 class="text-[18px] font-black text-ink mb-1">Hapus session siswa?</h3>
-          <p class="text-[14px] text-muted leading-6">
-            Session siswa yang tersimpan akan dihapus. Setelah itu siswa perlu mulai sesi ulang dari form awal.
-          </p>
+      <div class="bg-white border border-hairline rounded-2xl shadow-2xl w-full max-w-[460px] overflow-hidden">
+        <div class="px-5 pt-5 pb-3">
+          <h3 class="text-[17px] font-black text-ink mb-1">Mau bersihkan yang mana?</h3>
+          <p class="text-[13px] text-muted leading-6">Pilih salah satu ya. Keduanya beda efeknya:</p>
+        </div>
+        <div class="px-5 pb-2 space-y-2.5">
+          <button type="button" id="alb-clear-chat-only" class="w-full text-left rounded-xl border border-hairline hover:border-primary/40 hover:bg-primary/5 px-4 py-3 transition-colors flex items-start gap-3">
+            <span class="w-9 h-9 shrink-0 rounded-lg bg-slate-100 text-slate-600 flex items-center justify-center mt-0.5"><i class="fa-solid fa-broom"></i></span>
+            <span class="min-w-0">
+              <span class="block text-[14px] font-bold text-ink">Hapus Chat (bersihkan tampilan)</span>
+              <span class="block text-[12px] text-muted-soft leading-snug mt-0.5">Pesan di layar dibersihkan sekarang. Tapi kalau halaman ini <b>dibuka lagi, chatmu muncul kembali</b> (riwayat tetap tersimpan).</span>
+            </span>
+          </button>
+          <button type="button" id="alb-confirm-delete-session" class="w-full text-left rounded-xl border border-red-200 hover:border-red-400 hover:bg-red-50 px-4 py-3 transition-colors flex items-start gap-3">
+            <span class="w-9 h-9 shrink-0 rounded-lg bg-red-50 text-red-600 flex items-center justify-center mt-0.5"><i class="fa-solid fa-trash-can"></i></span>
+            <span class="min-w-0">
+              <span class="block text-[14px] font-bold text-red-700">Hapus Sesi (mulai dari awal)</span>
+              <span class="block text-[12px] text-muted-soft leading-snug mt-0.5">Sesi & riwayat dihapus permanen. Saat dibuka lagi, <b>riwayat TIDAK muncul</b> — kamu mulai sesi baru dari awal.</span>
+            </span>
+          </button>
         </div>
         <div class="p-4 flex items-center justify-end gap-2 bg-canvas-soft">
           <button type="button" id="alb-cancel-delete-session" class="px-4 py-2 rounded-full border border-hairline bg-white text-[13px] font-bold text-ink hover:bg-surface-strong">Batal</button>
-          <button type="button" id="alb-confirm-delete-session" class="px-4 py-2 rounded-full bg-red-600 text-white text-[13px] font-bold hover:bg-red-700">Ya, hapus</button>
         </div>
       </div>
     </div>
@@ -155,6 +166,18 @@ function ensureDeleteSessionModal(context) {
   $('#alb-cancel-delete-session').on('click', () => $('#alb-delete-session-modal').addClass('hidden'));
   $('#alb-delete-session-modal').on('click', function (e) {
     if (e.target === this) $(this).addClass('hidden');
+  });
+
+  // Hapus Chat = bersihkan tampilan saja (sesi & riwayat DB tetap → reload saat dibuka lagi).
+  $('#alb-clear-chat-only').on('click', () => {
+    try {
+      if (context.$chatArea?.length) context.$chatArea.empty();
+      context._lastBotMessageWaitsForFeedback = false;
+      if (context.$inputArea?.length) context.$inputArea.prop('disabled', false).attr('placeholder', 'Tanya sesuatu atau pilih elemen...');
+      if (context.$btnSend?.length) context.$btnSend.prop('disabled', false);
+    } catch (_) {}
+    $('#alb-delete-session-modal').addClass('hidden');
+    Toast.show('Tampilan chat dibersihkan. Riwayat tetap tersimpan.', 'success');
   });
 
   $('#alb-confirm-delete-session').on('click', async function () {
@@ -222,9 +245,9 @@ export function ensureDeleteSessionButton(context) {
   }
 
   const $btn = $(`
-    <button type="button" id="alb-delete-session-btn" class="inline-flex items-center gap-1.5 rounded-full border border-red-100 bg-red-50 px-3 py-2 text-[11px] font-bold text-red-600 hover:bg-red-100 transition-colors shrink-0" title="Hapus session siswa tersimpan">
+    <button type="button" id="alb-delete-session-btn" class="inline-flex items-center gap-1.5 rounded-full border border-hairline bg-white px-3 py-2 text-[11px] font-bold text-muted hover:bg-surface-strong hover:text-ink transition-colors shrink-0" title="Bersihkan chat atau hapus sesi">
       <i class="fa-solid fa-trash-can"></i>
-      <span class="hidden sm:inline">Hapus Session</span>
+      <span class="hidden sm:inline">Bersihkan / Hapus</span>
     </button>
   `);
 

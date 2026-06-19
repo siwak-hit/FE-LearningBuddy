@@ -244,7 +244,10 @@ async function sendChatMessage(context, options = {}) {
   context.$inputArea?.val('');
   context.resetInputHeight?.();
   context.hideSuggestionWrapper?.();
-  context.appendTypingIndicator?.();
+  // [v0.9.28 #3] Tahap loading "mengalihkan ke AI" hanya bila request memang mode AI,
+  // supaya tak muncul saat jawaban ternyata dari sistem.
+  const _aiMode = (options.forceAI === true) || (options.forceAI !== false && modeConfig.forceAI === true);
+  context.appendTypingIndicator?.({ aiMode: _aiMode });
   context.scrollToBottom?.();
 
   const selectedResponseMode = options.responseMode || modeConfig.responseMode;
@@ -524,7 +527,10 @@ function initGlobalAiUsageBar(context) {
           <i class="fa-solid fa-chevron-down text-[8px] opacity-60 transition-transform"></i>
         </button>
 
-        <div id="alb-global-ai-usage" class="hidden mt-1.5 bg-surface-card border border-hairline rounded-xl p-2.5">
+        <div id="alb-global-ai-usage" class="hidden mt-1.5 bg-surface-card border border-hairline rounded-xl p-2.5 pr-8 relative">
+          <button type="button" id="alb-global-ai-usage-close" class="absolute top-1.5 right-1.5 w-6 h-6 rounded-full text-muted-soft hover:text-ink hover:bg-black/5 flex items-center justify-center transition-colors" title="Tutup">
+            <i class="fa-solid fa-xmark text-[11px]"></i>
+          </button>
           <div class="flex items-center gap-2">
             <i class="fa-solid fa-bolt text-[11px] text-amber-500 shrink-0"></i>
             <div class="flex-1 min-w-0">
@@ -546,12 +552,18 @@ function initGlobalAiUsageBar(context) {
       </div>
     `);
 
-    // Toggle buka/tutup panel kuota.
-    $(document).off('click.albUsageToggle').on('click.albUsageToggle', '#alb-global-ai-usage-toggle', function () {
-      $('#alb-global-ai-usage').toggleClass('hidden');
-      $(this).find('.fa-chevron-down').toggleClass('rotate-180');
-    });
   }
+
+  // [v0.9.30 #4] Binding DI LUAR blok render (selalu terpasang, walau wrap sudah ada):
+  // buka panel → sembunyikan tombol kecil; klik ✕ → tutup panel & munculkan tombol lagi.
+  $(document).off('click.albUsageToggle').on('click.albUsageToggle', '#alb-global-ai-usage-toggle', function () {
+    $('#alb-global-ai-usage').removeClass('hidden');
+    $('#alb-global-ai-usage-toggle').addClass('hidden');
+  });
+  $(document).off('click.albUsageClose').on('click.albUsageClose', '#alb-global-ai-usage-close', function () {
+    $('#alb-global-ai-usage').addClass('hidden');
+    $('#alb-global-ai-usage-toggle').removeClass('hidden');
+  });
 
   const render = (data = {}) => {
     const pct = Number(data.percent || 0);
@@ -682,6 +694,20 @@ function bindContextDrawer(context) {
 }
 
 function bindInputEvents(context, getSuggestionTimer, setSuggestionTimer) {
+  // [v0.9.28 #6] Input dikunci (menunggu konfirmasi) lalu dicoba diklik → toast bisa diklik.
+  // Disabled input tak memancarkan event, jadi pasang di WADAH-nya (mousedown).
+  const $inputWrap = $('#chat-input-wrap, #chat-form').first();
+  if ($inputWrap.length) {
+    $inputWrap.off('mousedown.albLocked touchstart.albLocked')
+      .on('mousedown.albLocked touchstart.albLocked', (e) => {
+        if (context.$inputArea?.prop('disabled')) {
+          // Jangan ganggu klik tombol kirim/mode di dalam form.
+          if ($(e.target).closest('#btn-send, #response-mode-dropdown, button, a').length) return;
+          context.showInputLockedToast?.();
+        }
+      });
+  }
+
   bindIfExists(context.$inputArea, 'input keyup paste', () => {
     setTimeout(() => {
       const val = context.$inputArea.val();
@@ -1024,24 +1050,43 @@ function enableChatInputAfterFeedback(context) {
   context.$btnSend.prop('disabled', false);
 }
 
+// [v0.9.27 #3] Paginasi sadar-viewport: DESKTOP 5/halaman (data-alb-page/data-total-pages),
+// MOBILE 1/halaman (data-alb-mpage/data-total-mpages).
+function albIsMobileViewport() {
+  try { return window.matchMedia('(max-width:680px)').matches; } catch (_) { return false; }
+}
+
+function albApplyLmsPage($wrap, page) {
+  const mobile = albIsMobileViewport();
+  const max = Math.max(1, Number($wrap.attr(mobile ? 'data-total-mpages' : 'data-total-pages') || 1));
+  const next = Math.max(1, Math.min(max, Number(page) || 1));
+  const rowAttr = mobile ? 'data-alb-mpage' : 'data-alb-page';
+  $wrap.attr(mobile ? 'data-mpage' : 'data-page', String(next));
+  $wrap.find('[' + rowAttr + ']').each((_, row) => {
+    const $row = $(row);
+    $row.css('display', Number($row.attr(rowAttr)) === next ? '' : 'none');
+  });
+  $wrap.find('[data-page-info]').text(`Halaman ${next} dari ${max}`);
+  $wrap.find('.alb-lms-page-btn[data-dir="-1"]').prop('disabled', next <= 1);
+  $wrap.find('.alb-lms-page-btn[data-dir="1"]').prop('disabled', next >= max);
+}
+
 function paginateLmsTableFromButton($btn) {
   const $wrap = $btn.closest('[data-alb-lms-table]');
   if (!$wrap.length) return;
+  const mobile = albIsMobileViewport();
+  const current = Math.max(1, Number($wrap.attr(mobile ? 'data-mpage' : 'data-page') || 1));
+  albApplyLmsPage($wrap, current + Number($btn.attr('data-dir') || 0));
+}
 
-  const max = Math.max(1, Number($wrap.attr('data-total-pages') || 1));
-  const current = Math.max(1, Number($wrap.attr('data-page') || 1));
-  const direction = Number($btn.attr('data-dir') || 0);
-  const nextPage = Math.max(1, Math.min(max, current + direction));
-
-  $wrap.attr('data-page', String(nextPage));
-  $wrap.find('[data-alb-page]').each((_, row) => {
-    const $row = $(row);
-    $row.css('display', Number($row.attr('data-alb-page')) === nextPage ? '' : 'none');
+// Sinkronkan semua tabel LMS ke state viewport saat ini (dipanggil saat render & resize).
+export function syncLmsTablesPagination() {
+  const $area = this?.$chatArea && this.$chatArea.length ? this.$chatArea : $(document);
+  const mobile = albIsMobileViewport();
+  $area.find('[data-alb-lms-table]').each((_, w) => {
+    const $wrap = $(w);
+    albApplyLmsPage($wrap, Number($wrap.attr(mobile ? 'data-mpage' : 'data-page')) || 1);
   });
-
-  $wrap.find('[data-page-info]').text(`Halaman ${nextPage} dari ${max}`);
-  $wrap.find('.alb-lms-page-btn[data-dir="-1"]').prop('disabled', nextPage <= 1);
-  $wrap.find('.alb-lms-page-btn[data-dir="1"]').prop('disabled', nextPage >= max);
 }
 
 

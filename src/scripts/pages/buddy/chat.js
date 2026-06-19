@@ -1,6 +1,7 @@
 import $ from 'jquery';
 
-export function appendTypingIndicator() {
+export function appendTypingIndicator(opts = {}) {
+  const aiMode = opts && opts.aiMode === true;
   const html = `
     <div id="typing-indicator" class="flex items-start gap-3 md:gap-4">
       <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shrink-0 text-[15px] shadow-sm">
@@ -37,9 +38,13 @@ export function appendTypingIndicator() {
   window.__albTypingTimer = setTimeout(() => {
     $('#alb-typing-text').text('Mengecek basis pengetahuan sistem…');
   }, 1500);
-  window.__albTypingTimer2 = setTimeout(() => {
-    $('#alb-typing-text').text('Belum ada di sistem — mengalihkan ke jawaban AI…');
-  }, 3200);
+  // [v0.9.28 #3] Tahap "mengalihkan ke AI" HANYA saat mode AI (kalau bukan, jangan
+  // tampilkan supaya tak menyesatkan ketika jawabannya ternyata dari sistem).
+  if (aiMode) {
+    window.__albTypingTimer2 = setTimeout(() => {
+      $('#alb-typing-text').text('Menyusun jawaban dengan AI…');
+    }, 3200);
+  }
 
   this.scrollToBottom();
 }
@@ -146,17 +151,51 @@ function disableSupersededFeedbackActions(context) {
   return true;
 }
 
+// [v0.9.27 #4] Saat user mengirim pertanyaan BARU, tombol-tombol dari respons sebelumnya
+// "berlalu": di-disable + dibungkus accordion tertutup (auto-hide) agar layar tak ramai
+// tombol. Tetap bisa dibuka kalau perlu.
+function collapseSupersededActions(context) {
+  const $area = context?.$chatArea;
+  if (!$area || !$area.length) return;
+  $area.find('.alb-action-group').not('.alb-superseded').each(function () {
+    const $grp = $(this);
+    const $btns = $grp.find('button');
+    $grp.addClass('alb-superseded');
+    if (!$btns.length) return;
+    $btns.prop('disabled', true).addClass('opacity-50 cursor-not-allowed pointer-events-none').attr('title', 'Respons ini sudah berlalu.');
+    const n = $btns.length;
+    const $details = $(`
+      <details class="alb-superseded-acc group mt-3 border border-hairline rounded-xl bg-surface-strong/50 overflow-hidden">
+        <summary class="cursor-pointer list-none px-3 py-2 text-[11px] font-semibold text-muted-soft flex items-center gap-2 [&::-webkit-details-marker]:hidden hover:bg-surface-strong transition-colors">
+          <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
+          <span>${n} tombol dari respons sebelumnya</span>
+          <i class="fa-solid fa-chevron-down text-[10px] ml-auto transition-transform group-open:rotate-180"></i>
+        </summary>
+      </details>`);
+    $grp.before($details);
+    $details.append($grp.addClass('!mt-0 p-2.5'));
+  });
+}
+
 export function scrollToBottom() {
   this.$chatArea.stop().animate({ scrollTop: this.$chatArea[0].scrollHeight }, 300);
 }
 
 export function appendBubble(rawText, isUser = false, source = 'ai', actions = [], options = {}) {
+  // [v0.9.27 #1] Pengingat/notice → TOAST yang bisa diklik (buka modal), bukan kartu inline.
+  if (!isUser && options.notice && typeof this.showReminderToast === 'function') {
+    this.showReminderToast({ notice: options.notice, message: String(rawText ?? ''), actions: Array.isArray(actions) ? actions : [] });
+    return;
+  }
+
   let text = rawText;
   let isTutorialMode = false;
 
   if (isUser && disableSupersededFeedbackActions(this)) {
     this._unlockInputAfterCurrentResponse = true;
   }
+  // [v0.9.27 #4] Pertanyaan baru dari user → rapikan tombol respons lama ke accordion.
+  if (isUser) collapseSupersededActions(this);
 
   // 1. Deteksi & Parse JSON khusus dari AI
   if (!isUser && typeof text === 'string' && text.includes('"answer_mode"') && text.includes('tutorial_steps')) {
@@ -303,7 +342,9 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     const visualActions = [];
 
     actions.forEach(act => {
-      if (act.type === 'system_feedback_ok' || act.type === 'system_feedback_ai' || act.type === 'feedback_resolved') {
+      // [v0.9.30] "Tanya AI" (ask_ai) ikut kelompok KONFIRMASI (kanan) bersama "Sudah jelas",
+      // bukan kelompok utama/tutorial (kiri).
+      if (act.type === 'system_feedback_ok' || act.type === 'system_feedback_ai' || act.type === 'feedback_resolved' || act.type === 'ask_ai') {
         feedbackActions.push(act);
       } else if (act.type === 'inline_visual') {
         visualActions.push(act);
@@ -368,9 +409,18 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     }
 
     if (mainActions.length > 0 || feedbackActions.length > 0) {
+      // [v0.9.27 rev] Layout 2 kelompok: KIRI = tombol utama/tutorial (~62%), KANAN =
+      // kontainer tombol konfirmasi (flex, isinya "Belum/Sudah jelas" sejajar). DESKTOP
+      // sebaris; MOBILE menumpuk kolom KECUALI kontainer konfirmasi tetap flex (2 tombol
+      // sebaris). `[&>button]:w-full` memaksa tombol penuh.
+      const _hasFeedback = feedbackActions.length > 0;
+      const _hasMain = mainActions.length > 0;
+      const _mainBasis = _hasFeedback ? 'md:flex-[0_0_65%]' : 'md:flex-1';
+      // md:items-stretch + h-full pada tombol konfirmasi → tinggi 2 tombol konfirmasi
+      // mengikuti tinggi tombol tutorial (yang punya 2 baris teks).
       actionsHtml = `
-        <div class="alb-action-group mt-5 flex w-full flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <div class="alb-main-actions flex flex-wrap items-center gap-2">
+        <div class="alb-action-group mt-5 flex flex-col md:flex-row gap-2 items-stretch w-full">
+          ${_hasMain ? `<div class="alb-main-actions flex flex-col gap-2 min-w-0 ${_mainBasis} shrink-0 [&>button]:w-full [&>button]:h-full [&>button]:justify-center [&>button]:text-center">` : ''}
       `;
 
       mainActions.forEach(act => {
@@ -476,27 +526,31 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         }
       });
 
+      // Tutup kontainer main, buka kontainer KONFIRMASI (selalu flex: 2 tombol sejajar).
       actionsHtml += `
-          </div>
-          <div class="alb-feedback-actions flex flex-wrap items-center justify-end gap-2 md:ml-auto">
+        ${_hasMain ? '</div>' : ''}
+        ${_hasFeedback ? '<div class="alb-feedback-actions flex flex-row gap-2 min-w-0 md:flex-1 [&>button]:flex-1 [&>button]:h-full [&>button]:justify-center [&>button]:text-center">' : ''}
       `;
 
       feedbackActions.forEach(act => {
         const label = this.escapeHtml(act.label || 'Aksi');
         if (act.type === 'system_feedback_ok') {
-          // Tipe BIASA (tidak memengaruhi skor) — warna netral/abu.
-          actionsHtml += `<button type="button" class="btn-system-feedback-ok inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-check"></i> ${label}</button>`;
+          // [v0.9.27 rev] rounded-xl + py-2.5 menyamai tinggi/sudut tombol tutorial.
+          actionsHtml += `<button type="button" class="btn-system-feedback-ok inline-flex items-center gap-1.5 bg-slate-100 text-slate-600 border border-slate-200 hover:bg-slate-200 text-[13px] font-medium px-4 py-2.5 rounded-xl transition-colors shadow-sm"><i class="fa-solid fa-check"></i> ${label}</button>`;
         } else if (act.type === 'feedback_resolved') {
-          // Tipe SCORING (memengaruhi deteksi kesulitan) — warna emerald/hijau.
-          actionsHtml += `<button type="button" class="btn-feedback-resolved inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-circle-check"></i> ${label}</button>`;
+          actionsHtml += `<button type="button" class="btn-feedback-resolved inline-flex items-center gap-1.5 bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 text-[13px] font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm"><i class="fa-solid fa-circle-check"></i> ${label}</button>`;
         } else if (act.type === 'system_feedback_ai') {
           const prompt = this.escapeHtml(act.prompt || 'Tolong jelaskan lebih detail dengan AI.');
-          actionsHtml += `<button type="button" class="btn-system-feedback-ai inline-flex items-center gap-1.5 bg-sky-50 text-sky-700 border border-sky-100 hover:bg-sky-100 text-[13px] font-medium px-4 py-2 rounded-full transition-colors shadow-sm" data-prompt="${prompt}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
+          actionsHtml += `<button type="button" class="btn-system-feedback-ai inline-flex items-center gap-1.5 bg-sky-50 text-sky-700 border border-sky-100 hover:bg-sky-100 text-[13px] font-medium px-4 py-2.5 rounded-xl transition-colors shadow-sm" data-prompt="${prompt}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
+        } else if (act.type === 'ask_ai') {
+          // [v0.9.30] "Tanya AI" di kelompok konfirmasi (kanan) — rounded-xl samai "Sudah jelas".
+          const safePayload = encodeURIComponent(JSON.stringify(act.payload || {}));
+          actionsHtml += `<button type="button" class="btn-ask-ai-fallback inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 text-[13px] font-semibold px-4 py-2.5 rounded-xl transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
         }
       });
 
       actionsHtml += `
-          </div>
+        ${_hasFeedback ? '</div>' : ''}
         </div>
       `;
     }
@@ -519,43 +573,43 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
        </div>`
     : '';
 
-  // [v0.9.9] Desktop (base) = bubble user abu terang + teks gelap (seperti semula).
-  // Mobile (max-md) = latar gelap + teks putih. Pakai max-md: (Tailwind v4, sudah terpakai
-  // di codebase) agar desktop dijamin tidak ikut gelap.
-  const bubbleHtml = isUser
-    ? `<div class="bg-surface-strong text-ink border border-hairline max-md:bg-ink max-md:text-white max-md:border-ink rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] shadow-[0_4px_16px_rgba(0,0,0,0.02)] leading-relaxed">${userImageHtml}${formattedText}</div>`
-    : `<div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] text-body shadow-[0_4px_16px_rgba(0,0,0,0.04)] leading-relaxed">${badgeHtml}${formattedText}${visualHtml}${actionsHtml}${disclaimerHtml}</div>`;
-
-  // [v0.4.0] Tombol Salin & Kirim ulang untuk setiap pesan user.
+  // [v0.9.25] Tombol Salin/Kirim-ulang kini DI DALAM bubble (baris kecil di bawah, dipisah
+  // garis tipis) supaya tidak menambah baris yang bikin ramai. Warna menyesuaikan bubble
+  // (user mobile = gelap → max-md:teks putih).
   const encodedUserMsg = isUser ? encodeURIComponent(String(rawText ?? '')) : '';
   const userActionsHtml = isUser ? `
-    <div class="flex items-center justify-end gap-1.5 mt-1 pr-1 md:pr-[52px]">
-      <button type="button" class="btn-user-copy inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-ink bg-surface-strong hover:bg-hairline-strong border border-hairline rounded-full px-2.5 py-1 transition-colors" data-msg="${encodedUserMsg}" title="Salin pertanyaan">
+    <div class="flex items-center justify-end gap-1.5 mt-2.5 pt-2 border-t border-black/5 max-md:border-white/15">
+      <button type="button" class="btn-user-copy inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors bg-black/[0.04] hover:bg-black/10 border border-black/5 text-muted hover:text-ink max-md:bg-white/15 max-md:hover:bg-white/25 max-md:border-white/15 max-md:text-white/80 max-md:hover:text-white" data-msg="${encodedUserMsg}" title="Salin pertanyaan">
         <i class="fa-regular fa-copy"></i> Salin
       </button>
-      <button type="button" class="btn-user-reload inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-primary bg-surface-strong hover:bg-primary/10 border border-hairline rounded-full px-2.5 py-1 transition-colors" data-msg="${encodedUserMsg}" title="Kirim ulang pertanyaan yang sama">
+      <button type="button" class="btn-user-reload inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors bg-black/[0.04] hover:bg-black/10 border border-black/5 text-muted hover:text-primary max-md:bg-white/15 max-md:hover:bg-white/25 max-md:border-white/15 max-md:text-white/80 max-md:hover:text-white" data-msg="${encodedUserMsg}" title="Kirim ulang pertanyaan yang sama">
         <i class="fa-solid fa-rotate-right"></i> Kirim ulang
       </button>
     </div>` : '';
 
-  // [v0.9.1] Tombol "Salin" untuk jawaban bot — hanya teksnya saja (tombol/visual tidak ikut).
   let botActionsHtml = '';
   if (!isUser) {
     const copySource = (typeof text === 'object' && text) ? (text.answer_text || '') : String(rawText ?? '');
     const plainCopy = copySource
-      .replace(/\[\/?ACCORDION[^\]]*\]/gi, '')   // buang penanda accordion
-      .replace(/\*\*/g, '')                        // buang bold markdown
+      .replace(/\[\/?ACCORDION[^\]]*\]/gi, '')
+      .replace(/\*\*/g, '')
       .replace(/\n{3,}/g, '\n\n')
       .trim();
     if (plainCopy) {
       botActionsHtml = `
-        <div class="flex items-center gap-1.5 mt-1 pl-1 md:pl-[52px]">
-          <button type="button" class="btn-bot-copy inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-ink bg-surface-strong hover:bg-hairline-strong border border-hairline rounded-full px-2.5 py-1 transition-colors" data-copy="${encodeURIComponent(plainCopy)}" title="Salin jawaban (teks saja)">
+        <div class="flex items-center gap-1.5 mt-2.5 pt-2 border-t border-black/5">
+          <button type="button" class="btn-bot-copy inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors bg-surface-strong hover:bg-hairline-strong border border-hairline text-muted hover:text-ink" data-copy="${encodeURIComponent(plainCopy)}" title="Salin jawaban (teks saja)">
             <i class="fa-regular fa-copy"></i> Salin
           </button>
         </div>`;
     }
   }
+
+  // [v0.9.9] Desktop (base) = bubble user abu terang + teks gelap (seperti semula).
+  // Mobile (max-md) = latar gelap + teks putih.
+  const bubbleHtml = isUser
+    ? `<div class="bg-surface-strong text-ink border border-hairline max-md:bg-ink max-md:text-white max-md:border-ink rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] shadow-[0_4px_16px_rgba(0,0,0,0.02)] leading-relaxed">${userImageHtml}${formattedText}${userActionsHtml}</div>`
+    : `<div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] text-body shadow-[0_4px_16px_rgba(0,0,0,0.04)] leading-relaxed">${badgeHtml}${formattedText}${visualHtml}${actionsHtml}${disclaimerHtml}${botActionsHtml}</div>`;
 
   // [v0.9.10] Notif/pengingat (bukan jawaban chat) → kartu di TENGAH, gaya & warna beda,
   // tanpa avatar, bisa ditutup. Dipakai untuk rekomendasi kesulitan & pindah konteks.
@@ -573,12 +627,17 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         ${actionsHtml}
       </div>`;
   } else if (isUser) {
-    html = `<div><div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div>${userActionsHtml}</div>`;
+    html = `<div><div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div></div>`;
   } else {
-    html = `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div>${botActionsHtml}</div>`;
+    html = `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div></div>`;
   }
 
   this.$chatArea.append(html);
+
+  // [v0.9.27 #3] Tabel/daftar aktivitas LMS → sinkronkan paginasi ke viewport (mobile 1/halaman).
+  if (!isUser && typeof html === 'string' && html.indexOf('data-alb-lms-table') !== -1) {
+    this.syncLmsTablesPagination?.();
+  }
 
   // Untuk jawaban sistem yang meminta konfirmasi, tahan input dulu supaya siswa
   // tidak lanjut bertanya sebelum memilih "Sudah jelas" atau "Belum jelas".

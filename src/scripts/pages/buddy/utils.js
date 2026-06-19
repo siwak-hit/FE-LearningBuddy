@@ -29,6 +29,32 @@ export function normalizeElementText(value = '', max = 220) {
     .slice(0, max);
 }
 
+// [v0.9.25] Konversi list markdown (sudah ter-escape) → <ul>/<ol>. Baris yang bukan list
+// dibiarkan apa adanya (nanti \n-nya jadi <br/>). Dipakai agar jawaban AI ber-poin rapi.
+function mdListsToHtml(escaped = '') {
+  const lines = String(escaped || '').split('\n');
+  const out = [];
+  let type = null; // 'ul' | 'ol'
+  let items = [];
+  const flush = () => {
+    if (items.length) {
+      const cls = type === 'ol' ? 'list-decimal' : 'list-disc';
+      out.push(`<${type} class="${cls} pl-5 my-2 space-y-1">${items.map((it) => `<li>${it}</li>`).join('')}</${type}>`);
+      items = [];
+    }
+    type = null;
+  };
+  for (const line of lines) {
+    const ulM = line.match(/^\s*(?:[-*]|&#8226;|•|·)\s+(.+)$/);
+    const olM = line.match(/^\s*\d+[.)]\s+(.+)$/);
+    if (ulM) { if (type && type !== 'ul') flush(); type = 'ul'; items.push(ulM[1].trim()); }
+    else if (olM) { if (type && type !== 'ol') flush(); type = 'ol'; items.push(olM[1].trim()); }
+    else { flush(); out.push(line); }
+  }
+  flush();
+  return out.join('\n');
+}
+
 export function formatResponseText(text = '') {
   const htmlBlocks = [];
   const accordions = [];
@@ -108,16 +134,16 @@ export function formatResponseText(text = '') {
     }
   );
 
-  // 3. Escape teks biasa.
+  // 3. Escape teks biasa. (markdown bold → <b>, list → <ul>/<ol>, sisanya \n → <br/>)
   let safeText = this.escapeHtml(parsedText)
-    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
-    .replace(/\n/g, '<br/>');
+    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+  safeText = mdListsToHtml(safeText).replace(/\n/g, '<br/>');
 
   // 4. Balikin accordion custom.
   accordions.forEach((acc, idx) => {
     const safeTitle = this.escapeHtml(acc.title);
-    const safeContent = this.escapeHtml(acc.content)
-      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>')
+    const safeContent = mdListsToHtml(this.escapeHtml(acc.content)
+      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'))
       .replace(/\n/g, '<br/>');
 
     const openAttr = idx === 0 ? 'open' : '';

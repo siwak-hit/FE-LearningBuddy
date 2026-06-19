@@ -10,6 +10,8 @@ import * as OnboardingModule from './buddy/onboarding.js';
 import * as TemplatePreviewModule from './buddy/template-preview.js';
 import * as ManualContextModule from './buddy/manual-context-selector.js';
 import * as ComplaintModule from './buddy/complaint-builder.js';
+import * as IdentityFallbackModule from './buddy/identity-fallback.js';
+import * as ReminderToastModule from './buddy/reminder-toast.js';
 
 // Penggabungan Object (Object Composition) dari kumpulan library
 const BuddyPage = {
@@ -24,7 +26,9 @@ const BuddyPage = {
   ...OnboardingModule,
   ...TemplatePreviewModule,
   ...ManualContextModule,
-  ...ComplaintModule
+  ...ComplaintModule,
+  ...IdentityFallbackModule,
+  ...ReminderToastModule
 };
 
 export default BuddyPage;

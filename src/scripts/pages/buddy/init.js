@@ -91,6 +91,10 @@ export function initWorkspace(isExternal = false) {
       }
 
       this.toggleSuggestions?.();
+
+      // [v0.9.26 #A] Kalau nama/konteks tak terbaca dari VClass → tawarkan form fallback
+      // (dropdown nama siswa enrolled + dropdown konteks halaman).
+      try { await this.ensureIdentityFallback?.(); } catch (_) {}
     });
   } else {
     this.loadSessionData();
