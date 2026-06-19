@@ -96,18 +96,28 @@ export function renderMentionDropdown(query = '') {
   const header = (title, icon) => `<div class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-muted bg-surface-strong border-b border-hairline">${icon} ${title}</div>`;
   const grp = (title, icon, items) => (items.length ? `${header(title, icon)}${items.map((it, idx) => renderItem(it, idx)).join('')}` : '');
 
+  // Header materi dengan tombol RELOAD (muat ulang bila timeout / belum keambil).
+  const MATERI_TITLE = 'Materi yang tersedia untukmu';
+  const materiHeader = (spinning = false) => `
+    <div class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-muted bg-surface-strong border-b border-hairline flex items-center justify-between gap-2">
+      <span>📚 ${MATERI_TITLE}</span>
+      <button type="button" class="alb-materi-reload inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary-active normal-case" title="Muat ulang materi dari VClass">
+        <i class="fa-solid fa-rotate ${spinning ? 'fa-spin' : ''}"></i> Muat ulang
+      </button>
+    </div>`;
+
   // Bagian Materi: spinner saat memuat, daftar saat ada, hint saat kosong.
   let materiSection = '';
   if (materiLoading && !groups.materi.length) {
-    materiSection = `${header('Materi (sudah kamu selesaikan)', '📚')}
+    materiSection = `${materiHeader(true)}
       <div class="px-3 py-3 flex items-center gap-2 text-[12px] text-muted">
         <i class="fa-solid fa-spinner fa-spin text-primary"></i> Memuat materi dari VClass…
       </div>`;
   } else if (groups.materi.length) {
-    materiSection = grp('Materi (sudah kamu selesaikan)', '📚', groups.materi);
+    materiSection = `${materiHeader(false)}${groups.materi.map((it, idx) => renderItem(it, idx)).join('')}`;
   } else if (this._materiLoaded) {
-    materiSection = `${header('Materi (sudah kamu selesaikan)', '📚')}
-      <div class="px-3 py-3 text-[12px] text-muted-soft">Belum ada materi yang kamu selesaikan${query ? ' cocok pencarian' : ''}.</div>`;
+    materiSection = `${materiHeader(false)}
+      <div class="px-3 py-3 text-[12px] text-muted-soft leading-snug">Belum ada materi yang tersedia/terbaca${query ? ' cocok pencarian' : ''}.<br>Kalau kamu yakin ada, klik <b>Muat ulang</b> di atas ya (kadang koneksi VClass lambat).</div>`;
   }
 
   const html = `
@@ -135,7 +145,13 @@ export function handleMentionInput() {
     return true;
   }
   this.hideMentionDropdown();
-  if (this.activeMention && !val.includes('@' + this.activeMention.token)) this.activeMention = null;
+  // [v0.9.10] JANGAN hapus activeMention hanya karena teks input tak memuat token —
+  // dengan UI chip, token ada di chip (#alb-input-mention-chip), bukan di teks input.
+  // Hapus hanya bila chip sudah tidak ada (mis. token diketik manual lalu dihapus).
+  const hasChip = $('#alb-input-mention-chip').length > 0;
+  if (this.activeMention && !hasChip && !val.includes('@' + this.activeMention.token)) {
+    this.activeMention = null;
+  }
   return false;
 }
 
@@ -158,8 +174,10 @@ export function selectMention(group, idx) {
 
   // [v0.9.2] Materi: munculkan DROPDOWN saran lanjutan. Di-defer agar klik pemicu
   // tidak langsung tertangkap handler "klik di luar" yang menutupnya seketika.
+  // [v0.9.9] Mobile: defer dinaikkan (touch→click + relayout keyboard sering menutup
+  // dropdown saat delay 0). 90ms lebih stabil.
   if (item.type === 'materi') {
-    setTimeout(() => this.renderMateriFollowupDropdown?.(mention), 0);
+    setTimeout(() => this.renderMateriFollowupDropdown?.(mention), 90);
   }
 }
 
@@ -174,19 +192,24 @@ export function setInputMention(mention = {}) {
 
   const isMateri = mention.type === 'materi';
   const display = `@${mention.token}`;
+  // [v0.9.23] Chip masuk ke #chat-input-wrap → di mobile menumpuk DI ATAS input (label di
+  // atas, input tetap lebar di bawah), di desktop sebaris. max-md: lebar penuh & rata kiri.
   const chip = `
-    <span id="alb-input-mention-chip" class="shrink-0 inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full pl-2.5 pr-1 py-1 text-[13px] font-semibold ml-1 max-w-[55%]" title="${esc(mention.label || display)}">
+    <span id="alb-input-mention-chip" class="shrink-0 inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full pl-2.5 pr-1 py-1 text-[13px] font-semibold md:ml-1 max-w-[55%] max-md:max-w-full max-md:self-start" title="${esc(mention.label || display)}">
       <i class="fa-solid fa-at text-[10px] opacity-70"></i>
       <span class="truncate">${esc(display)}</span>
       <button type="button" id="alb-input-mention-remove" class="w-5 h-5 shrink-0 rounded-full hover:bg-primary/20 flex items-center justify-center border-0 bg-transparent text-primary cursor-pointer" title="Hapus tag"><i class="fa-solid fa-xmark text-[10px]"></i></button>
     </span>`;
-  $form.prepend(chip);
+  const $wrap = $('#chat-input-wrap');
+  ($wrap.length ? $wrap : $form).prepend(chip);
+  this.hideMateriTextHint?.();
   this.$inputArea?.attr('placeholder', isMateri ? 'Tulis pertanyaanmu, atau pilih saran di atas…' : 'Tulis pertanyaan tentang elemen ini…');
 }
 
 export function clearInputMention() {
   $('#alb-input-mention-chip').remove();
   this.hideMateriFollowupDropdown?.();
+  this.hideMateriTextHint?.();
   this.activeMention = null;
   this.$inputArea?.attr('placeholder', 'Tanya sesuatu atau pilih elemen...');
 }
@@ -202,6 +225,41 @@ const MATERI_FOLLOWUP_SUGGESTIONS = [
 export function hideMateriFollowupDropdown() {
   $('#alb-materi-followup').remove();
   this._materiFollowupOpen = false;
+}
+
+// [v0.9.12] Deteksi "materi N" yang DIKETIK biasa (mis. "coba jelasin materi 2") →
+// tawarkan chip untuk fokus ke @materi-N, tanpa user harus ketik "@".
+export function hideMateriTextHint() {
+  $('#alb-materi-text-hint').remove();
+}
+
+export function suggestMateriFromText() {
+  // Sudah ada chip mention aktif, atau sedang mengetik token "@..." → jangan ganggu.
+  const val = this.$inputArea?.val() || '';
+  if (this.activeMention || /@[\w-]*$/.test(val)) { this.hideMateriTextHint(); return; }
+
+  const m = val.match(/\bmateri[\s-]*(\d{1,2})\b/i);
+  if (!m) { this.hideMateriTextHint(); return; }
+  const idx = Number(m[1]);
+  const materi = (this.materiList || []).find((x) => x.index === idx);
+  if (!materi) { this.hideMateriTextHint(); return; }
+
+  const $form = $('#chat-form');
+  if (!$form.length) return;
+  // Sudah tampil untuk index yang sama → biarkan.
+  if ($('#alb-materi-text-hint').attr('data-idx') === String(idx)) return;
+
+  $('#alb-materi-text-hint').remove();
+  const locked = materi.locked === true;
+  const html = `
+    <div id="alb-materi-text-hint" data-idx="${idx}" class="absolute bottom-full left-0 right-0 mb-2 bg-surface-card border border-primary/30 rounded-xl shadow-lg z-40 p-2.5 flex items-center gap-2">
+      <i class="fa-solid fa-lightbulb text-primary text-[12px] shrink-0"></i>
+      <span class="text-[12px] text-body flex-1 min-w-0 truncate">Maksudmu materi: <b>${esc(materi.title)}</b>?</span>
+      ${locked
+        ? '<span class="text-[11px] text-muted-soft shrink-0"><i class="fa-solid fa-lock"></i> terkunci</span>'
+        : `<button type="button" data-idx="${idx}" class="alb-materi-text-hint-btn shrink-0 inline-flex items-center gap-1 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 rounded-full px-2.5 py-1 text-[11px] font-semibold transition-colors"><i class="fa-solid fa-at text-[10px]"></i> Fokus ke materi-${idx}</button>`}
+    </div>`;
+  $form.css('position', 'relative').append(html);
 }
 
 // [v0.9.1] DROPDOWN saran lanjutan (bukan chip) saat siswa memilih @materi-N.
@@ -225,7 +283,7 @@ export function renderMateriFollowupDropdown(mention = {}) {
     </button>`).join('');
 
   const html = `
-    <div id="alb-materi-followup" class="absolute bottom-full left-0 right-0 mb-2 max-h-72 overflow-y-auto bg-surface-card border border-hairline-strong rounded-2xl shadow-2xl z-30">
+    <div id="alb-materi-followup" class="absolute bottom-full left-0 right-0 mb-2 max-h-72 overflow-y-auto bg-surface-card border border-hairline-strong rounded-2xl shadow-2xl z-40">
       <div class="px-3 py-2 text-[10px] font-bold uppercase tracking-wide text-muted bg-surface-strong border-b border-hairline flex items-center gap-1.5">
         <i class="fa-solid fa-book-open text-primary"></i> Mau apa dengan materi: ${label}?
       </div>
@@ -276,11 +334,36 @@ export function bindMentionEvents() {
     .on('click.albMentionItem', '.alb-mention-item', function () {
       context.selectMention($(this).attr('data-group'), Number($(this).attr('data-idx')));
     });
+  // [v0.9.19] Tombol "Muat ulang" materi di header dropdown @ (saat timeout/belum keambil).
+  $(document)
+    .off('click.albMateriReload')
+    .on('click.albMateriReload', '.alb-materi-reload', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      context._materiLoaded = false;
+      context.loadMateriMentions?.();
+    });
   // [v0.9.1] Klik item dropdown saran lanjutan @materi.
   $(document)
     .off('click.albMateriFollowup')
     .on('click.albMateriFollowup', '.alb-materi-followup-item', function () {
       context.selectMateriFollowup(Number($(this).attr('data-idx')));
+    });
+  // [v0.9.12] Klik chip "Fokus ke materi-N" (deteksi "materi N" dari teks) → pasang mention.
+  $(document)
+    .off('click.albMateriTextHint')
+    .on('click.albMateriTextHint', '.alb-materi-text-hint-btn', function () {
+      const idx = Number($(this).attr('data-idx'));
+      const materi = (context.materiList || []).find((x) => x.index === idx);
+      if (!materi || materi.locked === true) return;
+      const mention = { type: 'materi', token: `materi-${idx}`, documentId: materi.documentId, url: materi.url, label: materi.title, locked: false };
+      // Buang teks "materi N" dari input; sisanya tetap jadi pertanyaan.
+      const cur = context.$inputArea.val() || '';
+      context.$inputArea.val(cur.replace(/\bmateri[\s-]*\d{1,2}\b/i, '').replace(/\s{2,}/g, ' ').trim());
+      context.setInputMention(mention);
+      context.hideMateriTextHint?.();
+      setTimeout(() => context.renderMateriFollowupDropdown?.(mention), 60);
+      context.$inputArea?.focus();
     });
   // [v0.9.2] Tombol X pada chip mention di input → hapus tag.
   $(document)

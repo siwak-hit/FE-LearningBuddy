@@ -22,15 +22,31 @@ export function appendTypingIndicator() {
         <div class="alb-dot-anim"></div>
         <div class="alb-dot-anim"></div>
         <div class="alb-dot-anim"></div>
+        <span id="alb-typing-text" class="text-[12px] text-muted-soft ml-1.5 leading-tight"></span>
       </div>
     </div>`;
 
   this.$chatArea.append(html);
 
+  // [v0.9.10] Teks loading bertahap. Cepat (sistem/cache) → tahap awal saja.
+  // Lama (AI) → tampilkan transisi "dialihkan ke jawaban AI" supaya user paham.
+  if (window.__albTypingTimer) { clearTimeout(window.__albTypingTimer); window.__albTypingTimer = null; }
+  if (window.__albTypingTimer2) { clearTimeout(window.__albTypingTimer2); window.__albTypingTimer2 = null; }
+  const $txt = $('#alb-typing-text');
+  $txt.text('Mencari jawaban…');
+  window.__albTypingTimer = setTimeout(() => {
+    $('#alb-typing-text').text('Mengecek basis pengetahuan sistem…');
+  }, 1500);
+  window.__albTypingTimer2 = setTimeout(() => {
+    $('#alb-typing-text').text('Belum ada di sistem — mengalihkan ke jawaban AI…');
+  }, 3200);
+
   this.scrollToBottom();
 }
 
 export function removeTypingIndicator() {
+  if (window.__albTypingTimer) { clearTimeout(window.__albTypingTimer); window.__albTypingTimer = null; }
+  if (window.__albTypingTimer2) { clearTimeout(window.__albTypingTimer2); window.__albTypingTimer2 = null; }
   $('#typing-indicator').remove();
 }
 
@@ -254,9 +270,10 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     if (isUser) {
       // [v0.9.0] Beri style label pada token mention "@..." biar jadi pembeda visual.
       // Hanya token di awal kata (didahului spasi/awal) supaya email tidak ikut tersorot.
+      // [v0.9.10] max-md: kontras tinggi di bubble gelap mobile (primary samar di latar hitam).
       formattedText = this.escapeHtml(String(text)).replace(
         /(^|\s)@([a-z0-9][\w-]*)/gi,
-        '$1<span class="inline-flex items-center font-semibold text-primary bg-primary/10 border border-primary/20 rounded px-1.5 py-px text-[13px]"><i class="fa-solid fa-at text-[10px] mr-0.5 opacity-70"></i>$2</span>'
+        '$1<span class="inline-flex items-center font-semibold text-primary bg-primary/10 border border-primary/20 max-md:text-white max-md:bg-white/20 max-md:border-white/40 rounded px-1.5 py-px text-[13px]"><i class="fa-solid fa-at text-[10px] mr-0.5 opacity-70"></i>$2</span>'
       );
     } else {
       formattedText = this.formatResponseText(String(text));
@@ -371,6 +388,17 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           actionsHtml += `<button type="button" class="btn-return-source inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm" data-url="${url}" data-page-type="${safePageType}"><i class="fa-solid fa-arrow-right"></i> ${label}</button>`;
         } else if (act.type === 'wa_teacher') {
           actionsHtml += `<button type="button" class="btn-wa-action inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-[13px] font-medium text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-brands fa-whatsapp"></i> ${label}</button>`;
+        } else if (act.type === 'open_complaint') {
+          // [v0.9.17] Buka modal form komplain terpandu.
+          actionsHtml += `<button type="button" class="btn-open-complaint inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-[13px] font-semibold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-flag"></i> ${label}</button>`;
+        } else if (act.type === 'resend_last') {
+          // [v0.9.19] Kirim ulang request terakhir yang gagal/timeout (1 klik).
+          actionsHtml += `<button type="button" class="btn-resend-last inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-semibold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-rotate-right"></i> ${label}</button>`;
+        } else if (act.type === 'pick_intent') {
+          // [v0.9.24] Pilihan disambiguasi → kirim ulang dgn intent eksplisit.
+          const pIntent = this.escapeHtml(act.intent || '');
+          const pPrompt = this.escapeHtml(act.prompt || label);
+          actionsHtml += `<button type="button" class="btn-pick-intent inline-flex items-center gap-1.5 bg-surface-card border border-primary/30 hover:bg-primary/5 text-[13px] font-semibold text-primary px-4 py-2 rounded-full transition-colors shadow-sm" data-intent="${pIntent}" data-prompt="${pPrompt}">${label}</button>`;
         } else if (act.type === 'open_moodle_materials' || act.type === 'open_moodle_material_picker') {
           const safePayload = encodeURIComponent(JSON.stringify({
             title: act.type === 'open_moodle_material_picker' ? 'Pilih Materi Moodle' : 'Materi Terkait',
@@ -400,6 +428,10 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         } else if (act.type === 'continue_prompt') {
           const prompt = this.escapeHtml(act.prompt || label);
           actionsHtml += `<button type="button" class="btn-continue-prompt inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm" data-prompt="${prompt}"><i class="fa-solid fa-forward-step"></i> ${label}</button>`;
+        } else if (act.type === 'open_html_view') {
+          // [v0.9.16] Bukti visual (mis. review jawaban kuis dari Moodle).
+          const safePayload = encodeURIComponent(JSON.stringify({ html: act.html || '', title: act.title || 'Review Jawaban' }));
+          actionsHtml += `<button type="button" class="btn-open-html-view inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-clipboard-check"></i> ${label}</button>`;
         } else if (act.type === 'mention_regenerate') {
           // [v0.9.8] Minta hasil @materi BARU (konteks sama, hasil beda) — bypass cache.
           const token = this.escapeHtml(act.token || '');
@@ -417,19 +449,23 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           const tutorialTitle = this.escapeHtml(act.payload?.title || act.label || 'Tutorial VClass');
           actionsHtml += `
             <button type="button"
-              class="btn-static-tutorial group inline-flex items-center gap-2.5 bg-white border border-slate-200 hover:border-primary/40 hover:bg-primary/5 text-slate-800 px-3.5 py-2.5 rounded-xl transition-all shadow-sm"
+              class="btn-static-tutorial group flex w-full max-w-full items-center gap-2.5 bg-white border border-slate-200 hover:border-primary/40 hover:bg-primary/5 text-slate-800 px-3.5 py-2.5 rounded-xl transition-all shadow-sm"
               data-payload="${safePayload}">
               <span class="w-8 h-8 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center text-primary text-[14px] group-hover:bg-primary/15 transition-colors">
                 <i class="fa-solid fa-book-open-reader"></i>
               </span>
-              <span class="flex flex-col items-start min-w-0 text-left">
-                <span class="text-[12px] font-black text-slate-900 leading-tight truncate max-w-[160px]">${tutorialTitle}</span>
+              <span class="flex flex-col items-start min-w-0 flex-1 text-left">
+                <span class="w-full text-[12px] font-black text-slate-900 leading-tight truncate">${tutorialTitle}</span>
                 <span class="text-[10px] text-slate-500 leading-none mt-0.5">${stepCount ? `${stepCount} langkah · klik untuk buka` : 'Lihat tutorial visual'}</span>
               </span>
-              <i class="fa-solid fa-chevron-right text-[11px] text-slate-400 group-hover:text-primary transition-colors ml-auto shrink-0"></i>
+              <i class="fa-solid fa-chevron-right text-[11px] text-slate-400 group-hover:text-primary transition-colors shrink-0"></i>
             </button>
           `;
 
+        } else if (act.type === 'video_tutorial') {
+          const safeUrl = this.escapeHtml(act.url || '');
+          const safeTitle = this.escapeHtml(act.title || 'Video Tutorial');
+          actionsHtml += `<button type="button" class="btn-video-tutorial inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-url="${safeUrl}" data-title="${safeTitle}"><i class="fa-solid fa-circle-play"></i> ${label}</button>`;
         } else if (act.type === 'ask_ai') {
           // RENDER TOMBOL TANYA AI DARI FAQ (SEKARANG AMAN)
           const safePayload = encodeURIComponent(JSON.stringify(act.payload || {}));
@@ -470,9 +506,10 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   const shouldWaitForSystemFeedback = !isUser && !hasWaAction && !options.noFeedbackLock && Array.isArray(actions) && actions.some((act) => act?.type === 'system_feedback_ok' || act?.type === 'feedback_resolved');
   if (!isUser) this._lastBotMessageWaitsForFeedback = shouldWaitForSystemFeedback;
 
+  // [v0.9.9] Mobile: avatar disembunyikan — bubble dibedakan dari warna saja.
   const avatarHtml = isUser
-    ? `<div class="w-10 h-10 rounded-full bg-surface-strong border border-hairline text-muted flex items-center justify-center shrink-0 text-[15px]"><i class="fa-solid fa-user"></i></div>`
-    : `<div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shrink-0 text-[15px] shadow-sm"><i class="fa-solid fa-robot"></i></div>`;
+    ? `<div class="w-10 h-10 rounded-full bg-surface-strong border border-hairline text-muted hidden md:flex items-center justify-center shrink-0 text-[15px]"><i class="fa-solid fa-user"></i></div>`
+    : `<div class="w-10 h-10 rounded-full bg-primary text-white hidden md:flex items-center justify-center shrink-0 text-[15px] shadow-sm"><i class="fa-solid fa-robot"></i></div>`;
 
   // [v0.4.3] Lampirkan gambar elemen pada bubble pertanyaan user (biar konteksnya jelas).
   const userImageHtml = (isUser && options.image)
@@ -482,14 +519,17 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
        </div>`
     : '';
 
+  // [v0.9.9] Desktop (base) = bubble user abu terang + teks gelap (seperti semula).
+  // Mobile (max-md) = latar gelap + teks putih. Pakai max-md: (Tailwind v4, sudah terpakai
+  // di codebase) agar desktop dijamin tidak ikut gelap.
   const bubbleHtml = isUser
-    ? `<div class="bg-surface-strong border border-hairline rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[80%] text-[15px] text-ink shadow-[0_4px_16px_rgba(0,0,0,0.02)] leading-relaxed">${userImageHtml}${formattedText}</div>`
-    : `<div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[80%] text-[15px] text-body shadow-[0_4px_16px_rgba(0,0,0,0.04)] leading-relaxed">${badgeHtml}${formattedText}${visualHtml}${actionsHtml}${disclaimerHtml}</div>`;
+    ? `<div class="bg-surface-strong text-ink border border-hairline max-md:bg-ink max-md:text-white max-md:border-ink rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] shadow-[0_4px_16px_rgba(0,0,0,0.02)] leading-relaxed">${userImageHtml}${formattedText}</div>`
+    : `<div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] text-body shadow-[0_4px_16px_rgba(0,0,0,0.04)] leading-relaxed">${badgeHtml}${formattedText}${visualHtml}${actionsHtml}${disclaimerHtml}</div>`;
 
   // [v0.4.0] Tombol Salin & Kirim ulang untuk setiap pesan user.
   const encodedUserMsg = isUser ? encodeURIComponent(String(rawText ?? '')) : '';
   const userActionsHtml = isUser ? `
-    <div class="flex items-center justify-end gap-1.5 mt-1 pr-[52px]">
+    <div class="flex items-center justify-end gap-1.5 mt-1 pr-1 md:pr-[52px]">
       <button type="button" class="btn-user-copy inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-ink bg-surface-strong hover:bg-hairline-strong border border-hairline rounded-full px-2.5 py-1 transition-colors" data-msg="${encodedUserMsg}" title="Salin pertanyaan">
         <i class="fa-regular fa-copy"></i> Salin
       </button>
@@ -509,7 +549,7 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
       .trim();
     if (plainCopy) {
       botActionsHtml = `
-        <div class="flex items-center gap-1.5 mt-1 pl-[52px]">
+        <div class="flex items-center gap-1.5 mt-1 pl-1 md:pl-[52px]">
           <button type="button" class="btn-bot-copy inline-flex items-center gap-1 text-[11px] font-medium text-muted hover:text-ink bg-surface-strong hover:bg-hairline-strong border border-hairline rounded-full px-2.5 py-1 transition-colors" data-copy="${encodeURIComponent(plainCopy)}" title="Salin jawaban (teks saja)">
             <i class="fa-regular fa-copy"></i> Salin
           </button>
@@ -517,9 +557,26 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     }
   }
 
-  const html = isUser
-    ? `<div><div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div>${userActionsHtml}</div>`
-    : `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div>${botActionsHtml}</div>`;
+  // [v0.9.10] Notif/pengingat (bukan jawaban chat) → kartu di TENGAH, gaya & warna beda,
+  // tanpa avatar, bisa ditutup. Dipakai untuk rekomendasi kesulitan & pindah konteks.
+  const noticeVariant = !isUser ? options.notice : null;
+  let html;
+  if (noticeVariant) {
+    const cfg = noticeVariant === 'context'
+      ? { wrap: 'bg-primary/5 border-primary/20', chip: 'bg-primary/15 text-primary', icon: 'fa-right-left', label: 'Konteks dialihkan' }
+      : { wrap: 'bg-amber-50 border-amber-200', chip: 'bg-amber-200/70 text-amber-900', icon: 'fa-lightbulb', label: 'Pengingat' };
+    html = `
+      <div class="alb-system-notice my-3 mx-auto w-full max-w-[92%] md:max-w-[80%] border ${cfg.wrap} rounded-2xl p-4 pr-10 shadow-sm relative">
+        <button type="button" class="btn-dismiss-notice absolute top-2.5 right-2.5 w-7 h-7 rounded-full text-muted hover:text-ink hover:bg-black/5 flex items-center justify-center transition-colors" title="Tutup pengingat"><i class="fa-solid fa-xmark text-[12px]"></i></button>
+        <div class="inline-flex items-center gap-1.5 text-[10px] font-black uppercase tracking-[0.1em] ${cfg.chip} rounded-full px-2.5 py-1 mb-2"><i class="fa-solid ${cfg.icon} text-[10px]"></i> ${cfg.label}</div>
+        <div class="text-[14px] leading-relaxed text-ink">${formattedText}</div>
+        ${actionsHtml}
+      </div>`;
+  } else if (isUser) {
+    html = `<div><div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div>${userActionsHtml}</div>`;
+  } else {
+    html = `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div>${botActionsHtml}</div>`;
+  }
 
   this.$chatArea.append(html);
 

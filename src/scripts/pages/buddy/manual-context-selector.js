@@ -43,7 +43,10 @@ export async function renderPersistentManualContextSelector() {
           <div id="manual-context-list" class="p-3 overflow-y-auto flex-1 space-y-1.5 bg-canvas">
             <div class="text-center py-8 text-muted text-[13px]"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Memuat konteks...</div>
           </div>
-          <div class="px-5 py-3 border-t border-hairline text-[11px] text-muted-soft shrink-0 bg-white">Pilihan ini hanya mengganti konteks visual &amp; bantuan AI di sidebar, bukan halaman asli.</div>
+          <div class="px-5 py-3 border-t border-hairline shrink-0 bg-white space-y-2.5">
+            <button type="button" id="alb-open-course-switch" class="w-full inline-flex items-center justify-center gap-2 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 rounded-full px-4 py-2.5 text-[13px] font-bold transition-colors"><i class="fa-solid fa-graduation-cap"></i> Ganti Course / Kelas</button>
+            <div class="text-[11px] text-muted-soft text-center">Ganti elemen halaman tidak mengubah halaman asli. Ganti course akan memulai sesi baru.</div>
+          </div>
         </div>
       </div>
     `);
@@ -54,6 +57,9 @@ export async function renderPersistentManualContextSelector() {
     $(document).off('click.albManualCtxOverlay').on('click.albManualCtxOverlay', '#manual-context-overlay', (e) => {
       if (e.target.id === 'manual-context-overlay') closeModal();
     });
+
+    // [v0.9.13] Buka modal ganti COURSE.
+    $(document).off('click.albCourseOpen').on('click.albCourseOpen', '#alb-open-course-switch', () => openCourseSwitchModal(context));
   }
 
   // 3) Tombol membuka modal. Daftar konteks diambil dari PAGE_ELEMENTS (8 konteks
@@ -96,6 +102,78 @@ export async function renderPersistentManualContextSelector() {
   });
 }
 
+// [v0.9.13] Modal ganti COURSE konteks. Ambil daftar course siswa dari Moodle
+// (core_enrol_get_users_courses via /chat/student-courses), pilih → konfirmasi →
+// simpan flag switch + reload (createOrLoadSession buat SESI BARU untuk course itu).
+function ensureCourseSwitchModal() {
+  if ($('#alb-course-switch-overlay').length) return;
+  $('body').append(`
+    <div id="alb-course-switch-overlay" class="hidden fixed inset-0 z-[9660] bg-ink/50 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-surface-card w-full max-w-[460px] max-h-[82vh] rounded-2xl shadow-2xl border border-hairline flex flex-col overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline flex items-start justify-between gap-3 shrink-0 bg-white">
+          <div class="min-w-0">
+            <div class="text-[11px] font-bold uppercase tracking-[0.08em] text-muted flex items-center gap-2"><i class="fa-solid fa-graduation-cap text-[11px] text-primary"></i> Ganti Course / Kelas</div>
+            <div class="text-[12px] text-muted-soft mt-1 leading-snug">Pilih course lain. Memilih course akan <b>memulai sesi chat baru</b> sesuai materi course itu.</div>
+          </div>
+          <button type="button" id="alb-course-switch-close" class="w-9 h-9 rounded-full bg-surface-strong border border-hairline text-ink hover:bg-hairline shrink-0"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div id="alb-course-switch-list" class="p-3 overflow-y-auto flex-1 space-y-1.5 bg-canvas"></div>
+      </div>
+    </div>
+  `);
+  const close = () => $('#alb-course-switch-overlay').addClass('hidden');
+  $(document).off('click.albCourseClose').on('click.albCourseClose', '#alb-course-switch-close', close);
+  $(document).off('click.albCourseOverlay').on('click.albCourseOverlay', '#alb-course-switch-overlay', (e) => {
+    if (e.target.id === 'alb-course-switch-overlay') close();
+  });
+}
+
+async function openCourseSwitchModal(context) {
+  ensureCourseSwitchModal();
+  $('#alb-course-switch-overlay').removeClass('hidden');
+  const $list = $('#alb-course-switch-list');
+  $list.html('<div class="text-center py-8 text-muted text-[13px]"><i class="fa-solid fa-spinner fa-spin mr-1"></i> Memuat daftar course…</div>');
+
+  if (!context.sessionId) {
+    $list.html('<div class="text-center py-8 text-muted-soft text-[13px]">Sesi belum siap. Coba lagi sebentar.</div>');
+    return;
+  }
+
+  let courses = [];
+  try {
+    const res = await ApiService.get(`/chat/student-courses/${context.sessionId}`);
+    courses = (res?.status === 'success' && Array.isArray(res.data)) ? res.data : [];
+  } catch (_) { courses = []; }
+
+  if (!courses.length) {
+    $list.html('<div class="text-center py-8 text-muted-soft text-[13px] leading-relaxed">Belum ada daftar course yang terbaca dari akunmu.<br>Pastikan kamu sudah masuk lewat VClass ya.</div>');
+    return;
+  }
+
+  $list.html(courses.map((c) => {
+    const name = context.escapeHtml(c.fullname || c.shortname || `Course ${c.id}`);
+    return `
+      <button type="button" class="alb-course-item w-full text-left rounded-xl border ${c.is_current ? 'border-primary bg-primary/10' : 'border-hairline bg-white hover:bg-surface-strong'} px-3.5 py-3 transition-colors flex items-center justify-between gap-3" ${c.is_current ? 'disabled' : ''} data-id="${c.id}" data-title="${name}">
+        <span class="min-w-0">
+          <span class="block text-[13px] font-semibold text-ink truncate">${name}</span>
+          ${c.shortname ? `<span class="block text-[11px] text-muted-soft mt-0.5">${context.escapeHtml(c.shortname)}</span>` : ''}
+        </span>
+        ${c.is_current ? '<span class="text-[11px] font-bold text-primary shrink-0">Sedang aktif</span>' : '<i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>'}
+      </button>`;
+  }).join(''));
+
+  $list.off('click', '.alb-course-item').on('click', '.alb-course-item', function () {
+    const id = $(this).attr('data-id');
+    const title = $(this).attr('data-title') || 'course ini';
+    if (!id) return;
+    if (!window.confirm(`Ganti ke "${title}"? Sesi chat saat ini akan ditutup dan dimulai sesi baru untuk course tersebut.`)) return;
+    try {
+      sessionStorage.setItem('alb:switchCourse', JSON.stringify({ id, title }));
+      sessionStorage.removeItem('alb_ai_session_' + context.projectKey);
+    } catch (_) {}
+    window.location.reload();
+  });
+}
 
 export function renderManualTemplateSelector(availableTemplates = []) {
   this.$elList.empty();

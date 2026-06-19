@@ -3,8 +3,8 @@ import Toast from '../../components/toast.js';
 import { Modal } from '../../components/modal.js';
 import { ApiService } from '../../fetch/api.js';
 import { resolvePageKeyFromText, PAGE_ELEMENTS } from './pageElements.js';
-import { openStaticTutorialModal } from './static-tutorial.js';
-import { openVclassPreviewModal, openMoodleMaterialModal } from './material-modals.js';
+import { openStaticTutorialModal, openVideoTutorialModal } from './static-tutorial.js';
+import { openVclassPreviewModal, openMoodleMaterialModal, openHtmlViewModal } from './material-modals.js';
 import {
   showCooldownToast,
   isCooldownBlocking,
@@ -322,8 +322,9 @@ async function sendChatMessage(context, options = {}) {
       } else if (reco && diff && diff.level !== context._lastRecoLevel) {
         context._lastRecoLevel = diff.level;
         setTimeout(() => {
-          // Rekomendasi proaktif — jangan kunci input (boleh diabaikan/ditindaklanjuti).
-          context.appendBubble(reco.message, false, 'system', reco.actions || [], { noFeedbackLock: true });
+          // [v0.9.10] Rekomendasi proaktif = NOTIF pengingat (kartu di tengah, warna beda),
+          // bukan jawaban chat — jangan kunci input, boleh diabaikan/ditutup.
+          context.appendBubble(reco.message, false, 'system', reco.actions || [], { noFeedbackLock: true, notice: 'reminder' });
           context.scrollToBottom?.();
         }, 450);
       }
@@ -332,12 +333,27 @@ async function sendChatMessage(context, options = {}) {
         ensureLocalLockOverlay(context, { warnings: res.data.warnings || 3, reason: res.data.lock_reason || 'profanity_limit' });
       }
     } else {
-      context.appendBubble(res?.message || 'Maaf, terjadi kesalahan saat menghubungi server.', false, 'system');
+      // [v0.9.19] Error/timeout → simpan payload terakhir + tombol "Kirim ulang" agar
+      // user cukup 1 klik (tak perlu copas & ketik ulang).
+      const resendActions = messageText
+        ? [{ type: 'resend_last', label: '🔄 Kirim ulang' }]
+        : [];
+      if (messageText) {
+        context._lastFailedSend = { message: messageText, options: { ...options, suppressUserBubble: true } };
+      }
+      context.appendBubble(res?.message || 'Maaf, terjadi kesalahan saat menghubungi server.', false, 'system', resendActions);
     }
   } catch (err) {
     console.error('[Buddy External] Gagal mengirim chat:', err);
     context.removeTypingIndicator?.();
-    context.appendBubble('Gagal terhubung ke server AI Buddy.', false, 'system');
+    if (messageText) {
+      context._lastFailedSend = { message: messageText, options: { ...options, suppressUserBubble: true } };
+    }
+    context.appendBubble(
+      'Gagal terhubung ke server AI Buddy. Tidak perlu mengetik ulang — cukup klik tombol **🔄 Kirim ulang** di bawah.',
+      false, 'system',
+      messageText ? [{ type: 'resend_last', label: '🔄 Kirim ulang' }] : []
+    );
   } finally {
     context.isRequesting = false;
     context.forceNextAI = false;
@@ -622,6 +638,7 @@ export function bindWorkspaceEvents() {
   bindExternalSessionGate(this);
   ensureDeleteSessionButton(this);
   ensureStudentNotesMenu(this);
+  this.ensureComplaintMenu?.(this);
 }
 
 function bindSidebarTabs(context) {
@@ -673,6 +690,9 @@ function bindInputEvents(context, getSuggestionTimer, setSuggestionTimer) {
       // [v0.7.0] Saran mention "@" — jika sedang mengetik token "@...", tampilkan dropdown
       // mention dan jangan tampilkan suggestion chips biasa.
       if (context.handleMentionInput?.()) return;
+
+      // [v0.9.12] Deteksi "materi N" yang diketik biasa → tawarkan chip @materi-N.
+      context.suggestMateriFromText?.();
 
       if (!val.match(/@\w+/)) {
         context.selectedElement = null;
@@ -731,9 +751,10 @@ async function handleAutoContextSwitch(context, targetKey, text) {
   const label = page?.label || 'halaman lain';
 
   context.appendBubble(text, true, 'user');
+  // [v0.9.10] Notif pindah konteks = kartu notif (bukan bubble jawaban) biar tak nyaru.
   context.appendBubble(
-    `Sepertinya pertanyaanmu lebih mengarah ke konteks **${label}**. Aku pindahkan dulu fokusnya ke sana ya 🔄`,
-    false, 'system'
+    `Sepertinya pertanyaanmu lebih cocok dengan konteks **${label}**. Aku pindahkan dulu fokusnya ke sana ya.`,
+    false, 'system', [], { notice: 'context' }
   );
   context.$inputArea.val('');
   context.hideSuggestionWrapper?.();
@@ -803,9 +824,15 @@ function bindFormSubmit(context) {
       }
     }
 
+    // [v0.9.14] Pertanyaan sengketa jawaban kuis ("...salah padahal menurut materi benar")
+    // JANGAN dipindah konteks ke Halaman Kuis — biar ditangani handler sengketa di BE.
+    const looksLikeDispute = /\b(salah|keliru)\b/i.test(text)
+      && /\b(padahal|menurut materi|harusnya|seharusnya|mestinya)\b/i.test(text)
+      && /\b(soal|kuis|quis|jawaban|nomor|nomer)\b/i.test(text);
+
     // [v0.6.0] Deteksi pergeseran konteks halaman (hanya untuk pertanyaan bebas,
     // bukan saat ada elemen yang sedang dipilih).
-    if (!currentElementContext) {
+    if (!currentElementContext && !looksLikeDispute) {
       const targetPage = resolvePageKeyFromText(text);
       const currentPage = context.contextData?.page_key || null;
       if (targetPage && targetPage !== currentPage) {
@@ -1048,6 +1075,26 @@ function bindChatActionButtons(context) {
       paginateLmsTableFromButton($(e.currentTarget));
     });
 
+  // [v0.9.13] Tombol "Tonton Video" → buka modal video tutorial.
+  context.$chatArea
+    .off('click', '.btn-video-tutorial')
+    .on('click', '.btn-video-tutorial', (e) => {
+      e.preventDefault();
+      const $btn = $(e.currentTarget);
+      openVideoTutorialModal({ url: $btn.attr('data-url') || '', title: $btn.attr('data-title') || 'Video Tutorial' });
+    });
+
+  // [v0.9.16] Tombol "Lihat Review Jawaban" → modal HTML bukti dari Moodle.
+  context.$chatArea
+    .off('click', '.btn-open-html-view')
+    .on('click', '.btn-open-html-view', (e) => {
+      e.preventDefault();
+      try {
+        const payload = JSON.parse(decodeURIComponent($(e.currentTarget).attr('data-payload') || '%7B%7D'));
+        openHtmlViewModal(payload);
+      } catch (_) { Toast.show('Gagal membuka review.', 'error'); }
+    });
+
   context.$chatArea
     .off('click', '.btn-open-vclass-modal')
     .on('click', '.btn-open-vclass-modal', (e) => {
@@ -1212,6 +1259,14 @@ function bindChatActionButtons(context) {
       });
     });
 
+  // [v0.9.10] Tutup kartu notif/pengingat.
+  context.$chatArea
+    .off('click', '.btn-dismiss-notice')
+    .on('click', '.btn-dismiss-notice', (e) => {
+      e.preventDefault();
+      $(e.currentTarget).closest('.alb-system-notice').slideUp(160, function () { $(this).remove(); });
+    });
+
   context.$chatArea
     .off('click', '.btn-continue-prompt')
     .on('click', '.btn-continue-prompt', (e) => {
@@ -1221,6 +1276,40 @@ function bindChatActionButtons(context) {
       markSingleChatButtonClicked($btn);
       context.$inputArea.val(prompt).focus();
       context.toggleSuggestions?.();
+    });
+
+  // [v0.9.17] Tombol "Buka Form Komplain" (dari intent komplain samar) → buka modal terpandu.
+  context.$chatArea
+    .off('click', '.btn-open-complaint')
+    .on('click', '.btn-open-complaint', (e) => {
+      e.preventDefault();
+      markSingleChatButtonClicked($(e.currentTarget));
+      context.openComplaintComposer?.(context);
+    });
+
+  // [v0.9.19] Tombol "Kirim ulang" pada bubble error/timeout → ulangi request terakhir.
+  context.$chatArea
+    .off('click', '.btn-resend-last')
+    .on('click', '.btn-resend-last', (e) => {
+      e.preventDefault();
+      const payload = context._lastFailedSend;
+      if (!payload || !payload.message) return;
+      markSingleChatButtonClicked($(e.currentTarget));
+      context._lastFailedSend = null;
+      sendChatMessage(context, { message: payload.message, ...payload.options });
+    });
+
+  // [v0.9.24] Tombol pilihan disambiguasi → kirim ulang dgn INTENT EKSPLISIT (bypass tebak).
+  context.$chatArea
+    .off('click', '.btn-pick-intent')
+    .on('click', '.btn-pick-intent', (e) => {
+      e.preventDefault();
+      const $btn = $(e.currentTarget);
+      const pickIntent = $btn.attr('data-intent') || '';
+      const prompt = $btn.attr('data-prompt') || '';
+      if (!prompt) return;
+      markSingleChatButtonClicked($btn);
+      sendChatMessage(context, { message: prompt, intent: pickIntent || null, responseMode: 'system', forceAI: false });
     });
 
   // [v0.9.8] Tombol "buat yang baru" pada hasil @materi → kirim ulang task yang sama

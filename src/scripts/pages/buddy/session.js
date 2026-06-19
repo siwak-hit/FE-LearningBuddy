@@ -203,6 +203,34 @@ export async function createOrLoadSession() {
     return;
   }
 
+  // [v0.9.13] Ganti course konteks: buat SESI BARU untuk course terpilih (lewati reuse).
+  try {
+    const rawSwitch = sessionStorage.getItem('alb:switchCourse');
+    if (rawSwitch) {
+      sessionStorage.removeItem('alb:switchCourse');
+      const sw = JSON.parse(rawSwitch);
+      const active = JSON.parse(localStorage.getItem(`alb:${window.location.host || 'localhost'}:${this.projectKey}:active-student`) || '{}');
+      const res = await ApiService.post('/chat/session', {
+        projectKey: this.projectKey,
+        sourceUrl: this.contextData?.sourceUrl || window.location.href,
+        pageContext: this.contextData || { title: document.title },
+        moodleContext: {
+          course_id: sw.id,
+          course_title: sw.title || sw.shortname || '',
+          email: active.email || null,
+          moodle_user_id: active.moodle_user_id || null,
+          student_name: active.fullname || null
+        }
+      });
+      if (res.status === 'success') {
+        this.sessionId = res.data.session.id;
+        sessionStorage.setItem('alb_ai_session_' + this.projectKey, this.sessionId);
+        Toast.show(`Konteks course diganti ke: ${sw.title || sw.shortname || 'course baru'}`, 'success');
+        return;
+      }
+    }
+  } catch (e) { console.warn('[Buddy] Gagal ganti course konteks:', e); }
+
   let existingSession = sessionStorage.getItem('alb_ai_session_' + this.projectKey);
   if (existingSession) {
     this.sessionId = existingSession;

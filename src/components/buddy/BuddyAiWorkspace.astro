@@ -167,25 +167,29 @@ const { API_BASE } = Astro.props;
         <div class="flex gap-2 overflow-x-auto no-scrollbar" id="suggestion-chips"></div>
       </div>
 
-      <form id="chat-form" class="flex items-center gap-3 relative bg-surface-card border border-hairline-strong rounded-[24px] p-2 shadow-sm focus-within:border-ink transition-colors">
-        <input
-          type="text"
-          id="chat-input"
-          placeholder="Tanya sesuatu atau pilih elemen..."
-          class="flex-1 bg-transparent px-4 md:px-5 py-2 text-[15px] text-ink focus:outline-none min-w-0"
-          autocomplete="off"
-        >
+      <form id="chat-form" class="flex items-center gap-2 md:gap-3 relative bg-surface-card border border-hairline-strong rounded-[24px] p-2 shadow-sm focus-within:border-ink transition-colors">
+        <!-- [v0.9.23] Bungkus input: di MOBILE chip mention menumpuk di ATAS input (kolom),
+             di desktop tetap sebaris. Input tak lagi terdesak sempit oleh chip. -->
+        <div id="chat-input-wrap" class="flex-1 min-w-0 flex flex-col md:flex-row md:items-center gap-1 md:gap-0">
+          <input
+            type="text"
+            id="chat-input"
+            placeholder="Tanya sesuatu atau pilih elemen..."
+            class="w-full md:flex-1 bg-transparent px-4 md:px-5 py-2 text-[15px] text-ink focus:outline-none min-w-0"
+            autocomplete="off"
+          >
+        </div>
 
         <div class="relative flex items-center select-none" id="response-mode-dropdown">
           <button
             type="button"
             id="btn-mode-dropdown-toggle"
-            class="h-10 px-3 rounded-xl border border-hairline bg-surface-strong text-[12px] font-bold text-ink hover:bg-hairline-strong transition-colors flex items-center gap-1.5 whitespace-nowrap outline-none"
+            class="h-10 px-2.5 md:px-3 rounded-xl border border-hairline bg-surface-strong text-[12px] font-bold text-ink hover:bg-hairline-strong transition-colors flex items-center gap-1.5 whitespace-nowrap outline-none"
             title="Pilih mode jawaban"
           >
             <i class="fa-solid fa-sliders text-muted"></i>
-            <span id="current-mode-label">Jawaban Sistem</span>
-            <i class="fa-solid fa-chevron-up text-[9px] text-muted-soft"></i>
+            <span id="current-mode-label" class="hidden md:inline">Jawaban Sistem</span>
+            <i class="fa-solid fa-chevron-up text-[9px] text-muted-soft hidden md:inline"></i>
           </button>
 
           <div

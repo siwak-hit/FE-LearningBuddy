@@ -9,6 +9,7 @@ import * as MentionsModule from './buddy/mentions.js';
 import * as OnboardingModule from './buddy/onboarding.js';
 import * as TemplatePreviewModule from './buddy/template-preview.js';
 import * as ManualContextModule from './buddy/manual-context-selector.js';
+import * as ComplaintModule from './buddy/complaint-builder.js';
 
 // Penggabungan Object (Object Composition) dari kumpulan library
 const BuddyPage = {
@@ -22,7 +23,8 @@ const BuddyPage = {
   ...MentionsModule,
   ...OnboardingModule,
   ...TemplatePreviewModule,
-  ...ManualContextModule
+  ...ManualContextModule,
+  ...ComplaintModule
 };
 
 export default BuddyPage;

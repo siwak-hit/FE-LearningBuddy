@@ -6,6 +6,60 @@
 import $ from 'jquery';
 import Toast from '../../components/toast.js';
 
+// ============================================================
+// [v0.9.13] Modal VIDEO tutorial. Mendukung YouTube (watch/youtu.be/embed) & file video langsung.
+// ============================================================
+function toYoutubeEmbed(url = '') {
+  const u = String(url || '').trim();
+  let m;
+  if ((m = u.match(/(?:youtube\.com\/watch\?[^]*\bv=|youtu\.be\/|youtube\.com\/shorts\/)([\w-]{6,})/))) {
+    return `https://www.youtube.com/embed/${m[1]}`;
+  }
+  if (/youtube\.com\/embed\//.test(u)) return u;
+  return '';
+}
+
+function ensureVideoTutorialModal() {
+  if ($('#alb-video-tutorial-modal').length) return;
+  $('body').append(`
+    <div id="alb-video-tutorial-modal" class="hidden fixed inset-0 z-[9750] bg-slate-950/80 backdrop-blur-sm flex items-center justify-center p-3 md:p-6">
+      <div class="bg-surface-card w-full max-w-[860px] rounded-2xl shadow-2xl border border-hairline flex flex-col overflow-hidden">
+        <div class="px-4 py-3 border-b border-hairline bg-white flex items-center justify-between gap-3 shrink-0">
+          <div class="flex items-center gap-2 min-w-0">
+            <span class="w-8 h-8 shrink-0 rounded-lg bg-primary/10 flex items-center justify-center text-primary"><i class="fa-solid fa-play"></i></span>
+            <div class="text-[14px] font-black text-ink truncate" id="alb-video-tutorial-title">Video Tutorial</div>
+          </div>
+          <button type="button" id="alb-video-tutorial-close" class="w-9 h-9 rounded-full bg-surface-strong border border-hairline text-ink hover:bg-hairline shrink-0"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="bg-black relative" style="aspect-ratio:16/9;">
+          <div id="alb-video-tutorial-body" class="absolute inset-0"></div>
+        </div>
+      </div>
+    </div>
+  `);
+  const close = () => {
+    $('#alb-video-tutorial-body').empty(); // stop playback
+    $('#alb-video-tutorial-modal').addClass('hidden');
+  };
+  $('#alb-video-tutorial-close').on('click', close);
+  $('#alb-video-tutorial-modal').on('click', (e) => { if (e.target.id === 'alb-video-tutorial-modal') close(); });
+}
+
+export function openVideoTutorialModal(payload = {}) {
+  const url = String(payload.url || '').trim();
+  if (!url) { Toast.show('Video tutorial belum tersedia. (URL belum diisi)', 'warning'); return; }
+  ensureVideoTutorialModal();
+  $('#alb-video-tutorial-title').text(payload.title || 'Video Tutorial');
+
+  const autoplay = payload.autoplay !== false; // default autoplay
+  const embed = toYoutubeEmbed(url);
+  const body = embed
+    ? `<iframe class="w-full h-full border-0" src="${embed}?rel=0${autoplay ? '&autoplay=1' : ''}" title="Video tutorial" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowfullscreen referrerpolicy="no-referrer"></iframe>`
+    : `<video class="w-full h-full" src="${url}" controls playsinline preload="metadata" ${autoplay ? 'autoplay' : ''}></video>`;
+  $('#alb-video-tutorial-body').html(body);
+  $('#alb-video-tutorial-modal').removeClass('hidden');
+}
+
 let albActiveStaticTutorial = null;
 let albActiveStaticTutorialIndex = 0;
 

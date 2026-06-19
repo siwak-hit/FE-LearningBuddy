@@ -6,6 +6,12 @@
 import $ from 'jquery';
 import Toast from '../../components/toast.js';
 import { ApiService } from '../../fetch/api.js';
+import { openVideoTutorialModal } from './static-tutorial.js';
+
+// [v0.9.14] URL video tutorial "cara pakai AI Buddy". Isi dgn link YouTube/mp4.
+// Tombolnya ada di modal To-do (Tugas Wajib). Kosong = tombol tetap ada tapi
+// memberi tahu video belum tersedia.
+const AI_TUTORIAL_VIDEO_URL = '/VIDEOS/tutorial.mp4';
 
 function escapeHtml(value = '') {
   return String(value || '')
@@ -307,6 +313,9 @@ function ensureTodoListModal() {
         </div>
 
         <div class="px-5 pt-4 shrink-0">
+          <button type="button" id="alb-todo-watch-video" class="w-full inline-flex items-center justify-center gap-2 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-full px-4 py-2.5 text-[13px] font-bold transition-colors mb-4">
+            <i class="fa-solid fa-circle-play"></i> Tonton Video Cara Pakai AI Buddy
+          </button>
           <div class="flex items-center justify-between gap-2 mb-1.5">
             <span class="text-[12px] font-semibold text-ink">Progress</span>
             <span id="alb-todo-count" class="text-[12px] font-bold text-primary">0/${TODO_TASKS.length}</span>
@@ -331,6 +340,8 @@ function ensureTodoListModal() {
   `);
   $('#alb-todo-close').on('click', () => $('#alb-todo-modal').addClass('hidden'));
   $('#alb-todo-modal').on('click', (e) => { if (e.target.id === 'alb-todo-modal') $('#alb-todo-modal').addClass('hidden'); });
+  // [v0.9.14] Tombol video tutorial cara pakai → modal video autoplay.
+  $('#alb-todo-watch-video').on('click', () => openVideoTutorialModal({ url: AI_TUTORIAL_VIDEO_URL, title: 'Cara Pakai AI Buddy', autoplay: true }));
 }
 
 function openTodoListModal(context) {

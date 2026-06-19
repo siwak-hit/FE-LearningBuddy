@@ -41,10 +41,11 @@ async function request(endpoint, options = {}) {
     if (error?.name === 'AbortError') {
       return {
         status: 'error',
-        message: `Request terlalu lama. Batas maksimal ${Math.round(timeoutMs / 1000)} detik. Ini biasanya karena Moodle/server sedang lambat, bukan karena kamu salah. Coba klik ulang menu/pertanyaan yang tadi. Jika masih timeout sampai 3 kali, coba menu lain dulu atau ulangi beberapa menit lagi.`
+        timeout: true,
+        message: `Request terlalu lama (lebih dari ${Math.round(timeoutMs / 1000)} detik). Ini biasanya karena Moodle/server sedang lambat, **bukan karena kamu salah**. Kamu **tidak perlu mengetik ulang** — cukup klik tombol **🔄 Kirim ulang** di bawah. Kalau masih timeout sampai 3 kali, coba beberapa menit lagi ya.`
       };
     }
-    return { status: 'error', message: 'Koneksi ke server gagal. Coba klik ulang menu/pertanyaan yang tadi. Jika tetap gagal, kemungkinan server atau Moodle sedang tidak stabil.' };
+    return { status: 'error', message: 'Koneksi ke server gagal. Tidak perlu mengetik ulang — cukup klik tombol **🔄 Kirim ulang** di bawah. Jika tetap gagal, kemungkinan server atau Moodle sedang tidak stabil.' };
   }
 }
 
