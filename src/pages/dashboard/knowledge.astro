@@ -84,6 +84,16 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
               </div>
             </div>
 
+            <!-- [reminder] Pengingat integrasi ulang (muncul sekali/hari bila >24 jam sejak sinkron terakhir). -->
+            <div id="moodle-sync-reminder" class="hidden mb-4 bg-amber-50 border border-amber-200 rounded-[14px] p-4 flex items-start gap-3">
+              <i class="fa-solid fa-bell text-amber-500 mt-0.5"></i>
+              <div class="flex-1 min-w-0 text-[13px] text-amber-800">
+                <b>Sudah lebih dari sehari sejak sinkron terakhir.</b><br />
+                <span id="moodle-sync-reminder-detail" class="text-amber-700">Kalau di Moodle/VClass ada materi baru, klik <b>Sinkron Moodle</b> untuk memperbarui (materi lama dihapus, yang baru dimasukkan).</span>
+              </div>
+              <button type="button" id="moodle-sync-reminder-dismiss" class="text-amber-500 hover:text-amber-700 shrink-0" title="Tutup pengingat hari ini"><i class="fa-solid fa-xmark"></i></button>
+            </div>
+
             <div id="material-source-moodle" class="bg-canvas-soft border border-hairline rounded-[14px] p-4 md:p-5">
               <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
                 <div class="flex-1 min-w-0">
@@ -116,9 +126,23 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
                     <input type="checkbox" id="moodle-reset-chunks" class="mt-1 rounded border-hairline-strong text-primary focus:ring-primary" checked />
                     <span>
                       <b class="text-ink">Reset materi Moodle lama</b><br />
-                      <span class="text-muted-soft">Materi upload manual tidak ikut dihapus.</span>
+                      <span class="text-muted-soft">Hapus materi Moodle lama lalu masukkan yang baru. Materi upload manual tidak ikut dihapus.</span>
                     </span>
                   </label>
+
+                  <!-- [setting] Jenis materi yang di-chunk: page (default) / + resource -->
+                  <div class="mb-4 border-t border-hairline pt-3">
+                    <p class="text-[12px] font-bold text-ink mb-2">Jenis materi yang diproses</p>
+                    <label class="flex items-start gap-2.5 text-[12px] mb-2 opacity-80 cursor-not-allowed">
+                      <input type="checkbox" checked disabled class="mt-0.5 rounded border-hairline-strong text-primary" />
+                      <span><b class="text-ink">Page</b> <span class="text-[10px] font-bold text-primary">(disarankan)</span><br /><span class="text-muted-soft">Materi HTML statis yang langsung dibaca di layar VClass (tanpa download).</span></span>
+                    </label>
+                    <label class="flex items-start gap-2.5 text-[12px] cursor-pointer">
+                      <input type="checkbox" id="moodle-include-resource" class="mt-0.5 rounded border-hairline-strong text-primary focus:ring-primary" />
+                      <span><b class="text-ink">Resource</b><br /><span class="text-muted-soft">File unggahan (PDF / PPT / Docx) yang perlu di-download. Aktifkan bila ada materi penting berupa file.</span></span>
+                    </label>
+                  </div>
+
                   <div id="moodle-sync-button-wrap" class="w-full" title="Klik untuk sinkronisasi materi Moodle">
                     <button type="button" id="btn-sync-moodle-materials" class="w-full bg-primary text-white px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition-colors shadow-sm">
                       <i class="fa-solid fa-cloud-arrow-down mr-1.5"></i> Sinkron Moodle

@@ -29,29 +29,44 @@ export function appendTypingIndicator(opts = {}) {
 
   this.$chatArea.append(html);
 
-  // [v0.9.10] Teks loading bertahap. Cepat (sistem/cache) → tahap awal saja.
-  // Lama (AI) → tampilkan transisi "dialihkan ke jawaban AI" supaya user paham.
-  if (window.__albTypingTimer) { clearTimeout(window.__albTypingTimer); window.__albTypingTimer = null; }
-  if (window.__albTypingTimer2) { clearTimeout(window.__albTypingTimer2); window.__albTypingTimer2 = null; }
+  // [v0.9.31 #spinner] Teks loading BERTINGKAT mengikuti lama tunggu:
+  //   • < 10 dtk  → spinner + label ringan (sistem/cache biasanya secepat ini).
+  //   • 10–~18 dtk → "mohon tunggu sebentar lagi" (kesan: masih diproses).
+  //   • mendekati timeout (20 dtk) → kata-kata jelas bahwa sistem MASIH bekerja
+  //     (server/VClass sedang sibuk), bukan diam/hang.
+  clearTypingTimers();
   const $txt = $('#alb-typing-text');
   $txt.text('Mencari jawaban…');
-  window.__albTypingTimer = setTimeout(() => {
-    $('#alb-typing-text').text('Mengecek basis pengetahuan sistem…');
-  }, 1500);
-  // [v0.9.28 #3] Tahap "mengalihkan ke AI" HANYA saat mode AI (kalau bukan, jangan
-  // tampilkan supaya tak menyesatkan ketika jawabannya ternyata dari sistem).
-  if (aiMode) {
-    window.__albTypingTimer2 = setTimeout(() => {
-      $('#alb-typing-text').text('Menyusun jawaban dengan AI…');
-    }, 3200);
-  }
+  window.__albTypingTimers = [];
+  const stage = (ms, text) => window.__albTypingTimers.push(setTimeout(() => {
+    $('#alb-typing-text').text(text);
+  }, ms));
+
+  stage(1500, 'Mengecek basis pengetahuan sistem…');
+  // [v0.9.28] Tahap "menyusun jawaban AI" HANYA saat mode AI (biar tak menyesatkan
+  // kalau ternyata jawabannya dari sistem).
+  if (aiMode) stage(3200, 'Menyusun jawaban dengan AI…');
+  // Tier 2: 10 dtk → reassurance.
+  stage(10000, 'Sebentar ya, jawabanmu masih diproses… 🙏');
+  // Tier 3: mendekati timeout → tegaskan sistem masih bekerja.
+  stage(16000, 'Masih memproses — server VClass lagi agak sibuk. Aku belum berhenti kok, mohon tunggu sebentar lagi…');
 
   this.scrollToBottom();
 }
 
+function clearTypingTimers() {
+  // Bersihkan timer lama (format lama __albTypingTimer/2 + format array baru).
+  ['__albTypingTimer', '__albTypingTimer2'].forEach((k) => {
+    if (window[k]) { clearTimeout(window[k]); window[k] = null; }
+  });
+  if (Array.isArray(window.__albTypingTimers)) {
+    window.__albTypingTimers.forEach((t) => clearTimeout(t));
+    window.__albTypingTimers = [];
+  }
+}
+
 export function removeTypingIndicator() {
-  if (window.__albTypingTimer) { clearTimeout(window.__albTypingTimer); window.__albTypingTimer = null; }
-  if (window.__albTypingTimer2) { clearTimeout(window.__albTypingTimer2); window.__albTypingTimer2 = null; }
+  clearTypingTimers();
   $('#typing-indicator').remove();
 }
 
@@ -310,9 +325,28 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
       // [v0.9.0] Beri style label pada token mention "@..." biar jadi pembeda visual.
       // Hanya token di awal kata (didahului spasi/awal) supaya email tidak ikut tersorot.
       // [v0.9.10] max-md: kontras tinggi di bubble gelap mobile (primary samar di latar hitam).
+      // [#4] Token materi (@materi-N) ditampilkan sebagai "Materi: <nama materi>" — bukan
+      // "materi-N" yang kurang informatif. Nama diambil dari this.materiList.
+      const materiList = Array.isArray(this.materiList) ? this.materiList : [];
       formattedText = this.escapeHtml(String(text)).replace(
         /(^|\s)@([a-z0-9][\w-]*)/gi,
-        '$1<span class="inline-flex items-center font-semibold text-primary bg-primary/10 border border-primary/20 max-md:text-white max-md:bg-white/20 max-md:border-white/40 rounded px-1.5 py-px text-[13px]"><i class="fa-solid fa-at text-[10px] mr-0.5 opacity-70"></i>$2</span>'
+        (full, pre, token) => {
+          const mm = token.match(/^materi-(\d+)$/i);
+          let labelText = token;
+          let icon = 'fa-at';
+          if (mm) {
+            const found = materiList.find((m) => String(m.index) === mm[1]);
+            labelText = found ? `Materi: ${found.title}` : `Materi ${mm[1]}`;
+            icon = 'fa-book-open';
+          }
+          const cls = 'font-semibold text-primary bg-primary/10 border border-primary/20 max-md:text-white max-md:bg-white/20 max-md:border-white/40 rounded px-1.5 py-px text-[13px]';
+          // [#5] Pill materi bisa panjang → truncate 1 baris + klik untuk lihat penuh
+          //      (saat dibuka fontnya dikecilkan biar tak melebar/terbungkus).
+          if (mm) {
+            return `${pre}<span class="alb-bubble-mention inline-flex items-center align-bottom max-w-[180px] cursor-pointer ${cls}" data-expanded="0" title="${this.escapeHtml(labelText)} — klik untuk lihat penuh"><i class="fa-solid ${icon} text-[10px] mr-0.5 opacity-70 shrink-0"></i><span class="alb-bubble-mention-text truncate">${this.escapeHtml(labelText)}</span></span>`;
+          }
+          return `${pre}<span class="inline-flex items-center ${cls}"><i class="fa-solid ${icon} text-[10px] mr-0.5 opacity-70"></i>${this.escapeHtml(labelText)}</span>`;
+        }
       );
     } else {
       formattedText = this.formatResponseText(String(text));

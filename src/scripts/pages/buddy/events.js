@@ -691,6 +691,17 @@ function bindContextDrawer(context) {
 
   bindIfExists(context.$btnCloseContext, 'click', () => context.closeContextSidebar());
   bindIfExists(context.$contextBackdrop, 'click', () => context.closeContextSidebar());
+
+  // [#6] Tombol info → modal judul/konteks lengkap.
+  $('#btn-context-info').off('click.albCtxInfo').on('click.albCtxInfo', () => context.openContextInfoModal?.());
+
+  // [E] Accordion "Preview Konteks": toggle buka/tutup body + putar chevron.
+  $('#ctx-preview-toggle').off('click.albCtxAcc').on('click.albCtxAcc', () => {
+    const $body = $('#ctx-preview-body');
+    const open = $body.hasClass('hidden');
+    $body.toggleClass('hidden', !open);
+    $('#ctx-preview-chevron').toggleClass('rotate-180', open);
+  });
 }
 
 function bindInputEvents(context, getSuggestionTimer, setSuggestionTimer) {

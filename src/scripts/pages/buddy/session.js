@@ -1,3 +1,4 @@
+import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
 import Toast from '../../components/toast.js';
 import { resolvePageKeyFromContext } from './pageElements.js';
@@ -196,6 +197,59 @@ export function appendContextSwitchDivider(label = '') {
   this.$chatArea[0]?.scrollTo?.({ top: this.$chatArea[0].scrollHeight, behavior: 'smooth' });
 }
 
+// [#3] Bila user baru saja minta ganti course (flag `alb:switchCourse`), buat SESI BARU
+// untuk course itu — dipakai di KEDUA jalur: entry langsung (createOrLoadSession) DAN
+// widget eksternal (init.js, yang sebelumnya hanya memuat ulang sessionId LAMA dari URL →
+// course tak pernah pindah). Mengembalikan sessionId baru bila berhasil, null bila tidak.
+export async function createSwitchedCourseSessionIfRequested() {
+  let raw = null;
+  try { raw = sessionStorage.getItem('alb:switchCourse'); } catch (_) {}
+  if (!raw) return null;
+  try { sessionStorage.removeItem('alb:switchCourse'); } catch (_) {}
+
+  let sw = null;
+  try { sw = JSON.parse(raw); } catch (_) { return null; }
+  if (!sw?.id) return null;
+
+  const host = window.location.host || 'localhost';
+  const activeKey = `alb:${host}:${this.projectKey}:active-student`;
+  let active = {};
+  try { active = JSON.parse(localStorage.getItem(activeKey) || '{}'); } catch (_) {}
+
+  try {
+    const res = await ApiService.post('/chat/session', {
+      projectKey: this.projectKey,
+      switchCourse: true, // [#3] paksa sesi baru di BE (lewati reuse harian)
+      sourceUrl: this.contextData?.sourceUrl || window.location.href,
+      pageContext: this.contextData || { title: document.title },
+      moodleContext: {
+        course_id: sw.id,
+        course_title: sw.title || sw.shortname || '',
+        email: active.email || null,
+        moodle_user_id: active.moodle_user_id || null,
+        student_name: active.fullname || null
+      }
+    });
+    if (res?.status === 'success' && res.data?.session?.id) {
+      const newId = res.data.session.id;
+      this.sessionId = newId;
+      try { sessionStorage.setItem('alb_ai_session_' + this.projectKey, newId); } catch (_) {}
+      // Selaraskan identitas tersimpan + URL agar reload berikutnya TIDAK menarik sesi lama.
+      try {
+        localStorage.setItem(activeKey, JSON.stringify({ ...active, sessionId: newId, course_id: sw.id, course_title: sw.title || '' }));
+      } catch (_) {}
+      try {
+        const u = new URL(window.location.href);
+        if (u.searchParams.has('sessionId')) { u.searchParams.set('sessionId', newId); window.history.replaceState({}, '', u.toString()); }
+      } catch (_) {}
+      this.urlSessionId = newId;
+      Toast.show(`Konteks course diganti ke: ${sw.title || sw.shortname || 'course baru'}`, 'success');
+      return newId;
+    }
+  } catch (e) { console.warn('[Buddy] Gagal ganti course konteks:', e); }
+  return null;
+}
+
 export async function createOrLoadSession() {
   if (this.urlSessionId) {
     this.sessionId = this.urlSessionId;
@@ -204,32 +258,8 @@ export async function createOrLoadSession() {
   }
 
   // [v0.9.13] Ganti course konteks: buat SESI BARU untuk course terpilih (lewati reuse).
-  try {
-    const rawSwitch = sessionStorage.getItem('alb:switchCourse');
-    if (rawSwitch) {
-      sessionStorage.removeItem('alb:switchCourse');
-      const sw = JSON.parse(rawSwitch);
-      const active = JSON.parse(localStorage.getItem(`alb:${window.location.host || 'localhost'}:${this.projectKey}:active-student`) || '{}');
-      const res = await ApiService.post('/chat/session', {
-        projectKey: this.projectKey,
-        sourceUrl: this.contextData?.sourceUrl || window.location.href,
-        pageContext: this.contextData || { title: document.title },
-        moodleContext: {
-          course_id: sw.id,
-          course_title: sw.title || sw.shortname || '',
-          email: active.email || null,
-          moodle_user_id: active.moodle_user_id || null,
-          student_name: active.fullname || null
-        }
-      });
-      if (res.status === 'success') {
-        this.sessionId = res.data.session.id;
-        sessionStorage.setItem('alb_ai_session_' + this.projectKey, this.sessionId);
-        Toast.show(`Konteks course diganti ke: ${sw.title || sw.shortname || 'course baru'}`, 'success');
-        return;
-      }
-    }
-  } catch (e) { console.warn('[Buddy] Gagal ganti course konteks:', e); }
+  const switchedId = await this.createSwitchedCourseSessionIfRequested?.();
+  if (switchedId) return;
 
   let existingSession = sessionStorage.getItem('alb_ai_session_' + this.projectKey);
   if (existingSession) {
@@ -429,6 +459,8 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
 
     $('#alb-student-skip').on('click', () => {
       $('#alb-student-identity-modal').remove();
+      // [#3] Lewati → sediakan ikon edit di header untuk membuka ulang pemilihan nama.
+      this.showIdentityEditButton?.();
       resolve(false);
     });
 

@@ -79,8 +79,14 @@ export function initWorkspace(isExternal = false) {
   }
 
   if (isExternal && this.urlSessionId) {
-    // Load session, verifikasi siswa LMS, baru tampilkan onboarding.
-    this.loadExternalSessionContext(this.urlSessionId).then(async () => {
+    // [#3] Kalau user baru minta ganti course, buat sesi baru DULU (lewati pemuatan sesi
+    // lama dari URL). Tanpa ini, widget eksternal selalu memuat ulang sessionId lama →
+    // course tak pernah berpindah.
+    Promise.resolve(this.createSwitchedCourseSessionIfRequested?.()).then((switchedId) => {
+      const sid = switchedId || this.urlSessionId;
+      this.urlSessionId = sid;
+      // Load session, verifikasi siswa LMS, baru tampilkan onboarding.
+      return this.loadExternalSessionContext(sid).then(async () => {
       if (typeof this.ensureLmsStudentIdentity === 'function') {
         await this.ensureLmsStudentIdentity({ silent: false });
       }
@@ -95,6 +101,7 @@ export function initWorkspace(isExternal = false) {
       // [v0.9.26 #A] Kalau nama/konteks tak terbaca dari VClass → tawarkan form fallback
       // (dropdown nama siswa enrolled + dropdown konteks halaman).
       try { await this.ensureIdentityFallback?.(); } catch (_) {}
+      });
     });
   } else {
     this.loadSessionData();

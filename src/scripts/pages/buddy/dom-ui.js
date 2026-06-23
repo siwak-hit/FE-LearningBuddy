@@ -84,6 +84,40 @@ export function cacheWorkspaceDOM() {
   this.$currentModeLabel = $('#current-mode-label');
 }
 
+// [#6] Modal info konteks: tampilkan judul halaman lengkap (yang di mobile di-truncate)
+// beserta keterangan singkat & sumber, supaya siswa tetap bisa membaca konteks penuh.
+export function openContextInfoModal() {
+  const fullTitle = (this.$elTitle?.text() || '').trim() || 'Halaman VClass';
+  const sourceUrl = this.contextData?.sourceUrl || this.contextData?.url || '';
+  const esc = (s = '') => String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+
+  $('#alb-context-info-modal').remove();
+  const sourceHtml = sourceUrl
+    ? `<a href="${esc(sourceUrl)}" target="_blank" rel="noopener" class="inline-flex items-center gap-1.5 text-[12px] font-semibold text-primary hover:text-primary-active break-all"><i class="fa-solid fa-up-right-from-square text-[11px]"></i> Buka di VClass</a>`
+    : '';
+
+  $('body').append(`
+    <div id="alb-context-info-modal" class="fixed inset-0 z-[9760] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-surface-card w-full max-w-[460px] rounded-2xl shadow-2xl border border-hairline overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline flex items-center justify-between gap-2">
+          <span class="text-[11px] font-bold uppercase tracking-[0.08em] text-muted flex items-center gap-2"><i class="fa-solid fa-circle-info text-primary"></i> Info Konteks Halaman</span>
+          <button type="button" class="alb-context-info-close w-8 h-8 rounded-full hover:bg-surface-strong flex items-center justify-center text-muted border-0 bg-transparent cursor-pointer"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-5 space-y-3">
+          <h3 class="font-serif text-xl text-ink leading-snug">${esc(fullTitle)}</h3>
+          <p class="text-[13px] text-muted-soft leading-relaxed">Ini halaman VClass yang sedang aku baca. Pilih teks/elemen yang ingin kamu tanyakan, atau langsung ketik pertanyaanmu.</p>
+          ${sourceHtml}
+        </div>
+        <div class="px-5 py-4 border-t border-hairline bg-canvas-soft flex justify-end">
+          <button type="button" class="alb-context-info-close bg-primary hover:bg-primary-active text-white rounded-full px-5 py-2 text-[13px] font-bold border-0 cursor-pointer">Mengerti</button>
+        </div>
+      </div>
+    </div>
+  `);
+  $('#alb-context-info-modal').on('click', (e) => { if (e.target.id === 'alb-context-info-modal') $('#alb-context-info-modal').remove(); });
+  $('#alb-context-info-modal').on('click', '.alb-context-info-close', () => $('#alb-context-info-modal').remove());
+}
+
 export function handleLockdown(isLocked) {
   this.isLocked = isLocked;
   if (isLocked) {

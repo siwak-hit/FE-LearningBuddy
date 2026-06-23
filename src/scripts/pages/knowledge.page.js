@@ -170,6 +170,7 @@ $(document).ready(function () {
 
   async function loadMoodleKnowledgePanel(options = {}) {
     if (!activeProjectId) return;
+    updateMoodleSyncReminder();
 
     const cached = moodleKbState.configCache.get(activeProjectId);
     if (cached && !options.force) {
@@ -286,6 +287,7 @@ $(document).ready(function () {
     }
 
     const resetMoodleChunks = $('#moodle-reset-chunks').is(':checked');
+    const includeResource = $('#moodle-include-resource').is(':checked');
     const $btn = $('#btn-sync-moodle-materials');
 
     setButtonLoading($btn, true, 'Menyinkronkan...');
@@ -302,6 +304,7 @@ $(document).ready(function () {
       const res = await MoodleApi.syncAllCourses({
         projectId: activeProjectId,
         resetMoodleChunks,
+        includeResource,
         materialOnly: true,
         autoDiscover: false,
         skipCourseInfo: true
@@ -321,6 +324,9 @@ $(document).ready(function () {
         moodleKbState.syncSummary = res?.data || {};
         renderMoodleSyncResult(moodleKbState.syncSummary);
         showToast('Materi Moodle berhasil disinkronkan ke RAG', 'success');
+        // [reminder] Catat waktu sinkron terakhir + sembunyikan banner pengingat harian.
+        try { localStorage.setItem(`alb:lastMoodleSync:${activeProjectId}`, String(Date.now())); } catch (_) {}
+        updateMoodleSyncReminder();
 
         await Promise.all([loadDocuments(), loadMoodleKnowledgePanel({ force: true })]);
         await loadKnowledgeValidation();
@@ -346,6 +352,33 @@ $(document).ready(function () {
   });
 
   $(document).on('click', '#btn-sync-moodle-materials', syncMoodleMaterials);
+
+  // [reminder] Tampilkan banner "integrasi ulang" maks sekali/hari bila sinkron terakhir
+  // sudah >24 jam (atau belum pernah). Dismiss menyimpan tanggal agar tak muncul lagi hari ini.
+  function updateMoodleSyncReminder() {
+    const $banner = $('#moodle-sync-reminder');
+    if (!$banner.length || !activeProjectId) return;
+    const DAY = 24 * 60 * 60 * 1000;
+    const last = Number(localStorage.getItem(`alb:lastMoodleSync:${activeProjectId}`) || 0);
+    const dismissedDay = localStorage.getItem(`alb:moodleSyncReminderDismissed:${activeProjectId}`) || '';
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const stale = !last || (Date.now() - last) > DAY;
+
+    if (stale && dismissedDay !== todayKey) {
+      const detail = last
+        ? `Terakhir sinkron ${Math.floor((Date.now() - last) / DAY)} hari lalu. Kalau di Moodle/VClass ada materi baru, klik <b>Sinkron Moodle</b> untuk memperbarui (materi lama dihapus, yang baru dimasukkan).`
+        : `Belum pernah sinkron di perangkat ini. Klik <b>Sinkron Moodle</b> untuk mengambil materi terbaru dari LMS.`;
+      $('#moodle-sync-reminder-detail').html(detail);
+      $banner.removeClass('hidden');
+    } else {
+      $banner.addClass('hidden');
+    }
+  }
+
+  $(document).on('click', '#moodle-sync-reminder-dismiss', function () {
+    try { localStorage.setItem(`alb:moodleSyncReminderDismissed:${activeProjectId}`, new Date().toISOString().slice(0, 10)); } catch (_) {}
+    $('#moodle-sync-reminder').addClass('hidden');
+  });
 
 
   // ==========================================

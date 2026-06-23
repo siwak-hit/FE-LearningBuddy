@@ -67,6 +67,8 @@ function buildMentionGroups(context, query = '') {
 export function hideMentionDropdown() {
   $('#alb-mention-dropdown').remove();
   this._mentionOpen = false;
+  // [F] Reset tab agar "@" berikutnya mulai dari tab default lagi.
+  this._mentionTab = undefined;
 }
 
 export function renderMentionDropdown(query = '') {
@@ -93,37 +95,48 @@ export function renderMentionDropdown(query = '') {
       </button>`;
   };
 
-  const header = (title, icon) => `<div class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-muted bg-surface-strong border-b border-hairline">${icon} ${title}</div>`;
-  const grp = (title, icon, items) => (items.length ? `${header(title, icon)}${items.map((it, idx) => renderItem(it, idx)).join('')}` : '');
+  // [F] DUA TAB: "Elemen" vs "Materi" → user pilih dulu mau tanya apa, jadi tak perlu
+  // scroll panjang menggabung dua daftar. Tab aktif disimpan di this._mentionTab.
+  if (this._mentionTab !== 'elemen' && this._mentionTab !== 'materi') {
+    this._mentionTab = groups.elemen.length ? 'elemen' : 'materi';
+  }
+  const activeTab = this._mentionTab;
 
-  // Header materi dengan tombol RELOAD (muat ulang bila timeout / belum keambil).
-  const MATERI_TITLE = 'Materi yang tersedia untukmu';
-  const materiHeader = (spinning = false) => `
-    <div class="px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-muted bg-surface-strong border-b border-hairline flex items-center justify-between gap-2">
-      <span>📚 ${MATERI_TITLE}</span>
+  // Body tab ELEMEN.
+  const elemenBody = groups.elemen.length
+    ? groups.elemen.map((it, idx) => renderItem(it, idx)).join('')
+    : `<div class="px-3 py-4 text-[12px] text-muted-soft leading-snug text-center">Tidak ada elemen halaman${query ? ' yang cocok' : ''}.</div>`;
+
+  // Body tab MATERI: baris kecil tombol "Muat ulang" + isi (spinner/daftar/kosong).
+  const materiReloadRow = `
+    <div class="px-3 py-1.5 flex justify-end bg-surface-strong/60 border-b border-hairline">
       <button type="button" class="alb-materi-reload inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary-active normal-case" title="Muat ulang materi dari VClass">
-        <i class="fa-solid fa-rotate ${spinning ? 'fa-spin' : ''}"></i> Muat ulang
+        <i class="fa-solid fa-rotate ${materiLoading ? 'fa-spin' : ''}"></i> Muat ulang
       </button>
     </div>`;
-
-  // Bagian Materi: spinner saat memuat, daftar saat ada, hint saat kosong.
-  let materiSection = '';
+  let materiInner = '';
   if (materiLoading && !groups.materi.length) {
-    materiSection = `${materiHeader(true)}
-      <div class="px-3 py-3 flex items-center gap-2 text-[12px] text-muted">
-        <i class="fa-solid fa-spinner fa-spin text-primary"></i> Memuat materi dari VClass…
-      </div>`;
+    materiInner = `<div class="px-3 py-3 flex items-center gap-2 text-[12px] text-muted"><i class="fa-solid fa-spinner fa-spin text-primary"></i> Memuat materi dari VClass…</div>`;
   } else if (groups.materi.length) {
-    materiSection = `${materiHeader(false)}${groups.materi.map((it, idx) => renderItem(it, idx)).join('')}`;
-  } else if (this._materiLoaded) {
-    materiSection = `${materiHeader(false)}
-      <div class="px-3 py-3 text-[12px] text-muted-soft leading-snug">Belum ada materi yang tersedia/terbaca${query ? ' cocok pencarian' : ''}.<br>Kalau kamu yakin ada, klik <b>Muat ulang</b> di atas ya (kadang koneksi VClass lambat).</div>`;
+    materiInner = groups.materi.map((it, idx) => renderItem(it, idx)).join('');
+  } else {
+    materiInner = `<div class="px-3 py-3 text-[12px] text-muted-soft leading-snug">Belum ada materi yang tersedia/terbaca${query ? ' cocok pencarian' : ''}.<br>Kalau kamu yakin ada, klik <b>Muat ulang</b> di atas ya (kadang koneksi VClass lambat).</div>`;
   }
+  const materiBody = `${materiReloadRow}${materiInner}`;
+
+  const materiCount = (materiLoading && !groups.materi.length) ? '' : ` (${groups.materi.length})`;
+  const tabBtn = (key, label) => `
+    <button type="button" class="alb-mention-tab flex-1 px-3 py-2 text-[11px] font-bold uppercase tracking-wide border-b-2 transition-colors ${activeTab === key ? 'text-primary border-primary bg-surface-card' : 'text-muted border-transparent hover:text-ink'}" data-tab="${key}">${label}</button>`;
 
   const html = `
-    <div id="alb-mention-dropdown" class="absolute bottom-full left-0 right-0 mb-2 max-h-64 overflow-y-auto bg-surface-card border border-hairline-strong rounded-2xl shadow-2xl z-30">
-      ${grp('Elemen Halaman (Sistem)', '🧩', groups.elemen)}
-      ${materiSection}
+    <div id="alb-mention-dropdown" class="absolute bottom-full left-0 right-0 mb-2 max-h-64 flex flex-col overflow-hidden bg-surface-card border border-hairline-strong rounded-2xl shadow-2xl z-30">
+      <div class="flex shrink-0 border-b border-hairline bg-surface-strong">
+        ${tabBtn('elemen', `🧩 Elemen (${groups.elemen.length})`)}
+        ${tabBtn('materi', `📚 Materi${materiCount}`)}
+      </div>
+      <div class="overflow-y-auto">
+        ${activeTab === 'elemen' ? elemenBody : materiBody}
+      </div>
     </div>`;
 
   const $form = $('#chat-form');
@@ -191,13 +204,16 @@ export function setInputMention(mention = {}) {
   $('#alb-input-mention-chip').remove();
 
   const isMateri = mention.type === 'materi';
-  const display = `@${mention.token}`;
+  // [#4] Chip materi tampil "Materi: <nama materi>" (lebih informatif daripada @materi-N).
+  const display = isMateri ? `Materi: ${mention.label || mention.token}` : `@${mention.token}`;
+  const chipIcon = isMateri ? 'fa-book-open' : 'fa-at';
   // [v0.9.23] Chip masuk ke #chat-input-wrap → di mobile menumpuk DI ATAS input (label di
   // atas, input tetap lebar di bawah), di desktop sebaris. max-md: lebar penuh & rata kiri.
+  // [G] Label di-truncate default; klik chip → tampil penuh, klik lagi → truncate.
   const chip = `
-    <span id="alb-input-mention-chip" class="shrink-0 inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full pl-2.5 pr-1 py-1 text-[13px] font-semibold md:ml-1 max-w-[55%] max-md:max-w-full max-md:self-start" title="${esc(mention.label || display)}">
-      <i class="fa-solid fa-at text-[10px] opacity-70"></i>
-      <span class="truncate">${esc(display)}</span>
+    <span id="alb-input-mention-chip" data-expanded="0" class="shrink-0 inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 rounded-full pl-2.5 pr-1 py-1 text-[13px] font-semibold md:ml-1 max-w-[55%] max-md:max-w-full max-md:self-start cursor-pointer" title="${esc(mention.label || display)} — klik untuk lihat penuh">
+      <i class="fa-solid ${chipIcon} text-[10px] opacity-70 shrink-0"></i>
+      <span class="alb-mention-chip-text truncate">${esc(display)}</span>
       <button type="button" id="alb-input-mention-remove" class="w-5 h-5 shrink-0 rounded-full hover:bg-primary/20 flex items-center justify-center border-0 bg-transparent text-primary cursor-pointer" title="Hapus tag"><i class="fa-solid fa-xmark text-[10px]"></i></button>
     </span>`;
   const $wrap = $('#chat-input-wrap');
@@ -333,6 +349,48 @@ export function bindMentionEvents() {
     .off('click.albMentionItem')
     .on('click.albMentionItem', '.alb-mention-item', function () {
       context.selectMention($(this).attr('data-group'), Number($(this).attr('data-idx')));
+    });
+  // [F] Klik tab "Elemen"/"Materi" di dropdown @ → ganti tab aktif + render ulang.
+  $(document)
+    .off('click.albMentionTab')
+    .on('click.albMentionTab', '.alb-mention-tab', function (e) {
+      e.preventDefault();
+      e.stopPropagation();
+      context._mentionTab = $(this).attr('data-tab');
+      const m = (context.$inputArea?.val() || '').match(/@([\w-]*)$/);
+      context.renderMentionDropdown(m ? m[1] : '');
+    });
+  // [#5] Klik label @materi DI DALAM bubble pesan → tampilkan penuh (font dikecilkan biar
+  // tak melebar/wrap), klik lagi → truncate 1 baris.
+  $(document)
+    .off('click.albBubbleMention')
+    .on('click.albBubbleMention', '.alb-bubble-mention', function () {
+      const $pill = $(this);
+      const $text = $pill.find('.alb-bubble-mention-text');
+      const expanded = $pill.attr('data-expanded') === '1';
+      if (expanded) {
+        $text.addClass('truncate');
+        $pill.removeClass('max-w-full whitespace-normal text-[10px]').addClass('max-w-[180px] text-[13px]').attr('data-expanded', '0');
+      } else {
+        $text.removeClass('truncate');
+        $pill.removeClass('max-w-[180px] text-[13px]').addClass('max-w-full whitespace-normal text-[10px]').attr('data-expanded', '1');
+      }
+    });
+  // [G] Klik chip mention di input → tampilkan nama lengkap; klik lagi → truncate.
+  $(document)
+    .off('click.albMentionChipToggle')
+    .on('click.albMentionChipToggle', '#alb-input-mention-chip', function (e) {
+      if ($(e.target).closest('#alb-input-mention-remove').length) return; // klik X → jangan toggle
+      const $chip = $(this);
+      const $text = $chip.find('.alb-mention-chip-text');
+      const expanded = $chip.attr('data-expanded') === '1';
+      if (expanded) {
+        $text.addClass('truncate');
+        $chip.removeClass('max-w-full whitespace-normal').addClass('max-w-[55%]').attr('data-expanded', '0');
+      } else {
+        $text.removeClass('truncate');
+        $chip.removeClass('max-w-[55%]').addClass('max-w-full whitespace-normal').attr('data-expanded', '1');
+      }
     });
   // [v0.9.19] Tombol "Muat ulang" materi di header dropdown @ (saat timeout/belum keambil).
   $(document)
