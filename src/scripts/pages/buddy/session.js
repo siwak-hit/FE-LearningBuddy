@@ -402,17 +402,20 @@ export function applyStudentIdentity(identity = {}) {
   this.updateConnectedCourseHeader?.();
 }
 
-export async function resolveStudentIdentityByEmail(email, classCode = '') {
+export async function resolveStudentIdentityByEmail(email, classCode = '', courseId = null) {
   const cleanEmail = String(email || '').trim().toLowerCase();
   if (!cleanEmail || !cleanEmail.includes('@')) {
     return { found: false, message: 'Email tidak valid.' };
   }
 
+  // [#dropdown] courseId (dari pilihan dropdown kelas) lebih akurat daripada string kelas —
+  // BE memprioritaskan courseId. classCode tetap dikirim untuk fallback/label.
   const res = await ApiService.post('/moodle/student/resolve', {
     projectKey: this.projectKey,
     sessionId: this.sessionId,
     email: cleanEmail,
-    classCode: String(classCode || '').trim().toUpperCase()
+    classCode: String(classCode || '').trim().toUpperCase(),
+    courseId: courseId ? Number(courseId) : undefined
   });
 
   if (res?.status === 'success' && res.data) {
@@ -428,7 +431,6 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
     $('#alb-student-identity-modal').remove();
 
     const emailValue = this.escapeHtml ? this.escapeHtml(defaultEmail || '') : String(defaultEmail || '');
-    const classValue = this.escapeHtml ? this.escapeHtml(this.getCandidateClassCode?.() || '') : String(this.getCandidateClassCode?.() || '');
     const reasonHtml = reason
       ? `<div class="text-[12px] text-amber-700 bg-amber-50 border border-amber-200 rounded-xl px-3 py-2 mb-3">${this.escapeHtml ? this.escapeHtml(reason) : reason}</div>`
       : '';
@@ -440,12 +442,14 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
             <i class="fa-solid fa-id-card-clip"></i>
           </div>
           <h2 class="font-serif text-2xl text-ink mb-2">Verifikasi Siswa VClass</h2>
-          <p class="text-[14px] text-body leading-relaxed mb-4">Masukkan email Moodle/VClass dan kelas kamu. Sistem akan mengecek apakah email tersebut benar-benar terdaftar di kelas yang dipilih.</p>
+          <p class="text-[14px] text-body leading-relaxed mb-4">Masukkan email Moodle/VClass dan pilih kelas kamu. Sistem akan mengecek apakah email tersebut benar-benar terdaftar di kelas yang dipilih.</p>
           ${reasonHtml}
           <label class="block text-[12px] font-bold text-muted uppercase tracking-wide mb-1">Email Moodle</label>
           <input id="alb-student-email-input" type="email" value="${emailValue}" class="w-full bg-canvas border border-hairline-strong rounded-xl px-4 py-3 text-[14px] text-ink focus:outline-none focus:border-primary mb-3" placeholder="nama@smpn167jakarta.sch.id">
           <label class="block text-[12px] font-bold text-muted uppercase tracking-wide mb-1">Kelas</label>
-          <input id="alb-student-class-input" type="text" value="${classValue}" class="w-full bg-canvas border border-hairline-strong rounded-xl px-4 py-3 text-[14px] text-ink focus:outline-none focus:border-primary mb-3 uppercase" placeholder="Contoh: 8A atau 9A">
+          <select id="alb-student-class-select" class="w-full bg-canvas border border-hairline-strong rounded-xl px-4 py-3 text-[14px] text-ink focus:outline-none focus:border-primary mb-3">
+            <option value="">Memuat daftar kelas…</option>
+          </select>
           <div id="alb-student-verify-status" class="hidden text-[13px] mb-3"></div>
           <div class="flex gap-2 justify-end">
             <button type="button" id="alb-student-skip" class="px-4 py-2 rounded-xl border border-hairline-strong text-muted hover:text-ink hover:bg-surface-strong text-[13px] font-semibold">Lewati dulu</button>
@@ -457,6 +461,27 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
     $('body').append(html);
     $('#alb-student-email-input').focus();
 
+    // [#dropdown] Isi dropdown kelas dari course_map (value = course_id otoritatif). User
+    // pilih "9A" → kirim course_id 13, tak perlu mencocokkan string kelas.
+    const candidateClass = String(this.getCandidateClassCode?.() || '').trim().toUpperCase();
+    (async () => {
+      try {
+        const res = await ApiService.get(`/chat/class-options/${this.sessionId}`);
+        const classes = (res?.status === 'success' && Array.isArray(res.data?.classes)) ? res.data.classes : [];
+        const $sel = $('#alb-student-class-select');
+        if (!classes.length) {
+          $sel.html('<option value="">(daftar kelas belum tersedia)</option>');
+          return;
+        }
+        const esc = (s) => (this.escapeHtml ? this.escapeHtml(s) : String(s));
+        $sel.html('<option value="">— pilih kelasmu —</option>' + classes.map((c) =>
+          `<option value="${esc(String(c.course_id))}" data-class="${esc(c.class_code)}"${c.class_code === candidateClass ? ' selected' : ''}>${esc(c.class_code)}</option>`
+        ).join(''));
+      } catch (_) {
+        $('#alb-student-class-select').html('<option value="">(gagal memuat kelas)</option>');
+      }
+    })();
+
     $('#alb-student-skip').on('click', () => {
       $('#alb-student-identity-modal').remove();
       // [#3] Lewati → sediakan ikon edit di header untuk membuka ulang pemilihan nama.
@@ -466,7 +491,9 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
 
     $('#alb-student-verify').on('click', async () => {
       const email = $('#alb-student-email-input').val().trim();
-      const classCode = $('#alb-student-class-input').val().trim().toUpperCase();
+      const $opt = $('#alb-student-class-select option:selected');
+      const courseId = String($('#alb-student-class-select').val() || '');
+      const classCode = String($opt.attr('data-class') || '').toUpperCase();
       const $status = $('#alb-student-verify-status');
       const $btn = $('#alb-student-verify');
 
@@ -474,8 +501,8 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
         $status.removeClass('hidden text-emerald-700 text-rose-700').addClass('text-rose-700').text('Masukkan email yang valid.');
         return;
       }
-      if (!classCode) {
-        $status.removeClass('hidden text-emerald-700 text-rose-700').addClass('text-rose-700').text('Masukkan kelas kamu, contoh: 8A atau 9A.');
+      if (!courseId) {
+        $status.removeClass('hidden text-emerald-700 text-rose-700').addClass('text-rose-700').text('Pilih kelas kamu dari daftar dulu ya.');
         return;
       }
 
@@ -483,7 +510,7 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
       $status.removeClass('hidden text-rose-700 text-emerald-700').addClass('text-muted').text('Mengecek daftar user Moodle...');
 
       try {
-        const identity = await this.resolveStudentIdentityByEmail?.(email, classCode);
+        const identity = await this.resolveStudentIdentityByEmail?.(email, classCode, courseId);
         if (identity?.found) {
           $status.removeClass('text-muted text-rose-700').addClass('text-emerald-700').html(`<i class="fa-solid fa-check"></i> Ditemukan: ${this.escapeHtml ? this.escapeHtml(identity.fullname || identity.email) : identity.fullname}`);
           setTimeout(() => {
