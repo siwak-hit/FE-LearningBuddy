@@ -1,8 +1,9 @@
 import { ApiService } from './api.js';
 
 // Sync materi Moodle biasanya lebih lama dari request chat biasa.
-// Default 120 detik, bisa dioverride lewat FE env: PUBLIC_MOODLE_SYNC_TIMEOUT_MS=120000
-const MOODLE_SYNC_TIMEOUT_MS = Number(import.meta.env.PUBLIC_MOODLE_SYNC_TIMEOUT_MS || 120000);
+// Default 180 detik (sync materi bisa ~1-2 menit; indeks siswa jadi request terpisah).
+// Bisa dioverride lewat FE env: PUBLIC_MOODLE_SYNC_TIMEOUT_MS=180000
+const MOODLE_SYNC_TIMEOUT_MS = Number(import.meta.env.PUBLIC_MOODLE_SYNC_TIMEOUT_MS || 180000);
 
 export const MoodleApi = {
   getConfig(projectId) {
@@ -44,6 +45,15 @@ export const MoodleApi = {
   },
   syncAllCourses(payload) {
     return ApiService.fetch('/moodle/sync/all', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+      timeoutMs: MOODLE_SYNC_TIMEOUT_MS
+    });
+  },
+  // [v0.9.40.1] Indeks siswa — request TERPISAH (punya timeout sendiri) agar tak ikut
+  // memperlambat/timeout sync materi.
+  syncStudents(payload) {
+    return ApiService.fetch('/moodle/sync/students', {
       method: 'POST',
       body: JSON.stringify(payload),
       timeoutMs: MOODLE_SYNC_TIMEOUT_MS

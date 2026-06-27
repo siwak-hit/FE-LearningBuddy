@@ -40,9 +40,30 @@ function ensureVideoTutorialModal() {
   const close = () => {
     $('#alb-video-tutorial-body').empty(); // stop playback
     $('#alb-video-tutorial-modal').addClass('hidden');
+    if (albVideoReminderOnClose) { albVideoReminderOnClose = false; showVideoReminder(); }
   };
   $('#alb-video-tutorial-close').on('click', close);
   $('#alb-video-tutorial-modal').on('click', (e) => { if (e.target.id === 'alb-video-tutorial-modal') close(); });
+}
+
+let albVideoReminderOnClose = false;
+
+// Setelah video ditutup (dari onboarding), ingatkan cara membukanya lagi.
+function showVideoReminder() {
+  $('#alb-video-reminder-modal').remove();
+  $('body').append(`
+    <div id="alb-video-reminder-modal" class="fixed inset-0 z-[9760] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-4">
+      <div class="bg-surface-card w-full max-w-[380px] rounded-2xl shadow-2xl border border-hairline p-6 text-center">
+        <div class="w-12 h-12 mx-auto bg-primary/10 text-primary rounded-full flex items-center justify-center text-xl mb-3"><i class="fa-solid fa-circle-info"></i></div>
+        <h3 class="font-serif text-lg text-ink mb-2">Mau nonton lagi nanti?</h3>
+        <p class="text-[13px] text-body leading-relaxed mb-5">Video tutorial ini bisa kamu buka lagi kapan saja lewat menu <b>Tugas Wajib (To-do)</b> di sidebar ya 👍</p>
+        <button type="button" class="alb-video-reminder-ok w-full bg-primary hover:bg-primary-active text-white rounded-full px-5 py-2.5 text-[14px] font-bold">Mengerti</button>
+      </div>
+    </div>
+  `);
+  const closeReminder = () => $('#alb-video-reminder-modal').remove();
+  $('#alb-video-reminder-modal').on('click', '.alb-video-reminder-ok', closeReminder);
+  $('#alb-video-reminder-modal').on('click', (e) => { if (e.target.id === 'alb-video-reminder-modal') closeReminder(); });
 }
 
 export function openVideoTutorialModal(payload = {}) {
@@ -51,6 +72,7 @@ export function openVideoTutorialModal(payload = {}) {
   ensureVideoTutorialModal();
   $('#alb-video-tutorial-title').text(payload.title || 'Video Tutorial');
 
+  albVideoReminderOnClose = payload.reminderOnClose === true;
   const autoplay = payload.autoplay !== false; // default autoplay
   const embed = toYoutubeEmbed(url);
   const body = embed
@@ -312,7 +334,7 @@ function showStaticTutorialStep(index = 0) {
           </div>
           <div class="min-w-0">
             <div class="text-[12px] font-bold leading-snug ${isActive ? 'text-slate-900' : isDone ? 'text-slate-500' : 'text-slate-700'}">${safeTutorialText(s.title || `Langkah ${i + 1}`)}</div>
-            ${isActive && s.text ? `<div class="text-[11px] text-slate-500 mt-0.5 leading-relaxed line-clamp-2">${safeTutorialText(s.text)}</div>` : ''}
+            ${isActive && s.text ? `<div class="text-[11px] text-slate-500 mt-0.5 leading-relaxed">${safeTutorialText(s.text)}</div>` : ''}
           </div>
         </div>
       </button>`;

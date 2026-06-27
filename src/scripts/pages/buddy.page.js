@@ -12,6 +12,7 @@ import * as ManualContextModule from './buddy/manual-context-selector.js';
 import * as ComplaintModule from './buddy/complaint-builder.js';
 import * as IdentityFallbackModule from './buddy/identity-fallback.js';
 import * as ReminderToastModule from './buddy/reminder-toast.js';
+import * as QuizModule from './buddy/quiz.js';
 
 // Penggabungan Object (Object Composition) dari kumpulan library
 const BuddyPage = {
@@ -28,7 +29,8 @@ const BuddyPage = {
   ...ManualContextModule,
   ...ComplaintModule,
   ...IdentityFallbackModule,
-  ...ReminderToastModule
+  ...ReminderToastModule,
+  ...QuizModule
 };
 
 export default BuddyPage;

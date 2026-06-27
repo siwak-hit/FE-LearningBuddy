@@ -3,6 +3,8 @@
 // [v0.9.7] Diekstrak dari dom-ui.js. Dipanggil via this.showOnboardingCarousel() (init.js).
 // ============================================================
 import $ from 'jquery';
+import { openVideoTutorialModal } from './static-tutorial.js';
+import { AI_TUTORIAL_VIDEO_URL } from './student-notes.js';
 
 export function showOnboardingCarousel() {
   // 1. Siapkan Style CSS Global untuk efek Highlight/Glow
@@ -115,6 +117,19 @@ export function showOnboardingCarousel() {
   $overlay.removeClass('hidden');
 
   const steps = [
+    {
+      title: "Video Cara Pakai AI Buddy",
+      icon: "fa-circle-play",
+      desc: `
+        Sebelum mulai, tonton video singkat cara memakai AI Buddy yuk.
+        <br><br>
+        <button id="alb-tour-watch-video" type="button" class="inline-flex items-center gap-2 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 rounded-full px-4 py-2.5 text-[13px] font-bold transition-colors">
+          <i class="fa-solid fa-circle-play"></i> Tonton Video Tutorial
+        </button>
+      `,
+      target: null,
+      placement: "center"
+    },
     {
       title: "Selamat Datang di AI Buddy!",
       icon: "fa-robot",
@@ -423,6 +438,10 @@ export function showOnboardingCarousel() {
       currentStep--;
       renderStep();
     });
+
+    // Slide video: tonton → tutup → ingatkan buka lagi lewat menu Tugas Wajib.
+    $('#alb-tour-watch-video').off('click').on('click', () =>
+      openVideoTutorialModal({ url: AI_TUTORIAL_VIDEO_URL, title: 'Cara Pakai AI Buddy', autoplay: true, reminderOnClose: true }));
   };
 
   const finishTour = () => {

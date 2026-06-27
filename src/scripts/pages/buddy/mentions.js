@@ -235,7 +235,7 @@ const MATERI_FOLLOWUP_SUGGESTIONS = [
   { text: 'Rangkum materi ini', icon: 'fa-wand-magic-sparkles', hint: 'AI buat ringkasan singkat' },
   { text: 'Apa poin penting materi ini?', icon: 'fa-list-ul', hint: 'Daftar inti materi' },
   { text: 'Jelaskan materi ini dengan bahasa sederhana', icon: 'fa-lightbulb', hint: 'Penjelasan mudah dipahami' },
-  { text: 'Buat 3 soal latihan dari materi ini', icon: 'fa-pen-to-square', hint: 'Latihan mandiri' }
+  { text: 'Buat latihan kuis dari materi ini', icon: 'fa-pen-to-square', hint: 'Kuis interaktif' }
 ];
 
 export function hideMateriFollowupDropdown() {

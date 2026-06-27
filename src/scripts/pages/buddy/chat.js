@@ -516,6 +516,23 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           // [v0.9.16] Bukti visual (mis. review jawaban kuis dari Moodle).
           const safePayload = encodeURIComponent(JSON.stringify({ html: act.html || '', title: act.title || 'Review Jawaban' }));
           actionsHtml += `<button type="button" class="btn-open-html-view inline-flex items-center gap-1.5 bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-clipboard-check"></i> ${label}</button>`;
+        } else if (act.type === 'quiz_setup') {
+          // [v0.9.42] Pilihan jumlah soal kuis (maks 10) → kirim ulang dgn jumlah dipilih.
+          const token = this.escapeHtml(act.token || '');
+          const cnt = Number(act.count) || 5;
+          actionsHtml += `<button type="button" class="btn-quiz-setup inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-token="${token}" data-count="${cnt}"><i class="fa-solid fa-list-ol"></i> ${label}</button>`;
+        } else if (act.type === 'start_quiz') {
+          // [v0.9.42] Kartu kuis interaktif — klik buka modal (data kuis di data-quiz).
+          const quizPayload = encodeURIComponent(JSON.stringify(act.quiz || {}));
+          const n = Number(act.quiz?.count) || (Array.isArray(act.quiz?.questions) ? act.quiz.questions.length : 0);
+          actionsHtml += `<button type="button" class="btn-start-quiz group flex w-full max-w-full items-center gap-3 bg-white border border-primary/30 hover:border-primary/60 hover:bg-primary/5 px-4 py-3 rounded-2xl transition-all shadow-sm" data-quiz="${quizPayload}">
+            <span class="w-10 h-10 shrink-0 rounded-xl bg-primary/10 flex items-center justify-center text-primary text-[18px]"><i class="fa-solid fa-clipboard-question"></i></span>
+            <span class="flex flex-col items-start min-w-0 flex-1 text-left">
+              <span class="text-[14px] font-black text-ink leading-tight">📘 Latihan Quiz</span>
+              <span class="text-[12px] text-muted-soft">Jumlah soal: ${n} · klik untuk mulai</span>
+            </span>
+            <span class="shrink-0 text-[12px] font-bold text-white bg-primary group-hover:bg-primary-active rounded-full px-3 py-1.5">Mulai</span>
+          </button>`;
         } else if (act.type === 'mention_regenerate') {
           // [v0.9.8] Minta hasil @materi BARU (konteks sama, hasil beda) — bypass cache.
           const token = this.escapeHtml(act.token || '');

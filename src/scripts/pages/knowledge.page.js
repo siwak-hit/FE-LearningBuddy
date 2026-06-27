@@ -328,6 +328,27 @@ $(document).ready(function () {
         try { localStorage.setItem(`alb:lastMoodleSync:${activeProjectId}`, String(Date.now())); } catch (_) {}
         updateMoodleSyncReminder();
 
+        // [v0.9.40.1] Bangun INDEKS siswa sebagai langkah TERPISAH (request sendiri) agar
+        // tak ikut bikin sync materi timeout. Kalau gagal, materi tetap sukses.
+        $('#moodle-sync-result').removeClass('hidden').html(`
+          <div class="bg-sky-50 border border-sky-100 rounded-[12px] p-4 text-[13px] text-sky-700">
+            <div class="font-semibold mb-1"><i class="fa-solid fa-users fa-fade mr-1.5"></i>Membangun indeks siswa untuk verifikasi cepat…</div>
+            <div>Mengambil daftar peserta tiap kelas. Sebentar ya.</div>
+          </div>
+        `);
+        try {
+          const stu = await MoodleApi.syncStudents({ projectId: activeProjectId });
+          if (stu?.status === 'success') {
+            const d = stu.data || {};
+            showToast(`Indeks siswa siap: ${d.students || 0} siswa (${d.coursesOk || 0}/${d.courses || 0} kelas)`, 'success');
+          } else {
+            showToast('Materi tersinkron, tapi indeks siswa gagal — coba klik Sinkron lagi.', 'error');
+          }
+        } catch (_) {
+          showToast('Materi tersinkron, tapi indeks siswa gagal/timeout — coba ulangi.', 'error');
+        }
+        renderMoodleSyncResult(moodleKbState.syncSummary);
+
         await Promise.all([loadDocuments(), loadMoodleKnowledgePanel({ force: true })]);
         await loadKnowledgeValidation();
       }
@@ -352,6 +373,43 @@ $(document).ready(function () {
   });
 
   $(document).on('click', '#btn-sync-moodle-materials', syncMoodleMaterials);
+
+  // [v0.9.40.1] Bangun indeks siswa secara MANDIRI (tombol terpisah) — tak bergantung
+  // pada sync materi, jadi tetap jalan walau sync materi kelamaan/timeout di sisi klien.
+  async function syncMoodleStudents() {
+    if (!activeProjectId) return showToast('Project aktif belum terdeteksi.', 'error');
+    if (!moodleKbState.ready) return showToast(getMoodleConfigBlockMessage(moodleKbState.config), 'error');
+
+    const $btn = $('#btn-sync-moodle-students');
+    setButtonLoading($btn, true, 'Membangun indeks…');
+    $('#moodle-sync-result').removeClass('hidden').html(`
+      <div class="bg-sky-50 border border-sky-100 rounded-[12px] p-4 text-[13px] text-sky-700">
+        <div class="font-semibold mb-1"><i class="fa-solid fa-users fa-fade mr-1.5"></i>Membangun indeks siswa…</div>
+        <div>Mengambil daftar peserta tiap kelas dari Moodle. Sebentar ya.</div>
+      </div>
+    `);
+    try {
+      const stu = await MoodleApi.syncStudents({ projectId: activeProjectId });
+      if (stu?.status === 'success') {
+        const d = stu.data || {};
+        showToast(`Indeks siswa siap: ${d.students || 0} siswa (${d.coursesOk || 0}/${d.courses || 0} kelas, email: ${d.withEmail ?? '-'})`, 'success');
+        $('#moodle-sync-result').removeClass('hidden').html(`
+          <div class="bg-white border border-hairline rounded-[14px] p-5 text-[13px] text-body">
+            <div class="font-semibold text-ink mb-1"><i class="fa-solid fa-circle-check text-[#16a34a] mr-1.5"></i>Indeks siswa diperbarui</div>
+            <p class="text-muted-soft">${d.students || 0} siswa terindeks dari ${d.coursesOk || 0}/${d.courses || 0} kelas. Yang punya email terbaca: <b>${d.withEmail ?? '-'}</b>. Verifikasi siswa sekarang cepat.</p>
+          </div>
+        `);
+      } else {
+        showToast(stu?.message || 'Gagal membangun indeks siswa', 'error');
+      }
+    } catch (e) {
+      showToast('Gagal/timeout membangun indeks siswa. Coba ulangi.', 'error');
+    } finally {
+      setButtonLoading($btn, false);
+    }
+  }
+
+  $(document).on('click', '#btn-sync-moodle-students', syncMoodleStudents);
 
   // [reminder] Tampilkan banner "integrasi ulang" maks sekali/hari bila sinkron terakhir
   // sudah >24 jam (atau belum pernah). Dismiss menyimpan tanggal agar tak muncul lagi hari ini.

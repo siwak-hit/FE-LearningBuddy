@@ -145,9 +145,16 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
 
                   <div id="moodle-sync-button-wrap" class="w-full" title="Klik untuk sinkronisasi materi Moodle">
                     <button type="button" id="btn-sync-moodle-materials" class="w-full bg-primary text-white px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition-colors shadow-sm">
-                      <i class="fa-solid fa-cloud-arrow-down mr-1.5"></i> Sinkron Moodle
+                      <i class="fa-solid fa-cloud-arrow-down mr-1.5"></i> Sinkron Moodle (Materi)
                     </button>
                   </div>
+
+                  <!-- [v0.9.40.1] Tombol TERPISAH untuk indeks siswa (verifikasi cepat).
+                       Berguna kalau sync materi kelamaan/timeout — indeks bisa dibangun sendiri. -->
+                  <button type="button" id="btn-sync-moodle-students" class="w-full mt-2 bg-white border border-hairline-strong text-ink px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-surface-strong transition-colors" title="Bangun indeks daftar siswa untuk verifikasi cepat">
+                    <i class="fa-solid fa-users mr-1.5"></i> Sinkron Indeks Siswa
+                  </button>
+                  <p class="text-[11px] text-muted-soft mt-2 leading-snug">Indeks siswa dipakai untuk verifikasi siswa yang cepat. Jalankan setelah sync materi, atau kapan saja kalau ada siswa baru.</p>
                 </div>
               </div>
 

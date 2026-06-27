@@ -11,7 +11,7 @@ import { openVideoTutorialModal } from './static-tutorial.js';
 // [v0.9.14] URL video tutorial "cara pakai AI Buddy". Isi dgn link YouTube/mp4.
 // Tombolnya ada di modal To-do (Tugas Wajib). Kosong = tombol tetap ada tapi
 // memberi tahu video belum tersedia.
-const AI_TUTORIAL_VIDEO_URL = '/VIDEOS/tutorial.mp4';
+export const AI_TUTORIAL_VIDEO_URL = '/VIDEOS/tutorial.mp4';
 
 function escapeHtml(value = '') {
   return String(value || '')
@@ -62,8 +62,29 @@ export function ensureStudentNotesMenu(context) {
     </div>
   `);
 
+  // [v0.9.41] Animasi PULSE pada tombol Tugas Wajib agar menarik perhatian saat sidebar
+  // dibuka. Berhenti setelah siswa membukanya sekali (flag localStorage) supaya tak mengganggu.
+  if (!$('#alb-todo-pulse-style').length) {
+    $('head').append(`<style id="alb-todo-pulse-style">
+      @keyframes albTodoPulse {
+        0% { box-shadow: 0 0 0 0 rgba(41,37,36,0.30); }
+        70% { box-shadow: 0 0 0 9px rgba(41,37,36,0); }
+        100% { box-shadow: 0 0 0 0 rgba(41,37,36,0); }
+      }
+      .alb-todo-pulse { animation: albTodoPulse 1.8s ease-out infinite; }
+    </style>`);
+  }
+  const todoSeen = (() => { try { return localStorage.getItem('alb_todo_pulse_seen') === '1'; } catch (_) { return false; } })();
+  if (!todoSeen) {
+    $('#alb-todo-btn').addClass('alb-todo-pulse border-primary/50 bg-primary/5');
+  }
+  const stopTodoPulse = () => {
+    try { localStorage.setItem('alb_todo_pulse_seen', '1'); } catch (_) {}
+    $('#alb-todo-btn').removeClass('alb-todo-pulse border-primary/50 bg-primary/5');
+  };
+
   $('#alb-note-add-btn').on('click', () => openStudentNotesModal(context, 'add'));
-  $('#alb-todo-btn').on('click', () => openTodoListModal(context));
+  $('#alb-todo-btn').on('click', () => { stopTodoPulse(); openTodoListModal(context); });
   refreshTodoBadge(context);
 }
 

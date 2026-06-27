@@ -1389,6 +1389,29 @@ function bindChatActionButtons(context) {
       });
     });
 
+  // [v0.9.42] Kuis: pilih jumlah soal → generate; kartu "Mulai Latihan" → buka modal.
+  context.$chatArea
+    .off('click', '.btn-quiz-setup')
+    .on('click', '.btn-quiz-setup', (e) => {
+      e.preventDefault();
+      const $btn = $(e.currentTarget);
+      const token = $btn.attr('data-token') || '';
+      const count = Number($btn.attr('data-count')) || 5;
+      if (!token) return;
+      markSingleChatButtonClicked($btn);
+      const mention = context.resolveMentionForSend?.(`@${token}`) || null;
+      context.sendDirectMessage?.({ message: `@${token} Buat ${count} soal latihan`, mention, freshMention: true, forceAI: true, responseMode: 'short' });
+    });
+  context.$chatArea
+    .off('click', '.btn-start-quiz')
+    .on('click', '.btn-start-quiz', (e) => {
+      e.preventDefault();
+      try {
+        const quiz = JSON.parse(decodeURIComponent($(e.currentTarget).attr('data-quiz') || '%7B%7D'));
+        context.openQuizModal?.(quiz);
+      } catch (_) {}
+    });
+
   context.$chatArea
     .off('click', '.btn-tutorial-action')
     .on('click', '.btn-tutorial-action', (e) => {
