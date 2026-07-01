@@ -82,7 +82,7 @@ $(document).ready(function () {
   }
 
   async function loadSummary() {
-    $('#log-summary-container').html('<div class="col-span-full text-center py-6 text-muted"><i class="fa-solid fa-spinner fa-spin"></i></div>');
+    $('#log-summary-container').html('<div class="col-span-full text-center py-6 text-muted"><i class="fa-solid fa-spinner fa-spin mr-2"></i><span class="text-[13px]">Menghitung ringkasan…</span></div>');
     const res = await LogAPI.getSummary({ projectId: state.projectId });
     if (res && res.data) {
       const d = res.data;
@@ -96,7 +96,7 @@ $(document).ready(function () {
   }
 
   async function loadSessions() {
-    $('#session-list').html('<div class="col-span-full text-center py-10 text-muted"><i class="fa-solid fa-spinner fa-spin text-2xl"></i></div>');
+    $('#session-list').html('<div class="col-span-full text-center py-10 text-muted"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><p class="text-[13px]">Memuat daftar sesi…</p></div>');
 
     let queryParams = { page: state.page, limit: state.limit };
     if (state.projectId && state.projectId !== 'all' && state.projectId !== 'null' && state.projectId !== 'undefined') queryParams.projectId = state.projectId;
@@ -125,9 +125,15 @@ $(document).ready(function () {
         if (item.alert_types.includes('hate_speech') || item.alert_types.includes('profanity')) cardStyle = 'border-red-300 bg-red-50/30';
         else if (item.alert_types.includes('mental_health')) cardStyle = 'border-amber-300 bg-amber-50/30';
       }
+      // [FIX] Sesi TERKUNCI menonjol: border merah tebal + latar merah lembut. Guru langsung
+      // tahu sesi ini butuh kunci untuk dibuka lagi.
+      if (item.is_locked) cardStyle = 'border-2 border-red-500 bg-red-50/60 hover:border-red-600';
       const isActive = item.id === state.activeSessionId ? `ring-2 ring-primary ring-offset-1 ${cardStyle}` : cardStyle;
 
       let badges = '';
+      if (item.is_locked) {
+        badges += `<span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border bg-red-600 text-white border-red-600 font-semibold"><i class="fa-solid fa-lock mr-1 text-[9px]"></i>Terkunci · butuh kunci</span>`;
+      }
       if (item.alert_count > 0) {
         item.alert_types.forEach(t => {
           const m = formatModLabel(t);
@@ -173,7 +179,7 @@ $(document).ready(function () {
     $('#detail-content').removeClass('hidden');
     $('#sara-lock-overlay').addClass('hidden');
     $('#det-day-filter-wrap').addClass('hidden');
-    $('#chat-timeline').html('<div class="text-center py-20 text-muted"><i class="fa-solid fa-spinner fa-spin text-3xl"></i></div>');
+    $('#chat-timeline').html('<div class="text-center py-20 text-muted"><i class="fa-solid fa-spinner fa-spin text-3xl mb-3"></i><p class="text-[13px]">Memuat percakapan…</p></div>');
 
     const res = await LogAPI.getSessionDetail(sessionId);
     if (!res || !res.data) return;

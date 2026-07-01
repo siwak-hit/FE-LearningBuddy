@@ -73,8 +73,6 @@ export function cacheWorkspaceDOM() {
   this.$btnBack = $('#btn-back');
   this.$btnSessionInfo = $('#btn-session-info');
   this.$btnConfirmLeave = $('#btn-confirm-leave');
-  this.$lockdownOverlay = $('#lockdown-overlay');
-  this.$unlockKeyInput = $('#unlock-key-input');
   this.$tabBtnGuide = $('#tab-btn-guide');
   this.$tabBtnElements = $('#tab-btn-elements');
   this.$tabContentGuide = $('#tab-content-guide');
@@ -119,15 +117,15 @@ export function openContextInfoModal() {
 }
 
 export function handleLockdown(isLocked) {
+  // [FIX] Hanya kunci/buka input di sini. Overlay lockdown TUNGGAL (#alb-global-lock-overlay)
+  // dibuat & dihapus sendiri oleh safety-overlays.js — tidak lagi ada overlay statik bertumpuk.
   this.isLocked = isLocked;
   if (isLocked) {
     this.$inputArea.prop('disabled', true).attr('placeholder', 'Chat dikunci. Silakan hubungi instruktur.');
     this.$btnSend.prop('disabled', true);
-    this.$lockdownOverlay.removeClass('hidden'); // Munculkan layar
   } else {
     this.$inputArea.prop('disabled', false).attr('placeholder', 'Tanya sesuatu atau pilih elemen...');
     this.$btnSend.prop('disabled', false);
-    this.$lockdownOverlay.addClass('hidden'); // Sembunyikan layar
   }
 }
 

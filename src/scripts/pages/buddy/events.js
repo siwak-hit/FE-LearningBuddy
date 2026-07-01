@@ -644,7 +644,6 @@ export function bindWorkspaceEvents() {
   this.bindMentionEvents?.();        // [v0.7.0] klik item mention "@"
   this.loadMateriMentions?.();       // [v0.7.0] muat daftar materi untuk @materi-N
   bindBasicButtons(this);
-  bindUnlockForm(this);
   bindChatActionButtons(this);
   bindModeSelector(this);
   bindExternalSessionGate(this);
@@ -983,58 +982,6 @@ function bindBasicButtons(context) {
   }
 }
 
-function bindUnlockForm(context) {
-  bindIfExists($('#btn-unlock-chat'), 'click', async () => {
-    const name = $('#unlock-name-input').val().trim();
-    const key = $('#unlock-key-input').val().trim();
-
-    if (!name) {
-      Toast.show('Harap masukkan nama panggilanmu!', 'error');
-      $('#unlock-name-input').addClass('border-semantic-error');
-      return;
-    }
-
-    $('#unlock-name-input').removeClass('border-semantic-error');
-
-    if (!key) {
-      Toast.show('Harap masukkan key dari guru!', 'error');
-      return;
-    }
-
-    $('#btn-unlock-chat').html('<i class="fa-solid fa-spinner fa-spin"></i>').prop('disabled', true);
-
-    try {
-      try {
-        await ApiService.patch(`/chat/session/${context.sessionId}/profile`, { student_name: name });
-        sessionStorage.setItem('alb_student_name', name);
-      } catch (err) {
-        console.warn('[Buddy External] Gagal update nama siswa, lanjut unlock:', err);
-      }
-
-      const res = await ApiService.post('/chat/unlock', { sessionId: context.sessionId, key });
-
-      if (res?.status === 'success') {
-        persistLockdown(context, false);
-        $('#alb-global-lock-overlay').remove();
-        context.handleLockdown(false);
-        Toast.show('Chat berhasil dibuka kembali.', 'success');
-        context.appendBubble(
-          `Akses chat telah dibuka kembali. Mari kita lanjutkan belajar dengan baik dan sopan ya, ${context.escapeHtml(name)}!`,
-          false,
-          'system'
-        );
-      } else {
-        Toast.show(res?.message || 'Key salah atau kedaluwarsa!', 'error');
-      }
-    } catch (err) {
-      console.error('[Buddy External] Gagal unlock chat:', err);
-      Toast.show('Gagal menghubungi server.', 'error');
-    } finally {
-      $('#btn-unlock-chat').html('Verifikasi & Buka Akses').prop('disabled', false);
-      $('#unlock-key-input').val('');
-    }
-  });
-}
 
 
 

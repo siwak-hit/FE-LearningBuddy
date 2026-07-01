@@ -266,21 +266,10 @@ const { API_BASE } = Astro.props;
       </button>
     </div>
 
-    <div id="lockdown-overlay" class="hidden absolute inset-0 bg-white/95 backdrop-blur-md flex flex-col items-center justify-center z-30 p-6 text-center">
-      <div class="text-semantic-error text-4xl mb-4"><i class="fa-solid fa-lock"></i></div>
-      <h3 class="font-serif font-light text-2xl text-ink mb-2">Chat Terkunci</h3>
-      <p class="text-[14px] text-muted mb-6">Akses diblokir karena pelanggaran pedoman. Minta Unlock Key ke instruktur.</p>
-
-      <div class="w-full max-w-[280px] text-left">
-        <label class="block text-[12px] font-semibold text-muted mb-1">Nama Panggilan (Wajib)</label>
-        <input type="text" id="unlock-name-input" class="w-full bg-canvas border border-hairline-strong rounded-xl px-4 py-2.5 text-[15px] focus:outline-none focus:border-primary mb-4 text-ink" placeholder="Masukkan nama kamu..." autocomplete="off">
-
-        <label class="block text-[12px] font-semibold text-muted mb-1">Unlock Key Guru</label>
-        <input type="text" id="unlock-key-input" class="w-full bg-canvas border border-semantic-error rounded-xl px-4 py-2.5 text-center text-[15px] focus:outline-none mb-5 text-ink" placeholder="Misal: GURU-1234" autocomplete="off">
-
-        <button id="btn-unlock-chat" class="w-full bg-semantic-error text-white rounded-xl px-4 py-2.5 text-[15px] font-medium hover:bg-red-700 transition-colors">Verifikasi & Buka Akses</button>
-      </div>
-    </div>
+    <!-- [FIX] Overlay lockdown TUNGGAL dibuat dinamis di safety-overlays.js
+         (#alb-global-lock-overlay: nama ter-prefill + tombol WA + verifikasi key).
+         Overlay statik lama dihapus karena dulu tampil bertumpuk → bikin field nama
+         kosong & tombol minta nama padahal nama sudah ada. -->
   </main>
 </div>
 

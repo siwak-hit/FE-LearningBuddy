@@ -26,9 +26,14 @@ async function request(endpoint, options = {}) {
     // [v0.9.6] Endpoint login TIDAK ikut auto-redirect saat 401. 401 di sini =
     // "email/password salah" → biarkan handler login menampilkan pesan errornya.
     // (Dulu 401 login ikut ke-redirect ke /auth/login → web cuma reload tanpa pesan.)
-    const isAuthLoginEndpoint = String(endpoint).startsWith('/auth/login');
+    // [FIX] Boundary publik siswa (buddy workspace) juga TIDAK ikut auto-redirect ke
+    // login admin. 401/403 di sini = logika bisnis (mis. "key salah" di /chat/unlock),
+    // BUKAN sesi admin kedaluwarsa. Dulu unlock chat yg 403 malah lempar siswa ke /auth/login.
+    const ep = String(endpoint);
+    const PUBLIC_PREFIXES = ['/auth/login', '/chat/', '/widget/', '/page-templates/', '/student-sessions/', '/student-notes/', '/moodle/student/', '/health'];
+    const isPublicEndpoint = PUBLIC_PREFIXES.some((p) => ep.startsWith(p));
 
-    if (!isAuthLoginEndpoint && (response.status === 401 || response.status === 403)) {
+    if (!isPublicEndpoint && (response.status === 401 || response.status === 403)) {
       localStorage.removeItem('alb_token');
       window.location.href = '/auth/login';
       return { status: 'error', message: 'Sesi berakhir, silakan login ulang.' };

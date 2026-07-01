@@ -15,6 +15,18 @@ function getLocalScopeKey(context, suffix) {
   return `alb:${host}:${projectKey}:${suffix}`;
 }
 
+// [FIX] Nama siswa sering sudah diketahui (verifikasi identitas) tapi tidak selalu ada di
+// sessionStorage → dulu field nama di overlay lockdown tampil kosong & unlock minta "isi nama".
+// Ambil dari semua sumber yang mungkin.
+function resolveKnownStudentName(context) {
+  return String(
+    context?.studentName ||
+    context?.contextData?.session_meta?.display_name ||
+    context?.sessionMeta?.display_name ||
+    sessionStorage.getItem('alb_student_name') || ''
+  ).trim();
+}
+
 export function persistLockdown(context, locked = true, extra = {}) {
   const key = getLocalScopeKey(context, 'lockdown');
   if (!locked) {
@@ -149,6 +161,8 @@ export function ensureLocalLockOverlay(context, persisted = {}) {
     context.handleLockdown(true);
   }
 
+  const knownName = resolveKnownStudentName(context);
+
   if (!$('#alb-global-lock-overlay').length) {
     $('body').append(`
       <div id="alb-global-lock-overlay" class="fixed inset-0 z-[100000] bg-slate-950/85 backdrop-blur-md flex items-center justify-center p-4">
@@ -156,35 +170,46 @@ export function ensureLocalLockOverlay(context, persisted = {}) {
           <div class="text-center mb-5">
             <div class="w-16 h-16 mx-auto rounded-full bg-red-100 text-red-700 flex items-center justify-center text-2xl mb-4"><i class="fa-solid fa-lock"></i></div>
             <h2 class="text-[22px] font-black text-ink mb-2">Chat dikunci sementara</h2>
-            <p class="text-[14px] text-body leading-6">Batas peringatan bahasa kurang pantas sudah mencapai <b>${Number(persisted.warnings || 3)}/3</b>. Minta key pembuka ke guru, lalu isi form di bawah.</p>
+            <p class="text-[14px] text-body leading-6">Batas peringatan bahasa kurang pantas sudah mencapai <b>${Number(persisted.warnings || 3)}/3</b>. Minta key pembuka ke guru lewat tombol WhatsApp, lalu masukkan key di bawah.</p>
           </div>
+          <button id="alb-global-unlock-wa" type="button" class="w-full bg-green-500 hover:bg-green-600 text-white rounded-xl px-4 py-3 text-[14px] font-bold transition-colors mb-4"><i class="fa-brands fa-whatsapp mr-1"></i> Minta key ke guru via WhatsApp</button>
           <div class="space-y-3">
-            <input id="alb-global-unlock-name" type="text" class="w-full bg-canvas-soft border border-hairline rounded-xl px-4 py-3 text-[14px] text-ink outline-none focus:border-primary" placeholder="Nama siswa" value="${sessionStorage.getItem('alb_student_name') || ''}">
-            <input id="alb-global-unlock-key" type="text" class="w-full bg-canvas-soft border border-hairline rounded-xl px-4 py-3 text-[14px] text-ink outline-none focus:border-primary" placeholder="Key dari guru">
+            <input id="alb-global-unlock-name" type="text" class="w-full bg-canvas-soft border border-hairline rounded-xl px-4 py-3 text-[14px] text-ink outline-none focus:border-primary" placeholder="Nama siswa" value="${knownName.replace(/"/g, '&quot;')}">
+            <input id="alb-global-unlock-key" type="text" class="w-full bg-canvas-soft border border-hairline rounded-xl px-4 py-3 text-[14px] text-ink outline-none focus:border-primary" placeholder="Key dari guru (mis. GURU-1234)">
             <button id="alb-global-unlock-submit" type="button" class="w-full bg-primary hover:bg-primary-active text-white rounded-xl px-4 py-3 text-[14px] font-bold transition-colors">Verifikasi & Buka Akses</button>
           </div>
-          <button id="alb-global-unlock-wa" type="button" class="mt-3 w-full bg-green-500 hover:bg-green-600 text-white rounded-xl px-4 py-3 text-[14px] font-bold transition-colors"><i class="fa-brands fa-whatsapp mr-1"></i> Minta key ke guru</button>
         </div>
       </div>
     `);
+  } else if (knownName) {
+    // Overlay sudah ada (mis. persisted) → tetap prefill nama bila baru diketahui.
+    const $n = $('#alb-global-unlock-name');
+    if (!$n.val()) $n.val(knownName);
   }
 
+  // [FIX] Minta key ke guru TIDAK butuh nama — dulu tombol ini keliru minta isi nama dulu.
   $('#alb-global-unlock-wa').off('click').on('click', () => {
-    const text = encodeURIComponent('Halo Pak/Bu, chat AI Buddy saya terkunci karena peringatan bahasa. Mohon key pembukanya.');
+    const who = ($('#alb-global-unlock-name').val() || knownName || '').trim();
+    const intro = who ? `Halo Pak/Bu, saya ${who}.` : 'Halo Pak/Bu.';
+    const text = encodeURIComponent(`${intro} Chat AI Buddy saya terkunci karena peringatan bahasa. Mohon key pembukanya.`);
     window.open(`https://api.whatsapp.com/send/?phone=628989807094&text=${text}`, '_blank', 'noopener,noreferrer');
   });
 
   $('#alb-global-unlock-submit').off('click').on('click', async () => {
     const name = $('#alb-global-unlock-name').val().trim();
     const key = $('#alb-global-unlock-key').val().trim();
-    if (!name || !key) return Toast.show('Nama dan key wajib diisi.', 'error');
+    // [FIX] Cukup key yang wajib. Nama opsional (sering sudah diketahui sistem) — dulu
+    // syarat nama bikin unlock ketolak padahal identitas siswa sudah ada.
+    if (!key) return Toast.show('Masukkan key dari guru dulu ya.', 'error');
 
     $('#alb-global-unlock-submit').prop('disabled', true).html('<i class="fa-solid fa-spinner fa-spin"></i> Memverifikasi...');
     try {
-      try {
-        await ApiService.patch(`/chat/session/${context.sessionId}/profile`, { student_name: name });
-        sessionStorage.setItem('alb_student_name', name);
-      } catch (_) {}
+      if (name) {
+        try {
+          await ApiService.patch(`/chat/session/${context.sessionId}/profile`, { student_name: name });
+          sessionStorage.setItem('alb_student_name', name);
+        } catch (_) {}
+      }
 
       const res = await ApiService.post('/chat/unlock', { sessionId: context.sessionId, key });
       if (res?.status === 'success') {
