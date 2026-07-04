@@ -210,16 +210,59 @@ $(document).ready(function () {
     pc += `<tr class="border-t-2 border-hairline-strong"><td class="p-2 font-bold text-ink">Makro Rata-rata</td><td class="p-2">${p1(m.macro.precision)}</td><td class="p-2">${p1(m.macro.recall)}</td><td class="p-2 font-bold">${p1(m.macro.f1)}</td><td class="p-2">${m.n}</td></tr>`;
     pc += '</tbody></table>';
 
+    // [v0.9.51] Diagram batang Precision/Recall/F1 per kelas (CSS murni, tanpa library).
+    const COLORS = { precision: '#2a78d6', recall: '#1baf7a', f1: '#eda100' };
+    const bar = (val, color) => {
+      const h = Math.max(2, Math.round(val * 100 * 1.5)); // 100% => 150px
+      return `<div class="flex flex-col items-center justify-end">
+        <span class="text-[9px] text-muted mb-0.5">${Math.round(val * 100)}</span>
+        <div style="width:20px;height:${h}px;background:${color};border-radius:3px 3px 0 0"></div>
+      </div>`;
+    };
+    let groups = '';
+    m.labels.forEach((l) => {
+      const c = m.per_class[l];
+      groups += `<div class="flex flex-col items-center gap-2 flex-1">
+        <div class="flex items-end justify-center gap-1.5" style="height:172px">${bar(c.precision, COLORS.precision)}${bar(c.recall, COLORS.recall)}${bar(c.f1, COLORS.f1)}</div>
+        <div class="text-[11px] font-semibold text-ink text-center leading-tight">${txt[l] || l}</div>
+      </div>`;
+    });
+    const legend = `<div class="flex flex-wrap gap-3 text-[11px] text-muted mb-3">
+      <span class="flex items-center gap-1"><span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:${COLORS.precision}"></span>Precision</span>
+      <span class="flex items-center gap-1"><span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:${COLORS.recall}"></span>Recall</span>
+      <span class="flex items-center gap-1"><span class="inline-block w-2.5 h-2.5 rounded-sm" style="background:${COLORS.f1}"></span>F1</span>
+    </div>`;
+    const barChart = `<div class="border border-hairline rounded-xl p-4">${legend}<div class="flex items-end justify-around gap-3">${groups}</div><div class="text-[10px] text-muted-soft mt-2 text-center">Nilai dalam persen (0–100)</div></div>`;
+
+    const tabBtn = (id, label, active) =>
+      `<button type="button" data-eval-view="${id}" class="eval-view-btn px-3 py-1.5 text-[12px] font-semibold rounded-lg border transition-colors ${active ? 'bg-primary text-white border-primary' : 'bg-white text-muted border-hairline hover:text-ink'}">${label}</button>`;
+
     $('#eval-results').html(`
       <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
         <div class="bg-canvas-soft rounded-xl p-4 text-center"><div class="text-[28px] font-black text-emerald-600">${p1(m.accuracy)}</div><div class="text-[12px] text-muted">Akurasi</div></div>
         <div class="bg-canvas-soft rounded-xl p-4 text-center"><div class="text-[28px] font-black text-violet-600">${p1(m.macro.f1)}</div><div class="text-[12px] text-muted">Macro-F1</div></div>
         <div class="bg-canvas-soft rounded-xl p-4 text-center"><div class="text-[28px] font-black text-ink">${m.n}</div><div class="text-[12px] text-muted">Sampel Berlabel</div></div>
       </div>
-      <div class="overflow-x-auto mb-5"><div class="text-[12px] font-bold text-muted uppercase mb-2">Confusion Matrix</div>${cm}</div>
-      <div class="overflow-x-auto"><div class="text-[12px] font-bold text-muted uppercase mb-2">Metrik per Kelas</div>${pc}</div>
+      <div class="flex items-center gap-2 mb-4">${tabBtn('table', 'Tabel', true)}${tabBtn('chart', 'Diagram', false)}</div>
+      <div data-eval-pane="table">
+        <div class="overflow-x-auto mb-5"><div class="text-[12px] font-bold text-muted uppercase mb-2">Confusion Matrix</div>${cm}</div>
+        <div class="overflow-x-auto"><div class="text-[12px] font-bold text-muted uppercase mb-2">Metrik per Kelas</div>${pc}</div>
+      </div>
+      <div data-eval-pane="chart" class="hidden">
+        <div class="mb-5"><div class="text-[12px] font-bold text-muted uppercase mb-2">Precision / Recall / F1 per Kelas</div>${barChart}</div>
+        <div class="overflow-x-auto"><div class="text-[12px] font-bold text-muted uppercase mb-2">Confusion Matrix</div>${cm}</div>
+      </div>
     `);
   }
+
+  // [v0.9.51] Toggle tampilan hasil evaluasi: Tabel <-> Diagram.
+  $('#eval-results').on('click', '.eval-view-btn', function () {
+    const view = $(this).data('eval-view');
+    $('#eval-results .eval-view-btn').removeClass('bg-primary text-white border-primary').addClass('bg-white text-muted border-hairline');
+    $(this).addClass('bg-primary text-white border-primary').removeClass('bg-white text-muted border-hairline');
+    $('#eval-results [data-eval-pane]').addClass('hidden');
+    $(`#eval-results [data-eval-pane="${view}"]`).removeClass('hidden');
+  });
 
   $('#btn-export-eval').on('click', exportEval);
   $('#file-eval').on('change', function () { if (this.files && this.files[0]) onEvalFile(this.files[0]); this.value = ''; });
