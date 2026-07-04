@@ -424,10 +424,12 @@ export async function resolveStudentIdentityByEmail(email, classCode = '', cours
     return { found: false, message: 'Email tidak valid.' };
   }
 
-  // [FIX] Tangkap pemilik sesi & status lock SEBELUM applyStudentIdentity menimpanya —
-  // dipakai untuk menentukan apakah perlu pindah sesi (identitas beda / sesi terkunci milik
-  // siswa lain di device yang sama).
+  // [FIX] Tangkap pemilik sesi, kelas/course, & status lock SEBELUM applyStudentIdentity
+  // menimpanya — dipakai untuk menentukan apakah perlu pindah sesi (identitas beda, KELAS/COURSE
+  // beda, atau sesi terkunci milik siswa lain di device yang sama).
   const prevOwner = String(this.contextData?.session_meta?.email || '').trim().toLowerCase();
+  const prevClass = String(this.contextData?.session_meta?.class_code || '').trim().toUpperCase();
+  const prevCourse = String(this.contextData?.session_meta?.course_id || '').trim();
   const wasLocked = Boolean(this.isLocked);
 
   // [#dropdown] courseId (dari pilihan dropdown kelas) lebih akurat daripada string kelas —
@@ -443,13 +445,18 @@ export async function resolveStudentIdentityByEmail(email, classCode = '', cours
   if (res?.status === 'success' && res.data) {
     if (res.data.found) {
       this.applyStudentIdentity?.(res.data);
-      // [FIX] Jangan tempelkan identitas ke sesi milik siswa LAIN. Kalau pemilik sesi berbeda,
-      // atau sesi aktif terkunci tapi bukan milik siswa ini (mis. sesi lockdown Dummy 1 di
-      // device yang sama) → pindah ke sesi milik siswa ini (reuse kalau ada / buat baru).
-      // switchSessionForIdentity aman untuk kasus "sesi terkunci miliknya sendiri" karena
-      // reuse-nya balik ke sesi yang sama (no-op) → lock miliknya tetap terjaga.
+      // [FIX] Jangan tempelkan identitas ke sesi milik siswa LAIN / kelas LAIN. Pindah sesi bila:
+      //  - pemilik sesi berbeda (email), atau
+      //  - siswa memilih KELAS/COURSE yang berbeda dari sesi aktif (mis. pilih 9A tapi sesi 8E), atau
+      //  - sesi aktif terkunci tapi bukan milik siswa ini (sesi lockdown siswa sebelumnya).
+      // switchSessionForIdentity aman untuk "sesi terkunci/kelas miliknya sendiri" karena reuse
+      // balik ke sesi yang sama (no-op).
+      const newClass = String(res.data.class_code || '').trim().toUpperCase();
+      const newCourse = String(res.data.course_id || '').trim();
       const ownerMismatch = prevOwner !== cleanEmail;
-      if (ownerMismatch && (Boolean(prevOwner) || wasLocked)) {
+      const classMismatch = (prevClass && newClass && prevClass !== newClass)
+        || (prevCourse && newCourse && prevCourse !== newCourse);
+      if ((ownerMismatch && (Boolean(prevOwner) || wasLocked)) || classMismatch) {
         await this.switchSessionForIdentity?.({ ...res.data, email: cleanEmail });
       }
     }
