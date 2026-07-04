@@ -2,6 +2,7 @@ import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
 import Toast from '../../components/toast.js';
 import { resolvePageKeyFromContext } from './pageElements.js';
+import { persistLockdown } from './safety-overlays.js';
 
 function getPrimaryCourseFromContext(contextData = {}) {
   const meta = contextData.session_meta || {};
@@ -408,6 +409,12 @@ export async function resolveStudentIdentityByEmail(email, classCode = '', cours
     return { found: false, message: 'Email tidak valid.' };
   }
 
+  // [FIX] Tangkap pemilik sesi & status lock SEBELUM applyStudentIdentity menimpanya —
+  // dipakai untuk menentukan apakah perlu pindah sesi (identitas beda / sesi terkunci milik
+  // siswa lain di device yang sama).
+  const prevOwner = String(this.contextData?.session_meta?.email || '').trim().toLowerCase();
+  const wasLocked = Boolean(this.isLocked);
+
   // [#dropdown] courseId (dari pilihan dropdown kelas) lebih akurat daripada string kelas —
   // BE memprioritaskan courseId. classCode tetap dikirim untuk fallback/label.
   const res = await ApiService.post('/moodle/student/resolve', {
@@ -419,11 +426,95 @@ export async function resolveStudentIdentityByEmail(email, classCode = '', cours
   });
 
   if (res?.status === 'success' && res.data) {
-    if (res.data.found) this.applyStudentIdentity?.(res.data);
+    if (res.data.found) {
+      this.applyStudentIdentity?.(res.data);
+      // [FIX] Jangan tempelkan identitas ke sesi milik siswa LAIN. Kalau pemilik sesi berbeda,
+      // atau sesi aktif terkunci tapi bukan milik siswa ini (mis. sesi lockdown Dummy 1 di
+      // device yang sama) → pindah ke sesi milik siswa ini (reuse kalau ada / buat baru).
+      // switchSessionForIdentity aman untuk kasus "sesi terkunci miliknya sendiri" karena
+      // reuse-nya balik ke sesi yang sama (no-op) → lock miliknya tetap terjaga.
+      const ownerMismatch = prevOwner !== cleanEmail;
+      if (ownerMismatch && (Boolean(prevOwner) || wasLocked)) {
+        await this.switchSessionForIdentity?.({ ...res.data, email: cleanEmail });
+      }
+    }
     return res.data;
   }
 
   return { found: false, message: res?.message || 'Siswa tidak ditemukan.' };
+}
+
+// [FIX] Pastikan sesi aktif BENAR-BENAR milik siswa (email+kelas) ini. Reuse sesi terdaftar
+// bila ada; kalau tidak, buat SESI BARU (paksa lewati reuse harian). Lalu bersihkan lock/chat
+// device milik sesi sebelumnya. Mengembalikan true bila pindah sesi.
+export async function switchSessionForIdentity(identity = {}) {
+  const email = String(identity.email || '').trim().toLowerCase();
+  const primary = identity.enrolled_courses?.[0] || {};
+  const classCode = String(identity.class_code || primary.class_code || '').trim().toUpperCase();
+  const courseId = identity.course_id || primary.course_id || null;
+  if (!email || !classCode) return false;
+
+  // 1. Sudah ada sesi terdaftar milik siswa ini? (registry email+kelas)
+  let targetId = null;
+  try {
+    const q = new URLSearchParams({ projectKey: this.projectKey || '', projectId: this.projectId || '', email, classCode }).toString();
+    const r = await ApiService.get(`/student-sessions/reuse?${q}`).catch(() => null);
+    if (r?.status === 'success' && r.data?.found && r.data?.session?.session_id) targetId = r.data.session.session_id;
+  } catch (_) {}
+
+  // Sesi aktif SUDAH milik siswa ini → tak perlu apa-apa (lock miliknya tetap terjaga).
+  if (targetId && String(targetId) === String(this.sessionId)) return false;
+
+  // 2. Belum punya → buat sesi baru untuk identitas ini (switchCourse:true = lewati reuse harian).
+  if (!targetId) {
+    try {
+      const res = await ApiService.post('/chat/session', {
+        projectKey: this.projectKey,
+        switchCourse: true,
+        sourceUrl: this.contextData?.sourceUrl || window.location.href,
+        pageContext: this.contextData || { title: document.title },
+        moodleContext: {
+          course_id: courseId || undefined,
+          course_title: identity.course_title || primary.course_title || '',
+          email,
+          moodle_user_id: identity.moodle_user_id || null,
+          student_name: identity.fullname || ''
+        }
+      });
+      if (res?.status === 'success' && res.data?.session?.id) targetId = res.data.session.id;
+    } catch (e) { console.warn('[SwitchIdentity] gagal buat sesi baru:', e); }
+  }
+  if (!targetId || String(targetId) === String(this.sessionId)) return false;
+
+  // 3. Pindah ke sesi target.
+  this.sessionId = targetId;
+  try { sessionStorage.setItem('alb_ai_session_' + this.projectKey, targetId); } catch (_) {}
+  try {
+    const host = window.location.host || 'localhost';
+    localStorage.setItem(`alb:${host}:${this.projectKey}:active-student`, JSON.stringify({
+      email, class_code: classCode, sessionId: targetId,
+      moodle_user_id: identity.moodle_user_id || null, fullname: identity.fullname || '',
+      course_id: courseId || null, course_title: identity.course_title || primary.course_title || '', savedAt: Date.now()
+    }));
+  } catch (_) {}
+  ApiService.post('/student-sessions/register', {
+    projectKey: this.projectKey, projectId: this.projectId, sessionId: targetId,
+    email, classCode, student_name: identity.fullname || '',
+    moodle_user_id: identity.moodle_user_id || null, course_id: courseId || null,
+    course_title: identity.course_title || primary.course_title || ''
+  }).catch(() => null);
+
+  // Bersihkan lock device + chat milik sesi siswa sebelumnya.
+  try { persistLockdown(this, false); } catch (_) {}
+  $('#alb-global-lock-overlay').remove();
+  this.handleLockdown?.(false);
+  if (this.$chatArea?.length) this.$chatArea.empty();
+
+  // Muat state & riwayat sesi yang benar (kalau sesi baru → kosong & tidak terkunci).
+  await this.loadSessionState?.();
+  await this.loadChatHistory?.();
+  this.updateConnectedCourseHeader?.();
+  return true;
 }
 
 export function showStudentIdentityModal(defaultEmail = '', reason = '') {
