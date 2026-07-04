@@ -415,6 +415,23 @@ export function applyStudentIdentity(identity = {}) {
   sessionStorage.setItem('alb_student_class_code', identity.class_code || primaryCourse.class_code || '');
   sessionStorage.setItem('alb_student_lms_identity', JSON.stringify(identity));
 
+  // [FIX] Selaraskan identitas aktif (localStorage) dgn identitas terverifikasi. Tanpa ini,
+  // active-student bisa stale (mis. nama akun VClass "Siswa Dummy 1") lalu di-spread ke tiap
+  // request chat (events.js) → menimpa nama/kelas benar → sapaan bot salah nama.
+  try {
+    const host = window.location.host || 'localhost';
+    localStorage.setItem(`alb:${host}:${this.projectKey}:active-student`, JSON.stringify({
+      email: identity.email || '',
+      class_code: identity.class_code || primaryCourse.class_code || '',
+      fullname: identity.fullname || identity.email || '',
+      moodle_user_id: identity.moodle_user_id || null,
+      course_id: identity.course_id || primaryCourse.course_id || null,
+      course_title: identity.course_title || primaryCourse.course_title || '',
+      sessionId: this.sessionId,
+      savedAt: Date.now()
+    }));
+  } catch (_) {}
+
   this.updateConnectedCourseHeader?.();
 }
 
