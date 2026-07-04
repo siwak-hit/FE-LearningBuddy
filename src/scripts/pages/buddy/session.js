@@ -2,7 +2,7 @@ import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
 import Toast from '../../components/toast.js';
 import { resolvePageKeyFromContext } from './pageElements.js';
-import { persistLockdown } from './safety-overlays.js';
+import { persistLockdown, ensureLocalLockOverlay } from './safety-overlays.js';
 
 function getPrimaryCourseFromContext(contextData = {}) {
   const meta = contextData.session_meta || {};
@@ -123,7 +123,22 @@ export async function loadSessionState() {
     if (res.status === 'success' && res.data) {
       const { ai_usage, safety_state } = res.data;
       if (ai_usage) this.updateAiUsageUI(ai_usage);
-      if (safety_state?.locked) this.handleLockdown(true);
+
+      // [FIX] Server = SUMBER KEBENARAN status lock. Rekonsiliasi overlay lock (yang di-persist
+      // per-device di localStorage) dengan state SESI INI. Tanpa ini, lock milik sesi/siswa
+      // sebelumnya di device yang sama tetap menutupi sesi baru yang sebenarnya TIDAK terkunci
+      // (mis. sesi Kanaya baru & unlocked tapi overlay "Siswa Dummy 1" masih muncul).
+      if (safety_state?.locked) {
+        ensureLocalLockOverlay(this, {
+          warnings: safety_state.warnings || 3,
+          reason: safety_state.lock_reason || 'profanity_limit'
+        });
+      } else if (safety_state) {
+        // Server balas state & sesi ini TIDAK terkunci → buang lock device yang basi.
+        persistLockdown(this, false);
+        $('#alb-global-lock-overlay').remove();
+        this.handleLockdown(false);
+      }
     }
   } catch (e) {
     console.error('Gagal memuat session state', e);
