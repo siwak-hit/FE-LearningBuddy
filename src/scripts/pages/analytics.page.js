@@ -7,16 +7,6 @@ $(document).ready(function () {
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
   const pct = (a, b) => (b ? Math.round((a / b) * 100) : 0);
 
-  function card(label, value, icon, color) {
-    return `
-      <div class="bg-surface-card border border-hairline rounded-[14px] p-4 shadow-sm">
-        <div class="flex items-center gap-2 text-[12px] font-semibold text-muted uppercase tracking-wide mb-1">
-          <i class="fa-solid ${icon} ${color}"></i> ${esc(label)}
-        </div>
-        <div class="text-[28px] font-black text-ink leading-none">${esc(value)}</div>
-      </div>`;
-  }
-
   // Bar horizontal: items [{label,count}], color class untuk bar.
   function bars(items, colorClass) {
     if (!items || !items.length) return '<div class="text-[13px] text-muted-soft py-3 text-center">Belum ada data.</div>';
@@ -36,43 +26,50 @@ $(document).ready(function () {
     }).join('');
   }
 
+  // Histogram vertikal distribusi tingkat kesulitan.
   function renderDifficulty(dist, totalSessions) {
     const rows = [
-      { label: 'Lancar', count: dist.lancar || 0, bar: 'bg-emerald-500' },
-      { label: 'Mulai Bingung', count: dist.mulai_bingung || 0, bar: 'bg-amber-500' },
-      { label: 'Kesulitan', count: dist.kesulitan || 0, bar: 'bg-rose-500' }
+      { label: 'Lancar', count: dist.lancar || 0, bar: 'bg-[#6f8f6a]' },
+      { label: 'Mulai Bingung', count: dist.mulai_bingung || 0, bar: 'bg-[#bfa059]' },
+      { label: 'Kesulitan', count: dist.kesulitan || 0, bar: 'bg-[#c08472]' }
     ];
     const max = Math.max(...rows.map((r) => r.count), 1);
-    return rows.map((r) => {
-      const w = Math.max(4, Math.round((r.count / max) * 100));
+    const MAX_PX = 150;
+    const columns = rows.map((r) => {
+      const h = r.count > 0 ? Math.max(6, Math.round((r.count / max) * MAX_PX)) : 2;
       return `
-        <div class="mb-3">
-          <div class="flex items-center justify-between text-[13px] mb-1">
-            <span class="text-ink font-medium">${r.label}</span>
-            <span class="text-muted font-semibold">${r.count} sesi · ${pct(r.count, totalSessions)}%</span>
-          </div>
-          <div class="h-3 rounded-full bg-hairline-soft overflow-hidden">
-            <div class="h-full rounded-full ${r.bar}" style="width:${w}%"></div>
-          </div>
+        <div class="flex flex-col items-center justify-end flex-1">
+          <span class="text-[13px] font-bold text-ink mb-1.5">${r.count}</span>
+          <div class="w-full max-w-[72px] ${r.bar} rounded-t-md transition-all" style="height:${h}px"></div>
         </div>`;
     }).join('');
+    const labels = rows.map((r) => `
+      <div class="flex-1 text-center">
+        <div class="text-[13px] text-ink font-medium">${r.label}</div>
+        <div class="text-[11px] text-muted-soft">${pct(r.count, totalSessions)}%</div>
+      </div>`).join('');
+    return `
+      <div class="pt-2">
+        <div class="flex items-end justify-around gap-4 border-b border-hairline" style="height:${MAX_PX + 24}px">${columns}</div>
+        <div class="flex justify-around gap-4 mt-2">${labels}</div>
+      </div>`;
   }
 
   function renderEfficiency(src, eff) {
     return `
       <div class="flex items-center gap-4 mb-4">
         <div class="text-center flex-1">
-          <div class="text-[30px] font-black text-emerald-600 leading-none">${eff.system_pct || 0}%</div>
+          <div class="text-[30px] font-black text-[#6f8f6a] leading-none">${eff.system_pct || 0}%</div>
           <div class="text-[12px] text-muted mt-1">Sistem / Cache</div>
         </div>
         <div class="text-center flex-1">
-          <div class="text-[30px] font-black text-sky-600 leading-none">${eff.ai_pct || 0}%</div>
+          <div class="text-[30px] font-black text-[#7b91b0] leading-none">${eff.ai_pct || 0}%</div>
           <div class="text-[12px] text-muted mt-1">AI (kuota)</div>
         </div>
       </div>
       <div class="h-3 rounded-full overflow-hidden flex bg-hairline-soft">
-        <div class="h-full bg-emerald-500" style="width:${eff.system_pct || 0}%"></div>
-        <div class="h-full bg-sky-500" style="width:${eff.ai_pct || 0}%"></div>
+        <div class="h-full bg-[#6f8f6a]" style="width:${eff.system_pct || 0}%"></div>
+        <div class="h-full bg-[#7b91b0]" style="width:${eff.ai_pct || 0}%"></div>
       </div>
       <div class="text-[12px] text-muted mt-3">Sistem: ${src.system || 0} · Cache: ${src.cache || 0} · AI: ${src.ai || 0} (total ${src.total || 0} jawaban)</div>`;
   }
@@ -90,32 +87,25 @@ $(document).ready(function () {
 
   async function loadAnalytics() {
     const projectId = $('#filter-project').val() || 'all';
-    $('#summary-cards').html('<div class="col-span-full text-center py-6 text-muted"><i class="fa-solid fa-spinner fa-spin"></i> Menghitung analitik…</div>');
+    ['#difficulty-chart', '#confusing-chart', '#efficiency-chart', '#topics-chart'].forEach((s) => $(s).html('<div class="text-center py-6 text-muted"><i class="fa-solid fa-spinner fa-spin"></i></div>'));
 
     try {
       const res = await ApiService.get(`/analytics/learning?projectId=${encodeURIComponent(projectId)}`);
       const d = res?.data;
       if (!d || !d.totals || d.totals.sessions === 0) {
-        $('#summary-cards').empty();
         $('#analytics-empty').removeClass('hidden');
         ['#difficulty-chart', '#confusing-chart', '#efficiency-chart', '#topics-chart'].forEach((s) => $(s).empty());
         return;
       }
       $('#analytics-empty').addClass('hidden');
 
-      $('#summary-cards').html(
-        card('Total Sesi', d.totals.sessions, 'fa-comments', 'text-primary') +
-        card('Siswa Aktif', d.totals.students, 'fa-users', 'text-sky-500') +
-        card('Sesi Terdeteksi Kesulitan', d.totals.escalated_sessions, 'fa-triangle-exclamation', 'text-amber-500') +
-        card('Rekomendasi Diterima', (d.recommendation?.acceptance_pct || 0) + '%', 'fa-handshake-angle', 'text-emerald-500')
-      );
-
       $('#difficulty-chart').html(renderDifficulty(d.difficulty_distribution || {}, d.totals.sessions));
-      $('#confusing-chart').html(bars(d.top_confusing_topics, 'bg-amber-500'));
+      $('#confusing-chart').html(bars(d.top_confusing_topics, 'bg-[#bfa059]'));
       $('#efficiency-chart').html(renderEfficiency(d.answer_sources || {}, d.efficiency || {}));
-      $('#topics-chart').html(bars(d.top_topics, 'bg-rose-400'));
+      $('#topics-chart').html(bars(d.top_topics, 'bg-[#c08472]'));
     } catch (e) {
-      $('#summary-cards').html('<div class="col-span-full text-center py-6 text-rose-500 text-[14px]">Gagal memuat analitik. Coba lagi.</div>');
+      ['#difficulty-chart', '#confusing-chart', '#efficiency-chart', '#topics-chart'].forEach((s) => $(s).empty());
+      $('#difficulty-chart').html('<div class="text-center py-6 text-rose-500 text-[14px]">Gagal memuat analitik. Coba lagi.</div>');
     }
   }
 
@@ -269,6 +259,18 @@ $(document).ready(function () {
 
   $('#btn-refresh').on('click', loadAnalytics);
   $('#filter-project').on('change', loadAnalytics);
+
+  // Tab menu analitik (Section 2): tab bar di desktop, dropdown di mobile — tersinkron.
+  function activateAnalyticsTab(target) {
+    if (!target) return;
+    $('#analytics-tabs .an-tab-btn').removeClass('is-active');
+    $(`#analytics-tabs .an-tab-btn[data-target="${target}"]`).addClass('is-active');
+    $('.an-pane').addClass('hidden');
+    $('#' + target).removeClass('hidden');
+    $('#analytics-tab-select').val(target);
+  }
+  $('#analytics-tabs .an-tab-btn').on('click', function () { activateAnalyticsTab($(this).data('target')); });
+  $('#analytics-tab-select').on('change', function () { activateAnalyticsTab($(this).val()); });
 
   (async () => { await loadProjects(); await loadAnalytics(); })();
 });

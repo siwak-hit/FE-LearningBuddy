@@ -4,6 +4,7 @@ import { DocumentAPI } from '../fetch/document.fetch.js';
 import { KnowledgeAPI } from '../fetch/knowledge.fetch.js';
 import { MoodleApi } from '../fetch/moodle.fetch.js';
 import { SourceViewer } from '../components/source-viewer.js';
+import { Modal } from '../components/modal.js';
 
 $(document).ready(function () {
   let activeProjectId = '';
@@ -55,59 +56,16 @@ $(document).ready(function () {
   });
 
   // ==========================================
-  // SUB-TAB KONFIGURASI: Integrasi Moodle / Upload Manual
-  // ==========================================
-  function activateKbSubtab(targetId = 'subtab-moodle') {
-    $('.kb-subtab-btn')
-      .removeClass('bg-white shadow-sm text-ink')
-      .addClass('text-muted hover:text-ink');
-    $(`.kb-subtab-btn[data-subtarget="${targetId}"]`)
-      .addClass('bg-white shadow-sm text-ink')
-      .removeClass('text-muted hover:text-ink');
-
-    $('.kb-subtab-pane').addClass('hidden').removeClass('flex');
-    $(`#${targetId}`).removeClass('hidden').addClass('flex');
-
-    if (targetId === 'subtab-moodle') loadMoodleKnowledgePanel();
-  }
-
-  $(document).on('click', '.kb-subtab-btn', function () {
-    activateKbSubtab($(this).data('subtarget'));
-  });
-
-  // Switch button di dalam Upload Manual: Materi / Instruksi Aktivitas
-  function activateManualPane(target = 'documents') {
-    const normalized = target === 'activities' ? 'activities' : 'documents';
-    $('.kb-manual-switch-btn')
-      .removeClass('bg-white shadow-sm text-ink')
-      .addClass('text-muted hover:text-ink');
-    $(`.kb-manual-switch-btn[data-manual="${normalized}"]`)
-      .addClass('bg-white shadow-sm text-ink')
-      .removeClass('text-muted hover:text-ink');
-
-    $('.kb-manual-pane').addClass('hidden').removeClass('flex');
-    $(`#manual-pane-${normalized}`).removeClass('hidden').addClass('flex');
-  }
-
-  $(document).on('click', '.kb-manual-switch-btn', function () {
-    activateManualPane($(this).data('manual'));
-  });
-
-  // ==========================================
   // MOODLE SYNC
   // ==========================================
   function getMoodleConfigBlockMessage(config = null) {
     const hasConfig = Boolean(config);
     const hasEndpoint = Boolean(config?.hasEndpoint || config?.rest_endpoint);
     const hasToken = Boolean(config?.hasToken || config?.token);
-    const courseMap = config?.course_map || {};
-    const courseRoutes = normalizeArray(config?.course_routes);
-    const courseCount = courseRoutes.length || Object.keys(courseMap).length;
 
     if (!activeProjectId) return 'Pilih project terlebih dahulu.';
-    if (!hasConfig) return 'Project ini belum memiliki konfigurasi Moodle. Silakan simpan endpoint dan token Moodle terlebih dahulu.';
-    if (!hasEndpoint || !hasToken) return 'Project ini belum memiliki endpoint dan token Moodle aktif. Silakan lengkapi konfigurasi Moodle terlebih dahulu.';
-    if (courseCount <= 0) return 'Course map Moodle belum dipetakan. Silakan sinkronkan course map di konfigurasi Moodle terlebih dahulu.';
+    if (!hasConfig) return 'Belum ada koneksi VClass. Klik "Atur koneksi VClass" terlebih dahulu untuk menyimpan endpoint & token.';
+    if (!hasEndpoint || !hasToken) return 'Koneksi VClass belum lengkap. Klik "Atur koneksi VClass" untuk melengkapinya.';
     return '';
   }
 
@@ -138,21 +96,26 @@ $(document).ready(function () {
     const courseMap = config?.course_map || {};
     const courseRoutes = normalizeArray(config?.course_routes);
     const courseCount = courseRoutes.length || Object.keys(courseMap).length;
-    const ready = hasConfig && hasEndpoint && hasToken && courseCount > 0;
+    // Cukup endpoint+token: pemetaan kelas dibangun otomatis saat sinkron (autoDiscover).
+    const ready = hasConfig && hasEndpoint && hasToken;
     const blockMessage = getMoodleConfigBlockMessage(config);
 
     moodleKbState.ready = ready;
 
     $('#moodle-kb-endpoint').text(config?.rest_endpoint || '-').attr('title', config?.rest_endpoint || '-');
     $('#moodle-kb-token').text(hasToken ? 'Tersimpan' : 'Belum ada');
-    $('#moodle-kb-courses').text(courseCount > 0 ? `${courseCount} course` : 'Belum dipetakan');
+    $('#moodle-kb-courses').text(courseCount > 0 ? `${courseCount} kelas` : 'Belum dipetakan');
     setMoodleSyncButtonState(Boolean(activeProjectId) && ready, blockMessage);
+
+    // Badge status: mobile = ikon saja (title muncul saat hover/klik), desktop = ikon + teks.
+    const baseBadge = 'text-[11px] px-2 sm:px-2.5 py-1 rounded-full inline-flex items-center gap-1 cursor-default';
 
     if (ready) {
       $('#moodle-kb-status-badge')
         .removeClass()
-        .addClass('text-[11px] px-2.5 py-1 rounded-full bg-[#16a34a]/10 border border-[#16a34a]/20 text-[#16a34a]')
-        .text('Terhubung');
+        .addClass(`${baseBadge} bg-[#16a34a]/10 border border-[#16a34a]/20 text-[#16a34a]`)
+        .attr('title', 'Terhubung')
+        .html('<i class="fa-solid fa-check"></i><span class="hidden sm:inline">Terhubung</span>');
       return;
     }
 
@@ -164,8 +127,9 @@ $(document).ready(function () {
 
     $('#moodle-kb-status-badge')
       .removeClass()
-      .addClass('text-[11px] px-2.5 py-1 rounded-full bg-[#f59e0b]/10 border border-[#f59e0b]/20 text-[#b45309]')
-      .text(message);
+      .addClass(`${baseBadge} bg-[#f59e0b]/10 border border-[#f59e0b]/20 text-[#b45309]`)
+      .attr('title', message)
+      .html(`<i class="fa-solid fa-triangle-exclamation"></i><span class="hidden sm:inline">${message}</span>`);
   }
 
   async function loadMoodleKnowledgePanel(options = {}) {
@@ -288,6 +252,7 @@ $(document).ready(function () {
 
     const resetMoodleChunks = $('#moodle-reset-chunks').is(':checked');
     const includeResource = $('#moodle-include-resource').is(':checked');
+    const includeStudents = $('#moodle-sync-students-opt').is(':checked');
     const $btn = $('#btn-sync-moodle-materials');
 
     setButtonLoading($btn, true, 'Menyinkronkan...');
@@ -306,7 +271,7 @@ $(document).ready(function () {
         resetMoodleChunks,
         includeResource,
         materialOnly: true,
-        autoDiscover: false,
+        autoDiscover: true, // sekalian bangun/refresh pemetaan kelas saat sinkron
         skipCourseInfo: true
       });
 
@@ -328,24 +293,26 @@ $(document).ready(function () {
         try { localStorage.setItem(`alb:lastMoodleSync:${activeProjectId}`, String(Date.now())); } catch (_) {}
         updateMoodleSyncReminder();
 
-        // [v0.9.40.1] Bangun INDEKS siswa sebagai langkah TERPISAH (request sendiri) agar
-        // tak ikut bikin sync materi timeout. Kalau gagal, materi tetap sukses.
-        $('#moodle-sync-result').removeClass('hidden').html(`
-          <div class="bg-sky-50 border border-sky-100 rounded-[12px] p-4 text-[13px] text-sky-700">
-            <div class="font-semibold mb-1"><i class="fa-solid fa-users fa-fade mr-1.5"></i>Membangun indeks siswa untuk verifikasi cepat…</div>
-            <div>Mengambil daftar peserta tiap kelas. Sebentar ya.</div>
-          </div>
-        `);
-        try {
-          const stu = await MoodleApi.syncStudents({ projectId: activeProjectId });
-          if (stu?.status === 'success') {
-            const d = stu.data || {};
-            showToast(`Indeks siswa siap: ${d.students || 0} siswa (${d.coursesOk || 0}/${d.courses || 0} kelas)`, 'success');
-          } else {
-            showToast('Materi tersinkron, tapi indeks siswa gagal — coba klik Sinkron lagi.', 'error');
+        // Data siswa hanya dibangun kalau admin mencentang opsinya (langkah terpisah agar
+        // tak ikut bikin sync materi timeout). Kalau gagal, materi tetap sukses.
+        if (includeStudents) {
+          $('#moodle-sync-result').removeClass('hidden').html(`
+            <div class="bg-sky-50 border border-sky-100 rounded-[12px] p-4 text-[13px] text-sky-700">
+              <div class="font-semibold mb-1"><i class="fa-solid fa-users fa-fade mr-1.5"></i>Membangun data siswa untuk verifikasi cepat…</div>
+              <div>Mengambil daftar peserta tiap kelas. Sebentar ya.</div>
+            </div>
+          `);
+          try {
+            const stu = await MoodleApi.syncStudents({ projectId: activeProjectId });
+            if (stu?.status === 'success') {
+              const d = stu.data || {};
+              showToast(`Data siswa siap: ${d.students || 0} siswa (${d.coursesOk || 0}/${d.courses || 0} kelas)`, 'success');
+            } else {
+              showToast('Materi tersinkron, tapi data siswa gagal — coba sinkron lagi dengan opsi siswa.', 'error');
+            }
+          } catch (_) {
+            showToast('Materi tersinkron, tapi data siswa gagal/timeout — coba ulangi.', 'error');
           }
-        } catch (_) {
-          showToast('Materi tersinkron, tapi indeks siswa gagal/timeout — coba ulangi.', 'error');
         }
         renderMoodleSyncResult(moodleKbState.syncSummary);
 
@@ -372,44 +339,9 @@ $(document).ready(function () {
     showToast(getMoodleConfigBlockMessage(moodleKbState.config), 'error');
   });
 
-  $(document).on('click', '#btn-sync-moodle-materials', syncMoodleMaterials);
-
-  // [v0.9.40.1] Bangun indeks siswa secara MANDIRI (tombol terpisah) — tak bergantung
-  // pada sync materi, jadi tetap jalan walau sync materi kelamaan/timeout di sisi klien.
-  async function syncMoodleStudents() {
-    if (!activeProjectId) return showToast('Project aktif belum terdeteksi.', 'error');
-    if (!moodleKbState.ready) return showToast(getMoodleConfigBlockMessage(moodleKbState.config), 'error');
-
-    const $btn = $('#btn-sync-moodle-students');
-    setButtonLoading($btn, true, 'Membangun indeks…');
-    $('#moodle-sync-result').removeClass('hidden').html(`
-      <div class="bg-sky-50 border border-sky-100 rounded-[12px] p-4 text-[13px] text-sky-700">
-        <div class="font-semibold mb-1"><i class="fa-solid fa-users fa-fade mr-1.5"></i>Membangun indeks siswa…</div>
-        <div>Mengambil daftar peserta tiap kelas dari Moodle. Sebentar ya.</div>
-      </div>
-    `);
-    try {
-      const stu = await MoodleApi.syncStudents({ projectId: activeProjectId });
-      if (stu?.status === 'success') {
-        const d = stu.data || {};
-        showToast(`Indeks siswa siap: ${d.students || 0} siswa (${d.coursesOk || 0}/${d.courses || 0} kelas, email: ${d.withEmail ?? '-'})`, 'success');
-        $('#moodle-sync-result').removeClass('hidden').html(`
-          <div class="bg-white border border-hairline rounded-[14px] p-5 text-[13px] text-body">
-            <div class="font-semibold text-ink mb-1"><i class="fa-solid fa-circle-check text-[#16a34a] mr-1.5"></i>Indeks siswa diperbarui</div>
-            <p class="text-muted-soft">${d.students || 0} siswa terindeks dari ${d.coursesOk || 0}/${d.courses || 0} kelas. Yang punya email terbaca: <b>${d.withEmail ?? '-'}</b>. Verifikasi siswa sekarang cepat.</p>
-          </div>
-        `);
-      } else {
-        showToast(stu?.message || 'Gagal membangun indeks siswa', 'error');
-      }
-    } catch (e) {
-      showToast('Gagal/timeout membangun indeks siswa. Coba ulangi.', 'error');
-    } finally {
-      setButtonLoading($btn, false);
-    }
-  }
-
-  $(document).on('click', '#btn-sync-moodle-students', syncMoodleStudents);
+  // Tombol di halaman hanya membuka modal konfirmasi; sinkron dijalankan dari modal.
+  $(document).on('click', '#btn-sync-moodle-materials', () => Modal.open('modal-sync-materi'));
+  $(document).on('click', '#btn-confirm-sync-materi', () => { Modal.close('modal-sync-materi'); syncMoodleMaterials(); });
 
   // [reminder] Tampilkan banner "integrasi ulang" maks sekali/hari bila sinkron terakhir
   // sudah >24 jam (atau belum pernah). Dismiss menyimpan tanggal agar tak muncul lagi hari ini.
@@ -424,8 +356,8 @@ $(document).ready(function () {
 
     if (stale && dismissedDay !== todayKey) {
       const detail = last
-        ? `Terakhir sinkron ${Math.floor((Date.now() - last) / DAY)} hari lalu. Kalau di Moodle/VClass ada materi baru, klik <b>Sinkron Moodle</b> untuk memperbarui (materi lama dihapus, yang baru dimasukkan).`
-        : `Belum pernah sinkron di perangkat ini. Klik <b>Sinkron Moodle</b> untuk mengambil materi terbaru dari LMS.`;
+        ? `Terakhir sinkron ${Math.floor((Date.now() - last) / DAY)} hari lalu. Kalau di VClass ada materi baru, klik <b>Sinkronkan dengan Moodle</b> untuk memperbaruinya.`
+        : `Belum pernah sinkron di perangkat ini. Klik <b>Sinkronkan dengan Moodle</b> untuk mengambil materi terbaru dari VClass.`;
       $('#moodle-sync-reminder-detail').html(detail);
       $banner.removeClass('hidden');
     } else {
@@ -543,6 +475,11 @@ $(document).ready(function () {
   }
 
   function escapeHtml(value = '') { return String(value).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll("'", '&#039;'); }
+  // Data dari Moodle sering sudah ter-encode (mis. "&amp;"). Decode dulu ke karakter asli
+  // pakai textarea (native), lalu escapeHtml lagi agar aman & tampil benar ("&").
+  const _entityDecoder = typeof document !== 'undefined' ? document.createElement('textarea') : null;
+  function decodeEntities(value = '') { if (!_entityDecoder) return String(value ?? ''); _entityDecoder.innerHTML = String(value ?? ''); return _entityDecoder.value; }
+  function cleanText(value = '') { return escapeHtml(decodeEntities(value)); }
   function truncateText(value = '', max = 220) { const text = String(value || '').trim(); if (text.length <= max) return text; return `${text.substring(0, max)}...`; }
   function isIndexedDocument(doc) { return doc.status === 'indexed'; }
   function showToast(text, type = 'success') { Toastify({ text, backgroundColor: type === 'error' ? 'var(--color-semantic-error)' : 'var(--color-primary)' }).showToast(); }
@@ -929,19 +866,21 @@ $(document).ready(function () {
     moodleKbState.config = null;
     moodleKbState.ready = false;
     setMoodleSyncButtonState(false, 'Memuat konfigurasi Moodle...');
-    $('#moodle-sync-result').removeClass('hidden').html(`
-      <div class="bg-white border border-hairline rounded-[14px] p-5 text-[13px] text-body">
-        <div class="font-semibold text-ink mb-1"><i class="fa-solid fa-circle-info text-primary mr-1.5"></i>Belum ada proses sinkron berjalan.</div>
-        <p class="text-muted-soft">Tekan <b>Sinkron Moodle</b> untuk mengambil materi terbaru dari LMS. Sistem hanya memproses materi Page/Resource, bukan quiz, assignment, atau forum.</p>
-      </div>
-    `);
-    // Reset sub-tab Konfigurasi ke Integrasi Moodle + materi manual ke daftar Materi.
-    activateKbSubtab('subtab-moodle');
-    activateManualPane('documents');
+    // Reset panel hasil sinkron (kosong & tersembunyi) — tidak lagi menampilkan ajakan
+    // "klik sinkron" terus-menerus.
+    $('#moodle-sync-result').addClass('hidden').empty();
 
-    // activateKbSubtab('subtab-moodle') sudah memanggil loadMoodleKnowledgePanel().
-    // Jangan dipanggil dobel agar tidak hit config endpoint berulang saat project dimuat.
-    await Promise.all([ loadDocuments(), loadFaqs(), loadActivities() ]);
+    // Bawa konteks project aktif ke halaman Moodle/VClass lewat tombol "Atur koneksi".
+    try { localStorage.setItem('active_project_id', activeProjectId); } catch (_) {}
+    $('#link-atur-koneksi').attr('href', `/dashboard/moodle?project_id=${encodeURIComponent(activeProjectId)}`);
+
+    // Muat status koneksi Moodle + daftar materi. FAQ/instruksi manual disembunyikan
+    // (knowledge base sepenuhnya bersumber dari Moodle), jadi tidak dimuat lagi.
+    $('#search-documents').val('');
+    store.documents.query = '';
+    loadMoodleKnowledgePanel();
+
+    await loadDocuments();
     loadKnowledgeValidation();
   }
 
@@ -956,8 +895,17 @@ $(document).ready(function () {
 // ==========================================
   // PAGINATION RENDERER
   // ==========================================
+  // Data yang tampil, sudah difilter oleh kolom pencarian (khusus documents).
+  function getRenderData(type) {
+    const data = store[type].data;
+    const q = (type === 'documents' && store.documents.query) ? store.documents.query.toLowerCase() : '';
+    if (!q) return data;
+    return data.filter((d) => `${decodeEntities(d.title || '')} ${decodeEntities(d.topic || '')}`.toLowerCase().includes(q));
+  }
+
   function renderTable(type) {
-    const { data, page, limit } = store[type];
+    const { page, limit } = store[type];
+    const data = getRenderData(type);
     const totalPages = Math.ceil(data.length / limit) || 1;
     const startIndex = (page - 1) * limit;
     const paginatedData = data.slice(startIndex, startIndex + limit);
@@ -971,7 +919,10 @@ $(document).ready(function () {
     if (data.length === 0) {
       // documents: 3 kolom, faqs/activities: 2 kolom
       const colSpan = type === 'documents' ? 3 : 2;
-      tbody.html(`<tr><td colspan="${colSpan}" class="text-center py-8 text-muted-soft">Belum ada data tersedia.</td></tr>`);
+      const emptyMsg = (type === 'documents' && store.documents.query)
+        ? 'Materi tidak ditemukan. Coba kata kunci lain.'
+        : 'Belum ada data tersedia.';
+      tbody.html(`<tr><td colspan="${colSpan}" class="text-center py-8 text-muted-soft">${emptyMsg}</td></tr>`);
       return;
     }
 
@@ -1030,9 +981,9 @@ $(document).ready(function () {
                   ${escapeHtml(d.file_type || 'file')}
                 </span>
               </div>
-              <div class="font-medium text-ink">${escapeHtml(d.title)}</div>
-              <div class="text-[12px] text-muted-soft mt-1 truncate max-w-[180px] md:max-w-[350px]" title="${escapeHtml(topicText)}">
-                ${escapeHtml(topicText)}
+              <div class="font-medium text-ink">${cleanText(d.title)}</div>
+              <div class="text-[12px] text-muted-soft mt-1 truncate max-w-[180px] md:max-w-[350px]" title="${cleanText(topicText)}">
+                ${cleanText(topicText)}
               </div>
             </td>
             <td class="py-4 px-4 md:px-6 align-middle text-center">
@@ -1083,7 +1034,10 @@ $(document).ready(function () {
   }
 
   $('.btn-prev').on('click', function() { const type = $(this).data('type'); if (store[type].page > 1) { store[type].page--; renderTable(type); } });
-  $('.btn-next').on('click', function() { const type = $(this).data('type'); const totalPages = Math.ceil(store[type].data.length / store[type].limit); if (store[type].page < totalPages) { store[type].page++; renderTable(type); } });
+  $('.btn-next').on('click', function() { const type = $(this).data('type'); const totalPages = Math.ceil(getRenderData(type).length / store[type].limit); if (store[type].page < totalPages) { store[type].page++; renderTable(type); } });
+
+  // Pencarian materi (client-side).
+  $('#search-documents').on('input', function() { store.documents.query = $(this).val() || ''; store.documents.page = 1; renderTable('documents'); });
 
   async function loadDocuments() { $('#list-documents').html('<tr><td colspan="3" class="text-center py-6"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat materi...</td></tr>'); const res = await DocumentAPI.getDocumentsByProject(activeProjectId); if (res && res.data) { store.documents.data = res.data; store.documents.page = 1; renderTable('documents'); } }
   async function loadFaqs() { $('#list-faqs').html('<tr><td colspan="2" class="text-center py-6"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat FAQ...</td></tr>'); const res = await KnowledgeAPI.getFaqsByProject(activeProjectId); if (res && res.data) { store.faqs.data = res.data; store.faqs.page = 1; renderTable('faqs'); } }
@@ -1158,6 +1112,32 @@ $(document).ready(function () {
     }
     $(this).html('Proses Import').prop('disabled', false);
   });
+
+  // ===== Tutorial carousel (tombol melayang) =====
+  (function initTutorial() {
+    const $slides = $('.tutorial-slide');
+    const total = $slides.length;
+    if (!total) return;
+    let step = 0;
+
+    let dots = '';
+    for (let i = 0; i < total; i++) dots += `<span class="tut-dot w-2 h-2 rounded-full ${i === 0 ? 'bg-ink' : 'bg-hairline-strong'}"></span>`;
+    $('#tutorial-dots').html(dots);
+
+    function render() {
+      $slides.addClass('hidden').eq(step).removeClass('hidden');
+      $('#tutorial-dots .tut-dot').each(function (i) {
+        $(this).toggleClass('bg-ink', i === step).toggleClass('bg-hairline-strong', i !== step);
+      });
+      $('#btn-tutorial-prev').prop('disabled', step === 0);
+      $('#btn-tutorial-next').text(step === total - 1 ? 'Selesai' : 'Lanjut');
+    }
+
+    $('#btn-open-tutorial').on('click', () => { step = 0; render(); Modal.open('modal-tutorial'); });
+    $('#btn-tutorial-prev').on('click', () => { if (step > 0) { step--; render(); } });
+    $('#btn-tutorial-next').on('click', () => { if (step < total - 1) { step++; render(); } else { Modal.close('modal-tutorial'); } });
+    render();
+  })();
 
   loadProjects();
 });

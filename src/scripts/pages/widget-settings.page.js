@@ -15,7 +15,8 @@ function getProjectKey(project = {}) {
   return widgetConfig?.project_key || '';
 }
 
-function getSelectedProject(projects = []) {
+// Tentukan project awal: dari URL (projectId/projectKey) → localStorage → project pertama.
+function getInitialProject(projects = []) {
   const params = new URLSearchParams(window.location.search);
   const projectId = params.get('projectId');
   const projectKey = params.get('projectKey');
@@ -24,13 +25,18 @@ function getSelectedProject(projects = []) {
     const byId = projects.find((project) => String(project.id) === String(projectId));
     if (byId) return byId;
   }
-
   if (projectKey) {
     const byKey = projects.find((project) => getProjectKey(project) === projectKey);
     if (byKey) return byKey;
   }
 
-  return null;
+  const saved = localStorage.getItem('active_project_id');
+  if (saved) {
+    const bySaved = projects.find((project) => String(project.id) === String(saved));
+    if (bySaved) return bySaved;
+  }
+
+  return projects[0] || null;
 }
 
 function showIntegrationCard(show = true) {
@@ -132,7 +138,7 @@ const WidgetSettingsPage = {
     this.$loadingState = $('#loading-state');
     this.$emptyState = $('#empty-state');
     this.$formContainer = $('#config-form-container');
-    this.$projectName = $('#project-name-display');
+    this.$selector = $('#project-selector');
   },
 
   bindEvents() {
@@ -146,6 +152,14 @@ const WidgetSettingsPage = {
 
     $('#btn-reveal-integration').on('click', () => Modal.open('modal-integration'));
     $('#access_mode').on('change', (e) => this.updateAvailableTabs($(e.target).val()));
+
+    this.$selector.on('change', (e) => {
+      const projectId = $(e.target).val();
+      localStorage.setItem('active_project_id', projectId);
+      window.history.replaceState({}, document.title, window.location.pathname);
+      const project = (this.projects || []).find((p) => String(p.id) === String(projectId));
+      if (project) this.loadConfigForProject(project);
+    });
   },
 
   initTabs() {
@@ -165,36 +179,44 @@ const WidgetSettingsPage = {
       if (pRes.status !== 'success' || !Array.isArray(pRes.data) || pRes.data.length === 0) {
         this.$loadingState.addClass('hidden');
         this.$emptyState.removeClass('hidden');
+        this.$selector.closest('.relative').hide();
         showIntegrationCard(false);
         return;
       }
 
-      const project = getSelectedProject(pRes.data);
+      this.projects = pRes.data;
+      this.$selector.html(pRes.data.map((p) => `<option value="${p.id}">${p.name}</option>`).join(''));
 
-      if (!project) {
-        this.$loadingState.addClass('hidden');
-        this.$emptyState
-          .html('<i class="fa-solid fa-triangle-exclamation text-semantic-error mr-2"></i> Project tidak valid atau parameter <b>projectId/projectKey</b> tidak ditemukan. Kembali ke Dashboard lalu klik tombol Config pada project yang benar.')
-          .removeClass('hidden');
-        showIntegrationCard(false);
-        return;
-      }
+      const initial = getInitialProject(pRes.data);
+      this.$selector.val(initial.id);
+      localStorage.setItem('active_project_id', initial.id);
+      await this.loadConfigForProject(initial);
+    } catch (e) {
+      console.error(e);
+      this.$loadingState.addClass('hidden');
+      Toast.show('Gagal memuat data dari server', 'danger');
+    }
+  },
 
-      this.selectedProject = project;
-      this.selectedProjectKey = getProjectKey(project);
-      this.$projectName.text(project.name || 'Project');
+  async loadConfigForProject(project) {
+    this.$loadingState.removeClass('hidden');
+    this.$formContainer.addClass('hidden');
+    this.$emptyState.addClass('hidden');
+    showIntegrationCard(false);
 
-      if (!this.selectedProjectKey) {
-        this.$loadingState.addClass('hidden');
-        this.$emptyState
-          .html('<i class="fa-solid fa-triangle-exclamation text-semantic-error mr-2"></i> Project ini belum memiliki <b>project_key</b>. Pastikan widget config dibuat saat project dibuat.')
-          .removeClass('hidden');
-        showIntegrationCard(false);
-        return;
-      }
+    this.selectedProject = project;
+    this.selectedProjectKey = getProjectKey(project);
 
+    if (!this.selectedProjectKey) {
+      this.$loadingState.addClass('hidden');
+      this.$emptyState
+        .html('<i class="fa-solid fa-triangle-exclamation text-semantic-error mr-2"></i> Project ini belum memiliki <b>project_key</b>. Pastikan widget config dibuat saat project dibuat.')
+        .removeClass('hidden');
+      return;
+    }
+
+    try {
       const cRes = await WidgetApi.getConfig(this.selectedProjectKey);
-
       if (cRes.status === 'success' && cRes.data) {
         this.populateForm(this.selectedProjectKey, cRes.data);
         this.$loadingState.addClass('hidden');
@@ -202,12 +224,10 @@ const WidgetSettingsPage = {
         showIntegrationCard(true);
         return;
       }
-
       this.$loadingState.addClass('hidden');
       this.$emptyState
         .html('<i class="fa-solid fa-circle-exclamation text-semantic-error mr-2"></i> Config widget untuk project ini belum ditemukan.')
         .removeClass('hidden');
-      showIntegrationCard(false);
     } catch (e) {
       console.error(e);
       this.$loadingState.addClass('hidden');

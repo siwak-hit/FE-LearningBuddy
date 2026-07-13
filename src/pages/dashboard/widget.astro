@@ -3,16 +3,19 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
 import WidgetConfigForm from '../../components/forms/WidgetConfigForm.astro';
 ---
 
-<DashboardLayout title="Widget Config">
+<DashboardLayout title="Widget">
   <div class="max-w-[1200px] mx-auto w-full">
     <div class="mb-10">
-      <h1 class="font-serif text-4xl text-ink tracking-tight mb-2">Pengaturan Integrasi</h1>
-      <p class="text-body text-[16px]">
-        Atur tampilan, akses, dan generate script untuk
-        <span id="project-name-display" class="inline-block font-semibold text-blue-700 bg-blue-100 border border-blue-200 px-3 py-0.5 rounded-full text-[14px] align-middle shadow-sm ml-1">
-          Project...
-        </span>.
-      </p>
+      <h1 class="font-serif text-4xl text-ink tracking-tight mb-2">Widget</h1>
+      <div class="text-body text-[16px] flex items-center flex-wrap gap-3">
+        <span>Atur tampilan, akses, dan script untuk</span>
+        <div class="relative inline-block">
+          <select id="project-selector" class="appearance-none bg-surface-strong border border-hairline-strong text-ink px-4 py-1.5 pr-8 rounded-full text-[14px] font-medium focus:outline-none focus:border-ink transition-colors cursor-pointer min-w-[160px]">
+            <option value="">Memuat project...</option>
+          </select>
+          <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-muted pointer-events-none"></i>
+        </div>
+      </div>
     </div>
 
     <div id="loading-state" class="text-center py-16 text-muted-soft">
@@ -21,7 +24,7 @@ import WidgetConfigForm from '../../components/forms/WidgetConfigForm.astro';
     </div>
 
     <div id="empty-state" class="hidden bg-surface-card border border-hairline text-body p-6 rounded-[16px]">
-      <i class="fa-solid fa-circle-exclamation text-semantic-error mr-2"></i> Belum ada project yang dibuat. Silakan buat di Dashboard terlebih dahulu.
+      <i class="fa-solid fa-circle-exclamation text-semantic-error mr-2"></i> Belum ada project yang dibuat. Silakan buat project baru di halaman Dashboard terlebih dahulu.
     </div>
 
     <div id="config-form-container" class="hidden">

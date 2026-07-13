@@ -68,33 +68,6 @@ $(document).ready(function () {
     }
   }
 
-  // Kartu statistik — editorial: angka serif besar + micro-label.
-  function statCard(label, value, { accent = 'text-ink', icon = 'fa-comments', note = '' } = {}) {
-    return `
-      <div class="bg-surface-card border border-hairline rounded-[16px] p-5 shadow-sm flex flex-col">
-        <div class="flex items-center justify-between mb-3">
-          <p class="text-[11px] font-semibold text-muted-soft tracking-[0.12em] uppercase">${label}</p>
-          <span class="w-8 h-8 rounded-full bg-canvas-soft border border-hairline flex items-center justify-center text-muted shrink-0"><i class="fa-solid ${icon} text-[12px]"></i></span>
-        </div>
-        <h2 class="text-3xl font-serif ${accent} leading-none">${value}</h2>
-        ${note ? `<p class="text-[11px] text-muted-soft mt-2">${note}</p>` : ''}
-      </div>`;
-  }
-
-  async function loadSummary() {
-    $('#log-summary-container').html('<div class="col-span-full text-center py-6 text-muted"><i class="fa-solid fa-spinner fa-spin mr-2"></i><span class="text-[13px]">Menghitung ringkasan…</span></div>');
-    const res = await LogAPI.getSummary({ projectId: state.projectId });
-    if (res && res.data) {
-      const d = res.data;
-      $('#log-summary-container').html(
-        statCard('Total Sesi', d.totalSessions, { icon: 'fa-comments', note: `${d.totalMessages || 0} pesan tercatat` }) +
-        statCard('Indikasi SARA', d.hateSpeech, { accent: 'text-semantic-error', icon: 'fa-triangle-exclamation', note: 'Perlu ditindaklanjuti' }) +
-        statCard('Kata Kasar', d.profanity, { accent: d.profanity > 0 ? 'text-red-600' : 'text-ink', icon: 'fa-comment-slash' }) +
-        statCard('Sinyal Stres', d.mentalHealth, { accent: d.mentalHealth > 0 ? 'text-orange-600' : 'text-ink', icon: 'fa-brain', note: 'Kelelahan / burnout' })
-      );
-    }
-  }
-
   async function loadSessions() {
     $('#session-list').html('<div class="col-span-full text-center py-10 text-muted"><i class="fa-solid fa-spinner fa-spin text-2xl mb-2"></i><p class="text-[13px]">Memuat daftar sesi…</p></div>');
 
@@ -321,7 +294,7 @@ $(document).ready(function () {
   $('#btn-close-chat').on('click', closeDrawer);
   $('#chat-overlay').on('click', closeDrawer);
 
-  const handleFilterChange = () => { state.page = 1; loadSummary(); loadSessions(); };
+  const handleFilterChange = () => { state.page = 1; loadSessions(); };
   $('#filter-search').on('input', debounce(function () { state.q = $(this).val(); handleFilterChange(); }, 500));
   $('#filter-project').on('change', function () { state.projectId = $(this).val(); handleFilterChange(); });
   $('#filter-date').on('change', function () { state.date = $(this).val(); handleFilterChange(); });
@@ -339,6 +312,5 @@ $(document).ready(function () {
   });
 
   loadProjects();
-  loadSummary();
   loadSessions();
 });

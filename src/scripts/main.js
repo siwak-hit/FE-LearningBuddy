@@ -62,6 +62,7 @@ const AppRouter = {
     Modal.init();
     this.initSidebar();
     this.initGlobal();
+    this.initLogout();
 
     // Routing System
     if (isLoginPath(path)) {
@@ -99,6 +100,23 @@ const AppRouter = {
 
     $('#btn-open-sidebar').on('click', () => toggleSidebar(true));
     $('#btn-close-sidebar, #sidebar-overlay').on('click', () => toggleSidebar(false));
+  },
+
+  initLogout() {
+    const btn = document.getElementById('btn-logout');
+    if (!btn) return;
+    btn.addEventListener('click', () => {
+      Modal.confirm({
+        title: 'Keluar?',
+        message: 'Anda akan keluar dari Panel Admin dan kembali ke halaman login.',
+        confirmText: 'Ya, Keluar',
+        cancelText: 'Batal',
+        onConfirm: () => {
+          try { ADMIN_TOKEN_KEYS.forEach((k) => localStorage.removeItem(k)); } catch (e) { /* ignore */ }
+          window.location.replace('/auth/login');
+        }
+      });
+    });
   },
 
   initGlobal() {

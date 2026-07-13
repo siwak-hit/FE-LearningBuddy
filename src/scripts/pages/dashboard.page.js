@@ -1,7 +1,20 @@
 import $ from 'jquery';
 import { ProjectApi } from '../fetch/project.fetch.js';
+import { LogAPI } from '../fetch/log.fetch.js';
+import { ApiService } from '../fetch/api.js';
 import Toast from '../components/toast.js';
 import { Modal } from '../components/modal.js';
+
+// Kartu statistik ringkas untuk menu dashboard.
+function statCard(label, value, icon, color) {
+  return `
+    <div class="bg-surface-card border border-hairline rounded-[14px] p-4 shadow-sm">
+      <div class="flex items-center gap-2 text-[12px] font-semibold text-muted uppercase tracking-wide mb-1">
+        <i class="fa-solid ${icon} ${color}"></i> ${escapeHtml(label)}
+      </div>
+      <div class="text-[28px] font-black text-ink leading-none">${escapeHtml(value)}</div>
+    </div>`;
+}
 
 function escapeHtml(value = '') {
   return String(value)
@@ -39,6 +52,7 @@ const DashboardPage = {
     this.cacheDOM();
     this.bindEvents();
     this.loadProjects();
+    this.loaded = {};
   },
 
   cacheDOM() {
@@ -50,6 +64,66 @@ const DashboardPage = {
     $('#btn-open-create-modal').on('click', () => Modal.open('modal-create-project'));
     this.$form.on('submit', this.handleCreate.bind(this));
     this.$list.on('click', '.btn-delete-project', this.handleDelete.bind(this));
+    $('#dash-tabs .dash-tab-btn').on('click', (e) => this.switchTab($(e.currentTarget)));
+  },
+
+  switchTab($btn) {
+    const target = $btn.data('target');
+    $('#dash-tabs .dash-tab-btn').removeClass('is-active');
+    $btn.addClass('is-active');
+    $('.dash-pane').addClass('hidden');
+    $(`#${target}`).removeClass('hidden');
+
+    if (target === 'dash-pane-analytics' && !this.loaded.analytics) {
+      this.loaded.analytics = true;
+      this.loadAnalyticsSummary();
+    }
+    if (target === 'dash-pane-logs' && !this.loaded.logs) {
+      this.loaded.logs = true;
+      this.loadLogsSummary();
+    }
+  },
+
+  async loadAnalyticsSummary() {
+    const $c = $('#dash-analytics-cards');
+    try {
+      const res = await ApiService.get('/analytics/learning?projectId=all');
+      const d = res?.data;
+      if (!d || !d.totals || d.totals.sessions === 0) {
+        $c.html('<div class="col-span-full text-center py-8 text-muted-soft text-[14px]">Belum ada data interaksi untuk dianalisis.</div>');
+        return;
+      }
+      $c.html(
+        statCard('Total Sesi', d.totals.sessions, 'fa-comments', 'text-primary') +
+        statCard('Siswa Aktif', d.totals.students, 'fa-users', 'text-sky-500') +
+        statCard('Sesi Terdeteksi Kesulitan', d.totals.escalated_sessions, 'fa-triangle-exclamation', 'text-amber-500') +
+        statCard('Rekomendasi Diterima', (d.recommendation?.acceptance_pct || 0) + '%', 'fa-handshake-angle', 'text-emerald-500')
+      );
+    } catch (_) {
+      $c.html('<div class="col-span-full text-center py-8 text-rose-500 text-[14px]">Gagal memuat analitik. Coba lagi.</div>');
+      this.loaded.analytics = false;
+    }
+  },
+
+  async loadLogsSummary() {
+    const $c = $('#dash-logs-cards');
+    try {
+      const res = await LogAPI.getSummary({});
+      const d = res?.data;
+      if (!d) {
+        $c.html('<div class="col-span-full text-center py-8 text-muted-soft text-[14px]">Belum ada percakapan tercatat.</div>');
+        return;
+      }
+      $c.html(
+        statCard('Total Sesi', d.totalSessions || 0, 'fa-comments', 'text-primary') +
+        statCard('Indikasi SARA', d.hateSpeech || 0, 'fa-triangle-exclamation', 'text-semantic-error') +
+        statCard('Kata Kasar', d.profanity || 0, 'fa-comment-slash', 'text-red-600') +
+        statCard('Sinyal Stres', d.mentalHealth || 0, 'fa-brain', 'text-orange-600')
+      );
+    } catch (_) {
+      $c.html('<div class="col-span-full text-center py-8 text-rose-500 text-[14px]">Gagal memuat ringkasan. Coba lagi.</div>');
+      this.loaded.logs = false;
+    }
   },
 
   async loadProjects() {

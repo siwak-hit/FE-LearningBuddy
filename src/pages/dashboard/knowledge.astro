@@ -6,7 +6,7 @@ import ActivityInstructionForm from '../../components/forms/ActivityInstructionF
 import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.jsx';
 ---
 
-<DashboardLayout title="Knowledge Base">
+<DashboardLayout title="Basis Pengetahuan">
   <style>
     .hide-scrollbar::-webkit-scrollbar { display: none; }
     .hide-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -15,29 +15,15 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
 
   <div class="max-w-[1200px] mx-auto w-full flex flex-col relative pb-12">
     <div class="mb-8 shrink-0">
-      <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Knowledge Base</h1>
-      <p class="text-body text-[16px]">Kelola sumber pengetahuan AI (Materi, FAQ, dan Instruksi) untuk memastikan respon asisten yang akurat.</p>
-    </div>
-
-    <div class="bg-surface-card border border-hairline rounded-[16px] p-6 mb-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-6 shrink-0">
-      <div class="flex items-center gap-4 w-full md:w-auto">
-        <div class="w-12 h-12 bg-canvas-soft rounded-full border border-hairline flex items-center justify-center text-muted shrink-0">
-          <i class="fa-solid fa-folder-open text-lg"></i>
+      <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Basis Pengetahuan</h1>
+      <div class="text-body text-[16px] flex items-center flex-wrap gap-3">
+        <span>Kelola sumber jawaban AI untuk</span>
+        <div class="relative inline-block">
+          <select id="project-selector" class="appearance-none bg-surface-strong border border-hairline-strong text-ink px-4 py-1.5 pr-8 rounded-full text-[14px] font-medium focus:outline-none focus:border-ink transition-colors cursor-pointer min-w-[160px]">
+            <option value="">Memuat project...</option>
+          </select>
+          <i class="fa-solid fa-chevron-down absolute right-3 top-1/2 -translate-y-1/2 text-[12px] text-muted pointer-events-none"></i>
         </div>
-        <div class="flex-1 w-full">
-          <p class="text-[13px] text-muted-soft font-medium uppercase tracking-wider mb-1">Project Aktif</p>
-          <div class="relative w-full md:w-64">
-            <select id="project-selector" class="w-full appearance-none bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-2.5 text-[15px] font-medium text-ink focus:outline-none focus:border-ink cursor-pointer shadow-sm">
-              <option value="">Memuat Project...</option>
-            </select>
-            <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-4 text-muted">
-              <i class="fa-solid fa-chevron-down text-[13px]"></i>
-            </div>
-          </div>
-        </div>
-      </div>
-      <div class="text-[13px] text-muted-soft bg-canvas-soft px-4 py-2 rounded-full border border-hairline whitespace-nowrap">
-        <i class="fa-solid fa-circle-info mr-1"></i> AI merespon berdasarkan data di bawah ini.
       </div>
     </div>
 
@@ -48,250 +34,249 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
 
     <div id="knowledge-workspace" class="hidden flex flex-col mt-4">
 
-      <!-- TAB UTAMA: Konfigurasi | FAQ -->
-      <div class="flex border-b border-hairline mb-6 overflow-x-auto hide-scrollbar gap-2 shrink-0">
-        <button type="button" class="kb-tab-btn whitespace-nowrap px-6 py-3 border-b-2 border-primary text-ink font-medium transition-colors" data-target="tab-konfigurasi"><i class="fa-solid fa-database mr-2 text-muted-soft"></i>Konfigurasi Materi</button>
-        <button type="button" class="kb-tab-btn whitespace-nowrap px-6 py-3 border-b-2 border-transparent text-muted hover:text-ink transition-colors" data-target="tab-faq"><i class="fa-solid fa-circle-question mr-2 text-muted-soft"></i>FAQ Umum</button>
-      </div>
-
       <!-- ===================================================== -->
-      <!-- TAB KONFIGURASI: sub-tab Integrasi Moodle / Upload Manual -->
+      <!-- Bagian 1: koneksi VClass + aksi sinkron materi/siswa -->
       <!-- ===================================================== -->
-      <div id="tab-konfigurasi" class="kb-tab-pane flex flex-col min-h-[600px]">
-
-        <!-- Sub-tab switcher -->
-        <div class="flex bg-canvas-soft p-1 rounded-xl border border-hairline w-full md:w-fit mb-6 shrink-0">
-          <button type="button" class="kb-subtab-btn flex-1 md:flex-none px-5 py-2.5 rounded-lg bg-white shadow-sm text-ink text-[13px] font-medium transition-colors" data-subtarget="subtab-moodle">
-            <i class="fa-solid fa-plug-circle-bolt mr-1.5"></i> Integrasi Moodle
-          </button>
-          <button type="button" class="kb-subtab-btn flex-1 md:flex-none px-5 py-2.5 rounded-lg text-muted hover:text-ink text-[13px] font-medium transition-colors" data-subtarget="subtab-manual">
-            <i class="fa-solid fa-upload mr-1.5"></i> Upload Manual
-          </button>
-        </div>
-
-        <!-- SUB-TAB: INTEGRASI MOODLE -->
-        <div id="subtab-moodle" class="kb-subtab-pane flex flex-col">
-          <section class="bg-surface-card border border-hairline rounded-[16px] p-5 md:p-6 shadow-sm">
-            <div class="flex items-start gap-4 mb-5">
-              <div class="w-12 h-12 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0">
-                <i class="fa-solid fa-plug-circle-bolt text-lg"></i>
-              </div>
-              <div>
-                <h2 class="font-serif text-xl md:text-2xl text-ink">Sumber Materi dari Moodle</h2>
-                <p class="text-[14px] text-body max-w-2xl mt-1">
-                  Cukup satu tombol untuk menyinkronkan materi dari VClass/Moodle ke basis pengetahuan AI Buddy.
-                </p>
-              </div>
+      <section class="bg-surface-card border border-hairline rounded-[16px] p-5 md:p-6 shadow-sm mb-6">
+        <div class="flex items-start justify-between gap-4 mb-5">
+          <div class="flex items-start gap-4">
+            <div class="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0"><i class="fa-solid fa-plug-circle-bolt"></i></div>
+            <div>
+              <h2 class="font-serif text-xl md:text-2xl text-ink">Materi dari Moodle / VClass</h2>
+              <p class="text-[14px] text-body max-w-xl mt-1">Materi yang dipakai AI diambil otomatis dari kelas Anda di VClass.</p>
             </div>
-
-            <!-- [reminder] Pengingat integrasi ulang (muncul sekali/hari bila >24 jam sejak sinkron terakhir). -->
-            <div id="moodle-sync-reminder" class="hidden mb-4 bg-amber-50 border border-amber-200 rounded-[14px] p-4 flex items-start gap-3">
-              <i class="fa-solid fa-bell text-amber-500 mt-0.5"></i>
-              <div class="flex-1 min-w-0 text-[13px] text-amber-800">
-                <b>Sudah lebih dari sehari sejak sinkron terakhir.</b><br />
-                <span id="moodle-sync-reminder-detail" class="text-amber-700">Kalau di Moodle/VClass ada materi baru, klik <b>Sinkron Moodle</b> untuk memperbarui (materi lama dihapus, yang baru dimasukkan).</span>
-              </div>
-              <button type="button" id="moodle-sync-reminder-dismiss" class="text-amber-500 hover:text-amber-700 shrink-0" title="Tutup pengingat hari ini"><i class="fa-solid fa-xmark"></i></button>
-            </div>
-
-            <div id="material-source-moodle" class="bg-canvas-soft border border-hairline rounded-[14px] p-4 md:p-5">
-              <div class="flex flex-col xl:flex-row xl:items-start xl:justify-between gap-5">
-                <div class="flex-1 min-w-0">
-                  <div class="flex flex-wrap items-center gap-2 mb-2">
-                    <h3 class="text-[16px] font-semibold text-ink">Integrasi Materi Moodle</h3>
-                    <span id="moodle-kb-status-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted">Memuat...</span>
-                  </div>
-                  <p class="text-[13px] text-body max-w-3xl">
-                    Klik tombol sinkron untuk mengambil endpoint dan token dari tabel <b>moodle_configs</b>, lalu membaca <b>materi saja</b> dari Moodle seperti Page dan Resource HTML. Quiz, assignment, dan forum tidak ikut disinkronkan di menu ini.
-                  </p>
-
-                  <div id="moodle-kb-summary" class="mt-4 grid grid-cols-1 sm:grid-cols-3 gap-3">
-                    <div class="bg-white border border-hairline rounded-[12px] p-3">
-                      <p class="text-[11px] text-muted-soft mb-1">Endpoint</p>
-                      <p id="moodle-kb-endpoint" class="text-[12px] font-medium text-ink truncate">-</p>
-                    </div>
-                    <div class="bg-white border border-hairline rounded-[12px] p-3">
-                      <p class="text-[11px] text-muted-soft mb-1">Token</p>
-                      <p id="moodle-kb-token" class="text-[12px] font-medium text-ink">-</p>
-                    </div>
-                    <div class="bg-white border border-hairline rounded-[12px] p-3">
-                      <p class="text-[11px] text-muted-soft mb-1">Course Map</p>
-                      <p id="moodle-kb-courses" class="text-[12px] font-medium text-ink">-</p>
-                    </div>
-                  </div>
-                </div>
-
-                <div class="w-full xl:w-[300px] bg-white border border-hairline rounded-[14px] p-4 shrink-0">
-                  <label class="flex items-start gap-3 text-[13px] text-body cursor-pointer mb-4">
-                    <input type="checkbox" id="moodle-reset-chunks" class="mt-1 rounded border-hairline-strong text-primary focus:ring-primary" checked />
-                    <span>
-                      <b class="text-ink">Reset materi Moodle lama</b><br />
-                      <span class="text-muted-soft">Hapus materi Moodle lama lalu masukkan yang baru. Materi upload manual tidak ikut dihapus.</span>
-                    </span>
-                  </label>
-
-                  <!-- [setting] Jenis materi yang di-chunk: page (default) / + resource -->
-                  <div class="mb-4 border-t border-hairline pt-3">
-                    <p class="text-[12px] font-bold text-ink mb-2">Jenis materi yang diproses</p>
-                    <label class="flex items-start gap-2.5 text-[12px] mb-2 opacity-80 cursor-not-allowed">
-                      <input type="checkbox" checked disabled class="mt-0.5 rounded border-hairline-strong text-primary" />
-                      <span><b class="text-ink">Page</b> <span class="text-[10px] font-bold text-primary">(disarankan)</span><br /><span class="text-muted-soft">Materi HTML statis yang langsung dibaca di layar VClass (tanpa download).</span></span>
-                    </label>
-                    <label class="flex items-start gap-2.5 text-[12px] cursor-pointer">
-                      <input type="checkbox" id="moodle-include-resource" class="mt-0.5 rounded border-hairline-strong text-primary focus:ring-primary" />
-                      <span><b class="text-ink">Resource</b><br /><span class="text-muted-soft">File unggahan (PDF / PPT / Docx) yang perlu di-download. Aktifkan bila ada materi penting berupa file.</span></span>
-                    </label>
-                  </div>
-
-                  <div id="moodle-sync-button-wrap" class="w-full" title="Klik untuk sinkronisasi materi Moodle">
-                    <button type="button" id="btn-sync-moodle-materials" class="w-full bg-primary text-white px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-primary-active transition-colors shadow-sm">
-                      <i class="fa-solid fa-cloud-arrow-down mr-1.5"></i> Sinkron Moodle (Materi)
-                    </button>
-                  </div>
-
-                  <!-- [v0.9.40.1] Tombol TERPISAH untuk indeks siswa (verifikasi cepat).
-                       Berguna kalau sync materi kelamaan/timeout — indeks bisa dibangun sendiri. -->
-                  <button type="button" id="btn-sync-moodle-students" class="w-full mt-2 bg-white border border-hairline-strong text-ink px-4 py-2.5 rounded-full text-[13px] font-medium hover:bg-surface-strong transition-colors" title="Bangun indeks daftar siswa untuk verifikasi cepat">
-                    <i class="fa-solid fa-users mr-1.5"></i> Sinkron Indeks Siswa
-                  </button>
-                  <p class="text-[11px] text-muted-soft mt-2 leading-snug">Indeks siswa dipakai untuk verifikasi siswa yang cepat. Jalankan setelah sync materi, atau kapan saja kalau ada siswa baru.</p>
-                </div>
-              </div>
-
-              <div id="moodle-sync-result" class="mt-5">
-                <div class="bg-white border border-hairline rounded-[14px] p-5 text-[13px] text-body">
-                  <div class="font-semibold text-ink mb-1"><i class="fa-solid fa-circle-info text-primary mr-1.5"></i>Belum ada proses sinkron berjalan.</div>
-                  <p class="text-muted-soft">Tekan <b>Sinkron Moodle</b> untuk mengambil materi terbaru dari LMS dan langsung memasukkannya ke RAG.</p>
-                </div>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        <!-- SUB-TAB: UPLOAD MANUAL (switch Materi / Instruksi Aktivitas) -->
-        <div id="subtab-manual" class="kb-subtab-pane hidden flex-col flex-1">
-
-          <!-- Switch button: Materi | Instruksi Aktivitas -->
-          <div class="flex bg-canvas-soft p-1 rounded-xl border border-hairline w-full md:w-fit mb-4 shrink-0">
-            <button type="button" class="kb-manual-switch-btn flex-1 md:flex-none px-5 py-2 rounded-lg bg-white shadow-sm text-ink text-[13px] font-medium transition-colors" data-manual="documents">
-              <i class="fa-solid fa-file-pdf mr-1.5"></i> Materi
-            </button>
-            <button type="button" class="kb-manual-switch-btn flex-1 md:flex-none px-5 py-2 rounded-lg text-muted hover:text-ink text-[13px] font-medium transition-colors" data-manual="activities">
-              <i class="fa-solid fa-list-check mr-1.5"></i> Instruksi Aktivitas
-            </button>
           </div>
+          <a id="link-atur-koneksi" href="/dashboard/moodle" title="Atur koneksi VClass" class="shrink-0 inline-flex items-center justify-center gap-2 border border-hairline-strong text-ink text-[13px] font-medium rounded-full hover:bg-canvas-soft transition-colors w-9 h-9 sm:w-auto sm:h-auto sm:px-4 sm:py-2">
+            <i class="fa-solid fa-gear text-muted"></i>
+            <span class="hidden sm:inline">Atur koneksi VClass</span>
+          </a>
+        </div>
 
-          <!-- PANE: MATERI MANUAL -->
-          <div id="manual-pane-documents" class="kb-manual-pane flex flex-col flex-1">
-            <div class="bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
-              <div class="p-5 border-b border-hairline flex justify-between items-center bg-white shrink-0">
-                <h2 class="font-serif text-xl text-ink">Daftar Materi</h2>
-                <div class="flex items-center gap-3">
-                  <button class="btn-refresh text-muted hover:text-ink transition-colors w-8 h-8 rounded-full bg-canvas-soft flex items-center justify-center" data-type="documents" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
-                  <button class="btn-open-drawer bg-primary text-white px-4 py-2 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm" data-form="doc">
-                    <i class="fa-solid fa-plus mr-1"></i> Tambah Materi
-                  </button>
-                </div>
+        <!-- Pengingat perbarui (muncul bila >24 jam sejak sinkron terakhir) -->
+        <div id="moodle-sync-reminder" class="hidden mb-4 bg-amber-50 border border-amber-200 rounded-[14px] p-4 flex items-start gap-3">
+          <i class="fa-solid fa-bell text-amber-500 mt-0.5"></i>
+          <div class="flex-1 min-w-0 text-[13px] text-amber-800">
+            <b>Sudah lebih dari sehari sejak pembaruan terakhir.</b><br />
+            <span id="moodle-sync-reminder-detail" class="text-amber-700">Kalau ada materi baru di VClass, klik <b>Sinkronkan dengan Moodle</b> untuk memperbaruinya.</span>
+          </div>
+          <button type="button" id="moodle-sync-reminder-dismiss" class="text-amber-500 hover:text-amber-700 shrink-0" title="Tutup pengingat hari ini"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+
+        <div id="material-source-moodle" class="flex flex-col lg:flex-row lg:items-stretch gap-4">
+          <!-- 2 statistik: koneksi + jumlah kelas -->
+          <div class="grid grid-cols-2 gap-3 flex-1">
+            <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4 flex flex-col">
+              <div class="flex items-center justify-between gap-2 mb-2">
+                <p class="text-[11px] text-muted-soft uppercase tracking-wide font-semibold">Koneksi VClass</p>
+                <span id="moodle-kb-status-badge" class="text-[11px] px-2.5 py-1 rounded-full bg-canvas-soft border border-hairline text-muted shrink-0">Memuat...</span>
               </div>
-              <div class="p-0 overflow-y-auto flex-1 bg-white content-start">
-                <table class="w-full text-left border-collapse bg-white">
-                  <thead class="sticky top-0 bg-canvas-soft z-10 shadow-sm">
-                    <tr class="border-b border-hairline text-[13px] text-muted-soft uppercase font-medium tracking-wider">
-                      <th class="py-3 px-6">Judul, Topik & Sumber</th>
-                      <th class="py-3 px-6 text-center">Status</th>
-                      <th class="py-3 px-6 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody id="list-documents" class="text-[14px] text-body">
-                    <tr><td colspan="3" class="text-center py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat materi...</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="p-4 border-t border-hairline flex justify-between items-center bg-canvas-soft shrink-0">
-                <span class="text-[13px] text-muted-soft" id="info-page-documents">Halaman 1 dari 1</span>
-                <div class="flex gap-2">
-                  <button class="btn-prev w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="documents"><i class="fa-solid fa-chevron-left text-sm"></i></button>
-                  <button class="btn-next w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="documents"><i class="fa-solid fa-chevron-right text-sm"></i></button>
-                </div>
-              </div>
+              <p id="moodle-kb-endpoint" class="text-[14px] font-medium text-ink truncate mt-auto">-</p>
+            </div>
+            <div class="bg-canvas-soft border border-hairline rounded-[14px] p-4 flex flex-col">
+              <p class="text-[11px] text-muted-soft uppercase tracking-wide font-semibold mb-2">Kelas terhubung</p>
+              <p id="moodle-kb-courses" class="text-[18px] font-semibold text-ink mt-auto">-</p>
             </div>
           </div>
 
-          <!-- PANE: INSTRUKSI AKTIVITAS -->
-          <div id="manual-pane-activities" class="kb-manual-pane hidden flex-col flex-1">
-            <div class="bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
-              <div class="p-5 border-b border-hairline flex justify-between items-center bg-white shrink-0">
-                <h2 class="font-serif text-xl text-ink">Daftar Instruksi Aktivitas</h2>
-                <div class="flex items-center gap-3">
-                  <button class="btn-refresh text-muted hover:text-ink transition-colors w-8 h-8 rounded-full bg-canvas-soft flex items-center justify-center" data-type="activities" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
-                  <button class="btn-open-drawer bg-primary text-white px-4 py-2 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm" data-form="act">
-                    <i class="fa-solid fa-plus mr-1"></i> Tambah Instruksi
-                  </button>
-                </div>
-              </div>
-              <div class="p-0 overflow-y-auto flex-1 bg-white content-start">
-                <table class="w-full text-left border-collapse bg-white">
-                  <thead class="sticky top-0 bg-canvas-soft z-10 shadow-sm">
-                    <tr class="border-b border-hairline text-[13px] text-muted-soft uppercase font-medium tracking-wider">
-                      <th class="py-3 px-6">Instruksi & Topik</th>
-                      <th class="py-3 px-6 text-right">Aksi</th>
-                    </tr>
-                  </thead>
-                  <tbody id="list-activities" class="text-[14px] text-body">
-                    <tr><td colspan="2" class="text-center py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat Instruksi...</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="p-4 border-t border-hairline flex justify-between items-center bg-canvas-soft shrink-0">
-                <span class="text-[13px] text-muted-soft" id="info-page-activities">Halaman 1 dari 1</span>
-                <div class="flex gap-2">
-                  <button class="btn-prev w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="activities"><i class="fa-solid fa-chevron-left text-sm"></i></button>
-                  <button class="btn-next w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="activities"><i class="fa-solid fa-chevron-right text-sm"></i></button>
-                </div>
-              </div>
-            </div>
-          </div>
-
-        </div>
-      </div>
-
-      <!-- ===================================================== -->
-      <!-- TAB FAQ -->
-      <!-- ===================================================== -->
-      <div id="tab-faq" class="kb-tab-pane hidden flex-col min-h-[600px]">
-        <div class="bg-surface-card border border-hairline rounded-[16px] shadow-sm flex flex-col flex-1 overflow-hidden mb-6">
-          <div class="p-5 border-b border-hairline flex justify-between items-center bg-white shrink-0">
-            <h2 class="font-serif text-xl text-ink">Daftar FAQ</h2>
-            <div class="flex items-center gap-3">
-              <button class="btn-refresh text-muted hover:text-ink transition-colors w-8 h-8 rounded-full bg-canvas-soft flex items-center justify-center" data-type="faqs" title="Refresh"><i class="fa-solid fa-rotate-right"></i></button>
-              <button class="btn-open-drawer bg-primary text-white px-4 py-2 rounded-full text-[13px] font-medium hover:bg-primary-active transition shadow-sm" data-form="faq">
-                <i class="fa-solid fa-plus mr-1"></i> Tambah FAQ
+          <!-- Aksi utama: satu tombol, detail dipilih di modal -->
+          <div class="flex flex-col gap-2 lg:w-[260px] shrink-0">
+            <div id="moodle-sync-button-wrap" class="w-full" title="Ambil materi & petakan kelas dari VClass">
+              <button type="button" id="btn-sync-moodle-materials" class="w-full bg-primary text-white px-4 py-3 rounded-full text-[14px] font-medium hover:bg-primary-active transition-colors shadow-sm">
+                <i class="fa-solid fa-cloud-arrow-down mr-1.5"></i> Sinkronkan dengan Moodle
               </button>
             </div>
+            <p class="text-[11px] text-muted-soft text-center leading-snug">Mengambil materi &amp; pemetaan kelas. Opsi lain bisa dipilih saat diklik.</p>
           </div>
+        </div>
+
+        <!-- Hasil/progres sinkron. Kosong & tersembunyi sampai ada sinkron berjalan. -->
+        <div id="moodle-sync-result" class="mt-4 hidden"></div>
+      </section>
+
+      <!-- ===================================================== -->
+      <!-- Bagian 2: daftar materi AI (terisi otomatis dari sinkron) -->
+      <!-- ===================================================== -->
+      <section class="bg-surface-card border border-hairline rounded-[16px] p-5 md:p-6 shadow-sm flex flex-col flex-1">
+        <div class="flex items-start gap-4 mb-4">
+          <div class="w-9 h-9 rounded-full bg-primary/10 border border-primary/20 flex items-center justify-center text-primary shrink-0"><i class="fa-solid fa-book-open"></i></div>
+          <div>
+            <h2 class="font-serif text-xl md:text-2xl text-ink">Daftar materi AI</h2>
+            <p class="text-[13px] text-muted-soft mt-1">Materi hasil sinkron dari VClass otomatis muncul di sini — inilah bahan yang dipakai AI untuk menjawab siswa.</p>
+          </div>
+        </div>
+
+        <!-- Cari + muat ulang: tetap sebaris (flex-row) di mobile maupun desktop -->
+        <div class="flex flex-row items-center gap-3 mb-4">
+          <div class="relative flex-1">
+            <i class="fa-solid fa-magnifying-glass absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-soft text-[13px]"></i>
+            <input type="text" id="search-documents" placeholder="Cari judul atau topik materi..." class="w-full bg-canvas-soft border border-hairline-strong rounded-full pl-10 pr-4 py-2 text-[13px] text-ink placeholder:text-muted-soft focus:outline-none focus:border-ink transition-colors">
+          </div>
+          <button class="btn-refresh inline-flex items-center justify-center gap-2 bg-canvas-soft border border-hairline text-muted hover:text-ink transition-colors rounded-full shrink-0 w-9 h-9 md:w-auto md:h-auto md:px-4 md:py-2" data-type="documents" title="Muat ulang materi">
+            <i class="fa-solid fa-rotate-right"></i>
+            <span class="hidden md:inline text-[13px] font-medium">Muat ulang</span>
+          </button>
+        </div>
+
+        <div class="border border-hairline rounded-[14px] flex flex-col flex-1 overflow-hidden">
           <div class="p-0 overflow-y-auto flex-1 bg-white content-start">
             <table class="w-full text-left border-collapse bg-white">
               <thead class="sticky top-0 bg-canvas-soft z-10 shadow-sm">
                 <tr class="border-b border-hairline text-[13px] text-muted-soft uppercase font-medium tracking-wider">
-                  <th class="py-3 px-6">Tanya Jawab</th>
+                  <th class="py-3 px-6">Judul, Topik &amp; Sumber</th>
+                  <th class="py-3 px-6 text-center">Status</th>
                   <th class="py-3 px-6 text-right">Aksi</th>
                 </tr>
               </thead>
-              <tbody id="list-faqs" class="text-[14px] text-body">
-                <tr><td colspan="2" class="text-center py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat FAQ...</td></tr>
+              <tbody id="list-documents" class="text-[14px] text-body">
+                <tr><td colspan="3" class="text-center py-8"><i class="fa-solid fa-spinner fa-spin mr-2"></i> Memuat materi...</td></tr>
               </tbody>
             </table>
           </div>
           <div class="p-4 border-t border-hairline flex justify-between items-center bg-canvas-soft shrink-0">
-            <span class="text-[13px] text-muted-soft" id="info-page-faqs">Halaman 1 dari 1</span>
+            <span class="text-[13px] text-muted-soft" id="info-page-documents">Halaman 1 dari 1</span>
             <div class="flex gap-2">
-              <button class="btn-prev w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="faqs"><i class="fa-solid fa-chevron-left text-sm"></i></button>
-              <button class="btn-next w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="faqs"><i class="fa-solid fa-chevron-right text-sm"></i></button>
+              <button class="btn-prev w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="documents"><i class="fa-solid fa-chevron-left text-sm"></i></button>
+              <button class="btn-next w-8 h-8 flex items-center justify-center bg-white border border-hairline-strong rounded-[6px] text-ink hover:bg-canvas transition disabled:opacity-50" data-type="documents"><i class="fa-solid fa-chevron-right text-sm"></i></button>
             </div>
           </div>
         </div>
-      </div>
+      </section>
 
+    </div>
+  </div>
+
+  <!-- Tombol tutorial melayang (pojok kanan bawah) -->
+  <button type="button" id="btn-open-tutorial" class="fixed bottom-6 right-6 z-[60] flex items-center gap-2 bg-ink text-white pl-4 pr-5 py-3 rounded-full shadow-lg hover:opacity-90 transition-opacity" title="Panduan halaman ini">
+    <i class="fa-solid fa-circle-question text-[16px]"></i>
+    <span class="text-[14px] font-medium hidden sm:inline">Panduan</span>
+  </button>
+
+  <!-- Modal: tutorial carousel -->
+  <div id="modal-tutorial" class="custom-modal fixed inset-0 z-[9999] hidden flex flex-col justify-end md:justify-center items-center">
+    <div class="modal-overlay absolute inset-0 bg-ink/40 backdrop-blur-sm transition-opacity duration-300 opacity-0 cursor-pointer"></div>
+    <div class="modal-box relative w-full md:max-w-lg bg-surface-card rounded-t-[24px] md:rounded-[24px] shadow-2xl transform transition-all duration-300 translate-y-full md:translate-y-8 opacity-0 md:scale-95 flex flex-col overflow-hidden">
+      <div class="flex justify-between items-center px-6 pt-6 pb-2 shrink-0">
+        <h2 class="font-serif text-xl text-ink">Panduan singkat</h2>
+        <button type="button" class="modal-close text-muted hover:text-ink transition-colors p-2 -mr-2"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <div class="px-6 pb-6">
+        <div id="tutorial-slides" class="min-h-[220px]">
+          <div class="tutorial-slide" data-step="0">
+            <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-gear"></i></div>
+            <h3 class="font-serif text-lg text-ink mb-1">Apa yang harus dilakukan</h3>
+            <p class="text-[14px] text-body">Untuk mulai, klik tombol <b>Atur koneksi VClass</b> di kartu koneksi (ikon gear di pojok kanan atas).</p>
+            <div class="mt-4 pointer-events-none select-none max-w-[260px]">
+              <div class="inline-flex items-center gap-2 border border-hairline-strong text-ink text-[13px] font-medium px-4 py-2 rounded-full"><i class="fa-solid fa-gear text-muted"></i> Atur koneksi VClass</div>
+              <p class="text-[11px] text-muted-soft mt-1.5"><i class="fa-solid fa-arrow-up mr-1"></i>Tombol ini ada di pojok kanan atas kartu koneksi.</p>
+            </div>
+          </div>
+          <div class="tutorial-slide hidden" data-step="1">
+            <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-plug-circle-bolt"></i></div>
+            <h3 class="font-serif text-lg text-ink mb-1">Koneksikan ke Moodle</h3>
+            <p class="text-[14px] text-body">Ambil <b>alamat API webservice</b> Moodle Anda beserta <b>token autentikasinya</b>, isikan di halaman koneksi, lalu klik <b>Simpan Konfigurasi</b>.</p>
+            <div class="mt-4 pointer-events-none select-none max-w-[300px] space-y-2">
+              <div class="bg-canvas-soft border border-hairline-strong rounded-[8px] px-3 py-2 text-[12px] text-muted-soft truncate">https://lms…/webservice/rest/server.php</div>
+              <div class="bg-canvas-soft border border-hairline-strong rounded-[8px] px-3 py-2 text-[12px] text-muted-soft">•••••••••••• (token)</div>
+              <div class="inline-flex items-center gap-2 bg-primary text-white text-[12px] font-medium px-4 py-2 rounded-full"><i class="fa-solid fa-floppy-disk"></i> Simpan Konfigurasi</div>
+            </div>
+          </div>
+          <div class="tutorial-slide hidden" data-step="2">
+            <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-cloud-arrow-down"></i></div>
+            <h3 class="font-serif text-lg text-ink mb-1">Sinkronkan konten</h3>
+            <p class="text-[14px] text-body">Kembali ke halaman <b>Basis Pengetahuan</b>, pastikan tombol <b>Sinkronkan dengan Moodle</b> sudah aktif (tidak redup). Kalau aktif, klik lalu tunggu sampai terhubung.</p>
+            <div class="mt-4 pointer-events-none select-none max-w-[260px]">
+              <div class="w-full bg-primary text-white px-4 py-3 rounded-full text-[14px] font-medium text-center shadow-sm"><i class="fa-solid fa-cloud-arrow-down mr-1.5"></i> Sinkronkan dengan Moodle</div>
+              <p class="text-[11px] text-muted-soft mt-1.5"><i class="fa-solid fa-arrow-up mr-1"></i>Kalau tombol redup, koneksi belum lengkap.</p>
+            </div>
+          </div>
+          <div class="tutorial-slide hidden" data-step="3">
+            <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-circle-check"></i></div>
+            <h3 class="font-serif text-lg text-ink mb-1">Berhasil terhubung</h3>
+            <p class="text-[14px] text-body">Kalau sudah berhasil, kartu <b>Koneksi VClass</b> berstatus Terhubung dan <b>Kelas terhubung</b> menampilkan jumlah kelasnya.</p>
+            <div class="mt-4 pointer-events-none select-none grid grid-cols-2 gap-3 max-w-[320px]">
+              <div class="bg-canvas-soft border border-hairline rounded-[14px] p-3">
+                <div class="flex items-center justify-between gap-2 mb-2">
+                  <p class="text-[10px] text-muted-soft uppercase tracking-wide font-semibold">Koneksi VClass</p>
+                  <span class="text-[10px] px-1.5 py-0.5 rounded-full inline-flex items-center gap-1 bg-[#16a34a]/10 border border-[#16a34a]/20 text-[#16a34a]"><i class="fa-solid fa-check"></i></span>
+                </div>
+                <p class="text-[12px] font-medium text-ink truncate">https://lms.smpn167…</p>
+              </div>
+              <div class="bg-canvas-soft border border-hairline rounded-[14px] p-3">
+                <p class="text-[10px] text-muted-soft uppercase tracking-wide font-semibold mb-2">Kelas terhubung</p>
+                <p class="text-[16px] font-semibold text-ink">9 kelas</p>
+              </div>
+            </div>
+          </div>
+          <div class="tutorial-slide hidden" data-step="4">
+            <div class="w-12 h-12 rounded-full bg-primary/10 text-primary flex items-center justify-center text-xl mb-4"><i class="fa-solid fa-circle-info"></i></div>
+            <h3 class="font-serif text-lg text-ink mb-1">Informasi lanjutan</h3>
+            <p class="text-[14px] text-body">Kalau ada data baru di Moodle (materi, siswa, dsb.), cukup <b>ulangi dari Langkah 3</b> — klik <b>Sinkronkan dengan Moodle</b> lagi untuk memperbaruinya.</p>
+            <ul class="mt-3 space-y-1.5 text-[13px] text-body">
+              <li class="flex items-start gap-2"><i class="fa-solid fa-check text-muted-soft mt-1 text-[11px]"></i> Anda diingatkan otomatis kalau sudah lebih dari sehari sejak sinkron terakhir.</li>
+              <li class="flex items-start gap-2"><i class="fa-solid fa-check text-muted-soft mt-1 text-[11px]"></i> Centang “Perbarui data siswa juga” di jendela sinkron kalau ada siswa baru.</li>
+              <li class="flex items-start gap-2"><i class="fa-solid fa-check text-muted-soft mt-1 text-[11px]"></i> Materi yang masuk bisa dicari di daftar <b>Materi AI</b> di bawah.</li>
+            </ul>
+          </div>
+        </div>
+        <div class="flex items-center justify-between mt-6">
+          <div id="tutorial-dots" class="flex gap-1.5"></div>
+          <div class="flex gap-2">
+            <button type="button" id="btn-tutorial-prev" class="w-9 h-9 rounded-full border border-hairline-strong text-ink hover:bg-canvas-soft transition-colors disabled:opacity-40"><i class="fa-solid fa-chevron-left text-[13px]"></i></button>
+            <button type="button" id="btn-tutorial-next" class="px-5 h-9 rounded-full bg-primary text-white text-[13px] font-medium hover:bg-primary-active transition-colors">Lanjut</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Modal: konfirmasi sinkron materi (dengan pilihan) -->
+  <div id="modal-sync-materi" class="custom-modal fixed inset-0 z-[9999] hidden flex flex-col justify-end md:justify-center items-center">
+    <div class="modal-overlay absolute inset-0 bg-ink/40 backdrop-blur-sm transition-opacity duration-300 opacity-0 cursor-pointer"></div>
+    <div class="modal-box relative w-full md:max-w-lg bg-surface-card rounded-t-[24px] md:rounded-[24px] p-6 md:p-8 shadow-2xl transform transition-all duration-300 translate-y-full md:translate-y-8 opacity-0 md:scale-95 flex flex-col max-h-[90vh]">
+      <div class="flex justify-between items-start mb-4 shrink-0">
+        <div>
+          <h2 class="font-serif text-2xl text-ink">Sinkronkan dengan Moodle</h2>
+          <p class="text-[13px] text-muted-soft mt-1">Materi &amp; pemetaan kelas selalu diambil. Pilih opsi tambahan lalu jalankan.</p>
+        </div>
+        <button type="button" class="modal-close text-muted hover:text-ink transition-colors p-2 -mr-2"><i class="fa-solid fa-xmark text-xl"></i></button>
+      </div>
+      <div class="overflow-y-auto space-y-3">
+        <div class="flex items-start gap-3 p-4 rounded-[14px] border border-hairline bg-canvas-soft">
+          <i class="fa-solid fa-circle-check text-[#16a34a] mt-0.5"></i>
+          <span class="text-[13px]">
+            <b class="text-ink text-[14px]">Materi &amp; pemetaan kelas</b>
+            <span class="block text-muted-soft mt-1">Selalu dilakukan. Menarik materi terbaru sekaligus memetakan kelas dari VClass.</span>
+          </span>
+        </div>
+        <label class="flex items-start gap-3 p-4 rounded-[14px] border border-hairline bg-canvas-soft cursor-pointer">
+          <input type="checkbox" id="moodle-sync-students-opt" class="mt-1 rounded border-hairline-strong text-primary focus:ring-primary" />
+          <span class="text-[13px]">
+            <b class="text-ink text-[14px]">Perbarui data siswa juga</b> <span class="text-[10px] font-bold text-muted-soft">(opsional)</span>
+            <span class="block text-emerald-700 mt-1"><i class="fa-solid fa-check text-[11px] mr-1"></i>Dicentang: sekalian ambil daftar peserta tiap kelas untuk verifikasi siswa. Proses jadi lebih lama.</span>
+            <span class="block text-muted-soft mt-1"><i class="fa-solid fa-xmark text-[11px] mr-1"></i>Tidak dicentang: hanya materi &amp; pemetaan kelas. Data siswa lama dipertahankan.</span>
+          </span>
+        </label>
+        <label class="flex items-start gap-3 p-4 rounded-[14px] border border-hairline bg-canvas-soft cursor-pointer">
+          <input type="checkbox" id="moodle-reset-chunks" class="mt-1 rounded border-hairline-strong text-primary focus:ring-primary" checked />
+          <span class="text-[13px]">
+            <b class="text-ink text-[14px]">Perbarui materi lama</b>
+            <span class="block text-emerald-700 mt-1"><i class="fa-solid fa-check text-[11px] mr-1"></i>Dicentang: materi lama diganti yang terbaru dari VClass (materi yang sudah dihapus di VClass ikut hilang).</span>
+            <span class="block text-muted-soft mt-1"><i class="fa-solid fa-xmark text-[11px] mr-1"></i>Tidak dicentang: materi lama dibiarkan, materi baru ditambahkan — bisa muncul duplikat.</span>
+          </span>
+        </label>
+        <label class="flex items-start gap-3 p-4 rounded-[14px] border border-hairline bg-canvas-soft cursor-pointer">
+          <input type="checkbox" id="moodle-include-resource" class="mt-1 rounded border-hairline-strong text-primary focus:ring-primary" />
+          <span class="text-[13px]">
+            <b class="text-ink text-[14px]">Sertakan file lampiran</b> <span class="text-[10px] font-bold text-muted-soft">(opsional)</span>
+            <span class="block text-emerald-700 mt-1"><i class="fa-solid fa-check text-[11px] mr-1"></i>Dicentang: file PDF / PPT / Word yang diunggah di kelas ikut diambil. Lebih lengkap, tapi proses lebih lama.</span>
+            <span class="block text-muted-soft mt-1"><i class="fa-solid fa-xmark text-[11px] mr-1"></i>Tidak dicentang: hanya halaman materi VClass yang diambil. Lebih cepat.</span>
+          </span>
+        </label>
+      </div>
+      <div class="flex gap-3 mt-6 shrink-0">
+        <button type="button" class="modal-close flex-1 border border-hairline-strong text-ink rounded-full py-3 font-medium hover:bg-canvas-soft transition-colors">Batal</button>
+        <button type="button" id="btn-confirm-sync-materi" class="flex-1 bg-primary text-white rounded-full py-3 font-medium hover:bg-primary-active transition-colors"><i class="fa-solid fa-cloud-arrow-down mr-1.5"></i>Sinkronkan</button>
+      </div>
     </div>
   </div>
 
@@ -306,8 +291,8 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
     <div class="p-5 border-b border-hairline bg-white shrink-0">
       <div class="flex items-start justify-between gap-4">
         <div>
-          <p class="text-[12px] uppercase tracking-wider text-muted-soft font-medium mb-1">Knowledge Base QA</p>
-          <h3 class="font-serif text-xl md:text-2xl text-ink">Uji Knowledge Base</h3>
+          <p class="text-[12px] uppercase tracking-wider text-muted-soft font-medium mb-1">QA Basis Pengetahuan</p>
+          <h3 class="font-serif text-xl md:text-2xl text-ink">Uji Basis Pengetahuan</h3>
           <p class="text-[13px] text-body mt-1">Cek readiness, retrieval, jawaban AI, dan warning kualitas data.</p>
         </div>
         <button type="button" id="btn-close-kb-test-panel" class="w-9 h-9 rounded-full bg-canvas-soft hover:bg-hairline text-ink flex items-center justify-center transition-colors shrink-0">
@@ -338,7 +323,7 @@ import SourcePdfHighlighter from '../../components/source/SourcePdfHighlighter.j
 
       <div id="kb-panel-retrieval" class="kb-test-tab-pane hidden space-y-5">
         <div class="bg-surface-card border border-hairline rounded-[16px] p-5">
-          <label class="block text-[13px] font-medium text-ink mb-2">Filter Sumber Knowledge</label>
+          <label class="block text-[13px] font-medium text-ink mb-2">Filter Sumber Pengetahuan</label>
           <div class="flex flex-wrap gap-2 mb-4">
             <button type="button" class="kb-source-type-btn bg-primary text-white border border-primary px-4 py-2 rounded-full text-[12px] font-medium transition-colors" data-source-type="document_chunk" data-empty-message="Belum ada materi yang cocok untuk pertanyaan ini.">Materi (RAG)</button>
             <button type="button" class="kb-source-type-btn bg-white text-ink border border-hairline hover:bg-canvas-soft px-4 py-2 rounded-full text-[12px] font-medium transition-colors" data-source-type="faq" data-empty-message="Belum ada FAQ yang cocok.">FAQ</button>
