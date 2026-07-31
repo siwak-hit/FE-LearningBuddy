@@ -64,13 +64,19 @@ export function ensureComplaintMenu(context) {
   if (!$guide.length || $guide.find('[data-alb-complaint-menu="1"]').length) return;
 
   $guide.append(`
-    <div data-alb-complaint-menu="1" class="mt-5 pt-4 border-t border-hairline space-y-3">
-      <div class="px-1">
-        <div class="text-[10px] font-black uppercase tracking-[0.12em] text-muted flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-amber-500"></span>Komplain</div>
-        <div class="text-[11px] text-muted-soft mt-0.5 leading-snug">Susun komplain soal tugas/kuis/materi/forum langkah demi langkah.</div>
+    <details data-alb-complaint-menu="1" class="guide-section pb-4 mb-4 border-b border-hairline" open>
+      <summary class="flex items-center justify-between gap-2 mb-3">
+        <span class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px]">Komplain</span>
+        <i class="fa-solid fa-chevron-down guide-sec-chev text-[11px] text-muted-soft transition-transform"></i>
+      </summary>
+      <div class="guide-section-list space-y-2">
+        <button type="button" id="alb-complaint-open" class="guide-btn w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200">
+          <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-flag text-[13px]"></i></span>
+          <span class="flex-1 text-left truncate">Buat Komplain</span>
+          <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
+        </button>
       </div>
-      <button type="button" id="alb-complaint-open" class="w-full text-left bg-white hover:bg-canvas-soft border border-hairline rounded-xl px-3 py-3 flex items-center gap-3 transition-colors"><i class="fa-solid fa-flag text-amber-500"></i><span><b class="block text-[13px] text-ink">Buat Komplain</b><small class="text-[11px] text-muted-soft">Pilih langkah demi langkah, langsung diproses</small></span></button>
-    </div>
+    </details>
   `);
   $('#alb-complaint-open').on('click', () => openComplaintComposer(context));
 }

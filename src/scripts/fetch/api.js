@@ -30,7 +30,7 @@ async function request(endpoint, options = {}) {
     // login admin. 401/403 di sini = logika bisnis (mis. "key salah" di /chat/unlock),
     // BUKAN sesi admin kedaluwarsa. Dulu unlock chat yg 403 malah lempar siswa ke /auth/login.
     const ep = String(endpoint);
-    const PUBLIC_PREFIXES = ['/auth/login', '/chat/', '/widget/', '/page-templates/', '/student-sessions/', '/student-notes/', '/moodle/student/', '/health'];
+    const PUBLIC_PREFIXES = ['/auth/login', '/auth/register', '/chat/', '/widget/', '/page-templates/', '/student-sessions/', '/student-notes/', '/moodle/student/', '/health'];
     const isPublicEndpoint = PUBLIC_PREFIXES.some((p) => ep.startsWith(p));
 
     if (!isPublicEndpoint && (response.status === 401 || response.status === 403)) {

@@ -13,10 +13,13 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
       }
     </style>
 
-    <div class="mb-6 shrink-0 flex flex-wrap items-end justify-between gap-4">
-      <div>
-        <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Analitik Pembelajaran</h1>
-        <p class="text-body text-[16px] text-muted">Analitik tingkat kesulitan siswa &amp; efektivitas rekomendasi AI dari pola interaksi dengan AI Buddy.</p>
+    <div class="mb-6 shrink-0">
+      <div class="flex items-start justify-between gap-4 mb-4">
+        <div>
+          <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Analitik Pembelajaran</h1>
+          <p class="text-body text-[16px] text-muted">Analitik tingkat kesulitan siswa &amp; efektivitas rekomendasi AI dari pola interaksi dengan AI Buddy.</p>
+        </div>
+        <button id="btn-info-analytics" class="shrink-0 inline-flex items-center gap-1.5 border border-hairline-strong text-ink rounded-[8px] px-4 py-2.5 text-[14px] font-semibold hover:bg-canvas-soft transition"><i class="fa-solid fa-circle-info text-primary"></i> Info</button>
       </div>
       <div class="flex items-center gap-2">
         <select id="filter-project" class="bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-2.5 text-[14px] text-ink focus:outline-none min-w-[170px] cursor-pointer">
@@ -91,5 +94,214 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
     </div>
 
   </div>
+
+  <!-- Modal panduan membaca analitik (carousel) -->
+  <div id="analytics-info-modal" class="hidden fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40" id="analytics-info-overlay"></div>
+    <div class="relative bg-surface-card border border-hairline rounded-[16px] shadow-lg w-full max-w-2xl flex flex-col max-h-[88vh]">
+      <!-- Header -->
+      <div class="border-b border-hairline px-6 py-4 flex items-center justify-between shrink-0">
+        <h3 class="font-serif text-[22px] leading-tight text-ink"><i class="fa-solid fa-circle-info text-primary mr-2 text-[18px]"></i>Panduan Membaca Analitik</h3>
+        <button id="analytics-info-close" class="w-8 h-8 rounded-full text-muted-soft hover:text-ink hover:bg-black/5 flex items-center justify-center transition-colors shrink-0"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <!-- Badan carousel -->
+      <div class="flex-1 overflow-y-auto px-6 py-6 text-[14px] leading-relaxed text-body">
+
+        <!-- Slide 1: cara skor dihitung -->
+        <div class="an-info-slide" data-slide="0">
+          <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-soft mb-1">Bagian 1</div>
+          <h4 class="text-[20px] font-bold text-ink mb-3">Bagaimana tingkat kesulitan dihitung?</h4>
+          <p class="text-muted mb-3">Tiap sesi, sistem membaca <b>maksimal 12 pesan terakhir</b> (hanya pesan setelah siswa menekan "sudah teratasi", bila ada) — persis seperti percakapan yang siswa lihat di workspace:</p>
+
+          <!-- Contoh UI: potongan percakapan asli di workspace -->
+          <div class="border border-hairline rounded-2xl bg-canvas-soft/60 p-3.5 mb-4">
+            <div class="text-[10px] font-bold uppercase tracking-wider text-muted-soft mb-2.5"><i class="fa-solid fa-clock-rotate-left mr-1"></i> Jendela analisis · 12 pesan terakhir</div>
+            <div class="flex justify-end mb-2">
+              <div class="bg-surface-strong text-ink border border-hairline rounded-2xl rounded-tr-none px-3.5 py-2 text-[12.5px] max-w-[85%] leading-relaxed">gimana cara upload tugas?</div>
+            </div>
+            <div class="flex items-start gap-2 mb-2">
+              <div class="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-[10px]"><i class="fa-solid fa-robot"></i></div>
+              <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none px-3.5 py-2 text-[12.5px] text-body max-w-[85%] leading-relaxed">
+                <span class="mb-1 inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200"><i class="fa-solid fa-robot"></i> Jawaban Sistem</span>
+                <div class="mt-1">Buka aktivitas Tugas → Add submission → unggah file → Save changes.</div>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-muted mb-2">Dari pola itu dihitung <b>skor 0–100</b>. Sinyal yang menaikkan skor:</p>
+          <div class="overflow-x-auto">
+            <table class="w-full text-left border border-hairline rounded-lg overflow-hidden text-[13px]">
+              <thead>
+                <tr class="bg-canvas-soft text-ink">
+                  <th class="px-3 py-2 font-semibold">Sinyal</th>
+                  <th class="px-3 py-2 font-semibold text-center w-14">Poin</th>
+                  <th class="px-3 py-2 font-semibold text-center w-24">Batas</th>
+                </tr>
+              </thead>
+              <tbody class="text-muted align-top">
+                <tr class="border-t border-hairline"><td class="px-3 py-2">Pertanyaan <b class="text-ink">berulang/mirip</b> (kemiripan ≥ 50% dengan sebelumnya)</td><td class="px-3 py-2 text-center font-bold text-ink">+18</td><td class="px-3 py-2 text-center">maks 3×</td></tr>
+                <tr class="border-t border-hairline"><td class="px-3 py-2"><b class="text-ink">Ungkapan frustrasi</b> ("masih bingung", "gak paham", "pusing", "nyerah"…)</td><td class="px-3 py-2 text-center font-bold text-ink">+16</td><td class="px-3 py-2 text-center">maks 3×</td></tr>
+                <tr class="border-t border-hairline"><td class="px-3 py-2">Bertanya <b class="text-ink">beruntun di topik yang sama</b></td><td class="px-3 py-2 text-center font-bold text-ink">+10</td><td class="px-3 py-2 text-center">maks 3×</td></tr>
+                <tr class="border-t border-hairline"><td class="px-3 py-2"><b class="text-ink">Kelelahan/burnout</b> yang terdeteksi sistem</td><td class="px-3 py-2 text-center font-bold text-ink">+12</td><td class="px-3 py-2 text-center">maks 3×</td></tr>
+                <tr class="border-t border-hairline"><td class="px-3 py-2">Pertanyaan <b class="text-ink">menumpuk</b> (lebih dari 4 dalam satu sesi)</td><td class="px-3 py-2 text-center font-bold text-ink">+4</td><td class="px-3 py-2 text-center">per pertanyaan</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- Slide 2: Kesulitan -->
+        <div class="an-info-slide hidden" data-slide="1">
+          <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-soft mb-1">Bagian 2</div>
+          <div class="flex items-center gap-2 mb-3">
+            <h4 class="text-[20px] font-bold" style="color:#c08472;">Kesulitan</h4>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" style="background:#c0847220;color:#c08472;">skor ≥ 67</span>
+          </div>
+          <p class="text-muted mb-3">Siswa menunjukkan tanda mentok yang kuat: menanyakan hal serupa berkali-kali disertai ungkapan frustrasi.</p>
+
+          <div class="border border-hairline rounded-2xl bg-canvas-soft/60 p-3.5 mb-4">
+            <div class="flex justify-end mb-2"><div class="bg-surface-strong text-ink border border-hairline rounded-2xl rounded-tr-none px-3.5 py-2 text-[12.5px] max-w-[85%]">gimana cara upload tugas?</div></div>
+            <div class="flex justify-end mb-2"><div class="bg-surface-strong text-ink border border-hairline rounded-2xl rounded-tr-none px-3.5 py-2 text-[12.5px] max-w-[85%]">masih bingung, cara ngumpulinnya gimana sih?</div></div>
+            <div class="flex justify-end mb-1"><div class="bg-surface-strong text-ink border border-hairline rounded-2xl rounded-tr-none px-3.5 py-2 text-[12.5px] max-w-[85%]">kok tetep gak bisa ya, pusing</div></div>
+          </div>
+
+          <p class="text-muted"><b>Contoh perhitungan:</b> 3× pertanyaan mirip (≈54) + 1 ungkapan frustrasi "masih bingung" (16) = <b>70</b> → <b style="color:#c08472;">Kesulitan</b>.</p>
+        </div>
+
+        <!-- Slide 3: Mulai Bingung -->
+        <div class="an-info-slide hidden" data-slide="2">
+          <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-soft mb-1">Bagian 3</div>
+          <div class="flex items-center gap-2 mb-3">
+            <h4 class="text-[20px] font-bold" style="color:#bfa059;">Mulai Bingung</h4>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" style="background:#bfa05920;color:#a8863f;">skor 34–66</span>
+          </div>
+          <p class="text-muted mb-3">Ada tanda awal kesulitan tapi belum berat — pengulangan sedikit atau satu ungkapan bingung.</p>
+
+          <div class="border border-hairline rounded-2xl bg-canvas-soft/60 p-3.5 mb-4">
+            <div class="flex justify-end mb-2"><div class="bg-surface-strong text-ink border border-hairline rounded-2xl rounded-tr-none px-3.5 py-2 text-[12.5px] max-w-[85%]">cara buat forum diskusi?</div></div>
+            <div class="flex items-start gap-2 mb-2">
+              <div class="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-[10px]"><i class="fa-solid fa-robot"></i></div>
+              <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none px-3.5 py-2 text-[12.5px] text-body max-w-[85%]">Buka forum → Tambahkan topik diskusi → isi subjek → Kirim.</div>
+            </div>
+            <div class="flex justify-end mb-1"><div class="bg-surface-strong text-ink border border-hairline rounded-2xl rounded-tr-none px-3.5 py-2 text-[12.5px] max-w-[85%]">agak bingung, subjeknya diisi apa?</div></div>
+          </div>
+
+          <p class="text-muted"><b>Contoh perhitungan:</b> 1 pertanyaan mirip (18) + 1 ungkapan bingung (16) = <b>34</b> → <b style="color:#bfa059;">Mulai Bingung</b>.</p>
+        </div>
+
+        <!-- Slide 4: Lancar -->
+        <div class="an-info-slide hidden" data-slide="3">
+          <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-soft mb-1">Bagian 4</div>
+          <div class="flex items-center gap-2 mb-3">
+            <h4 class="text-[20px] font-bold" style="color:#6f8f6a;">Lancar</h4>
+            <span class="text-[11px] font-bold px-2 py-0.5 rounded-full" style="background:#6f8f6a20;color:#5c7a58;">skor 0–33</span>
+          </div>
+          <p class="text-muted mb-3">Interaksi normal: pertanyaan tidak banyak berulang, hampir tak ada frustrasi, tidak menumpuk di satu topik.</p>
+
+          <div class="border border-hairline rounded-2xl bg-canvas-soft/60 p-3.5 mb-4">
+            <div class="flex justify-end mb-2"><div class="bg-surface-strong text-ink border border-hairline rounded-2xl rounded-tr-none px-3.5 py-2 text-[12.5px] max-w-[85%]">cara login ke VClass?</div></div>
+            <div class="flex items-start gap-2 mb-2">
+              <div class="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-[10px]"><i class="fa-solid fa-robot"></i></div>
+              <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none px-3.5 py-2 text-[12.5px] text-body max-w-[85%]">Buka halaman Login → isi username & password → klik Masuk.</div>
+            </div>
+            <div class="flex justify-end"><div class="bg-surface-strong text-ink border border-hairline rounded-2xl rounded-tr-none px-3.5 py-2 text-[12.5px] max-w-[85%]">oke, makasih! 👍</div></div>
+          </div>
+
+          <p class="text-muted"><b>Contoh perhitungan:</b> tidak ada pengulangan/frustrasi → skor tetap rendah (<b>0–33</b>) → <b style="color:#6f8f6a;">Lancar</b>.</p>
+        </div>
+
+        <!-- Slide 5: Ringkasan (bahasa sederhana) -->
+        <div class="an-info-slide hidden" data-slide="4">
+          <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-soft mb-1">Bagian 5</div>
+          <h4 class="text-[20px] font-bold text-ink mb-1">Ringkasan — biar gampang dipahami</h4>
+          <p class="text-muted mb-3">Singkatnya, satu sesi siswa dinilai seperti ini:</p>
+          <div class="space-y-2.5">
+            <div class="border border-hairline rounded-xl p-3.5" style="background:#c0847208;">
+              <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:#c08472;"></span><b style="color:#c08472;">Kesulitan</b></div>
+              <p class="text-muted text-[13px] leading-relaxed">Siswa <b>menanyakan hal yang sama berulang-ulang</b> dan mulai <b>mengeluh</b> ("masih bingung", "pusing", "nyerah"). Tandanya dia benar-benar mentok — sebaiknya dibantu guru.</p>
+            </div>
+            <div class="border border-hairline rounded-xl p-3.5" style="background:#bfa05908;">
+              <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:#bfa059;"></span><b style="color:#a8863f;">Mulai Bingung</b></div>
+              <p class="text-muted text-[13px] leading-relaxed">Siswa <b>sedikit mengulang pertanyaan</b> atau <b>sekali menyebut bingung</b>. Ada tanda awal kesulitan tapi belum parah — cukup dipantau.</p>
+            </div>
+            <div class="border border-hairline rounded-xl p-3.5" style="background:#6f8f6a08;">
+              <div class="flex items-center gap-2 mb-1"><span class="w-2.5 h-2.5 rounded-full shrink-0" style="background:#6f8f6a;"></span><b style="color:#5c7a58;">Lancar</b></div>
+              <p class="text-muted text-[13px] leading-relaxed">Siswa <b>bertanya wajar, tidak mengulang, dan tidak mengeluh</b>. Berarti dia baik-baik saja dan paham.</p>
+            </div>
+          </div>
+          <p class="text-muted text-[13px] mt-3"><i class="fa-solid fa-lightbulb text-[#bfa059] mr-1"></i>Intinya: makin sering <b>mengulang + mengeluh</b>, makin tinggi tingkat kesulitannya.</p>
+        </div>
+
+        <!-- Slide 6: Efisiensi -->
+        <div class="an-info-slide hidden" data-slide="5">
+          <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-soft mb-1">Bagian 6</div>
+          <h4 class="text-[20px] font-bold text-ink mb-3"><i class="fa-solid fa-bolt text-[#6f8f6a] mr-1.5"></i>Efisiensi Jawaban</h4>
+          <p class="text-muted mb-3">Persentase jawaban yang bisa dilayani <b>tanpa memanggil AI</b>. Tiap jawaban bot punya label sumber (lihat di workspace):</p>
+
+          <div class="border border-hairline rounded-2xl bg-canvas-soft/60 p-3.5 mb-4 space-y-2.5">
+            <div class="flex items-start gap-2">
+              <div class="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-[10px]"><i class="fa-solid fa-robot"></i></div>
+              <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none px-3.5 py-2 text-[12.5px] text-body max-w-[85%]">
+                <span class="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded border border-slate-200"><i class="fa-solid fa-robot"></i> Jawaban Sistem</span>
+                <span class="text-[10px] text-[#6f8f6a] font-semibold ml-1">· hemat kuota</span>
+              </div>
+            </div>
+            <div class="flex items-start gap-2">
+              <div class="w-6 h-6 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0 text-[10px]"><i class="fa-solid fa-robot"></i></div>
+              <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none px-3.5 py-2 text-[12.5px] text-body max-w-[85%]">
+                <span class="inline-flex items-center gap-1 text-[9px] font-bold uppercase tracking-wider text-sky-600 bg-sky-50 px-1.5 py-0.5 rounded border border-sky-100"><i class="fa-solid fa-sparkles"></i> Jawaban AI</span>
+                <span class="text-[10px] text-amber-600 font-semibold ml-1">· pakai kuota Gemini</span>
+              </div>
+            </div>
+          </div>
+
+          <p class="text-muted mb-2"><b>Jawaban Sistem</b> (panduan/tutorial) + <b>Cache</b> (jawaban AI yang sudah disimpan) = tidak memakai kuota. Makin tinggi %-nya, makin hemat kuota AI & makin cepat.</p>
+          <div class="bg-canvas-soft border border-hairline rounded-lg px-3 py-2 text-[13px] text-ink font-medium">Efisiensi = (Sistem + Cache) ÷ total jawaban × 100%</div>
+        </div>
+
+        <!-- Slide 7: Evaluasi Model -->
+        <div class="an-info-slide hidden" data-slide="6">
+          <div class="text-[11px] font-bold uppercase tracking-[0.12em] text-muted-soft mb-1">Bagian 7</div>
+          <h4 class="text-[20px] font-bold text-ink mb-3"><i class="fa-solid fa-flask text-[#8f82a6] mr-1.5"></i>Evaluasi Model — untuk apa?</h4>
+          <p class="text-muted mb-3"><b>Mengukur seberapa akurat</b> penilaian tingkat kesulitan di atas dibanding penilaian manusia. Gunanya: bukti ilmiah (untuk skripsi/laporan) bahwa model deteksi benar-benar bekerja. Langkahnya:</p>
+          <ol class="space-y-1.5 text-muted mb-4">
+            <li class="flex gap-2"><span class="font-bold text-ink shrink-0">1.</span> <span><b>Unduh</b> dataset prediksi (kolom <code>predicted</code> terisi otomatis, <code>actual</code> kosong).</span></li>
+            <li class="flex gap-2"><span class="font-bold text-ink shrink-0">2.</span> <span><b>Isi kolom <code>actual</code></b> dengan label sebenarnya tiap sesi (<code>lancar</code> / <code>mulai_bingung</code> / <code>kesulitan</code>) berdasar <code>sample_question</code>.</span></li>
+            <li class="flex gap-2"><span class="font-bold text-ink shrink-0">3.</span> <span><b>Unggah kembali</b> → sistem menghitung <b>akurasi, precision, recall, F1, & confusion matrix</b> (contoh di bawah).</span></li>
+          </ol>
+
+          <!-- Contoh UI confusion matrix -->
+          <div class="border border-hairline rounded-xl overflow-hidden mb-3 text-[11px]">
+            <div class="grid grid-cols-4 bg-canvas-soft font-semibold text-ink text-center">
+              <div class="px-2 py-1.5 text-muted-soft text-[10px]">asli ↓ / prediksi →</div>
+              <div class="px-2 py-1.5">Lancar</div><div class="px-2 py-1.5">M. Bingung</div><div class="px-2 py-1.5">Kesulitan</div>
+            </div>
+            <div class="grid grid-cols-4 text-center border-t border-hairline">
+              <div class="px-2 py-1.5 bg-canvas-soft font-semibold">Lancar</div>
+              <div class="px-2 py-1.5 font-bold bg-[#6f8f6a15]">12</div><div class="px-2 py-1.5 text-muted-soft">1</div><div class="px-2 py-1.5 text-muted-soft">0</div>
+            </div>
+            <div class="grid grid-cols-4 text-center border-t border-hairline">
+              <div class="px-2 py-1.5 bg-canvas-soft font-semibold">M. Bingung</div>
+              <div class="px-2 py-1.5 text-muted-soft">2</div><div class="px-2 py-1.5 font-bold bg-[#bfa05915]">9</div><div class="px-2 py-1.5 text-muted-soft">1</div>
+            </div>
+            <div class="grid grid-cols-4 text-center border-t border-hairline">
+              <div class="px-2 py-1.5 bg-canvas-soft font-semibold">Kesulitan</div>
+              <div class="px-2 py-1.5 text-muted-soft">0</div><div class="px-2 py-1.5 text-muted-soft">2</div><div class="px-2 py-1.5 font-bold bg-[#c0847215]">8</div>
+            </div>
+          </div>
+          <p class="text-muted text-[13px]"><i class="fa-solid fa-triangle-exclamation text-[#bfa059] mr-1"></i>Kolom <code>actual</code> <b>harus diisi manusia</b> — jangan disamakan dengan prediksi. Kalau diisi otomatis, metriknya tidak valid (membandingkan model dengan dirinya sendiri).</p>
+        </div>
+
+      </div>
+
+      <!-- Navigasi carousel -->
+      <div class="border-t border-hairline px-6 py-3.5 flex items-center justify-between shrink-0 gap-3">
+        <button id="an-info-prev" class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-ink border border-hairline-strong rounded-[8px] px-3.5 py-2 hover:bg-canvas-soft transition"><i class="fa-solid fa-chevron-left text-[11px]"></i><span class="hidden sm:inline">Sebelumnya</span></button>
+        <div id="an-info-dots" class="flex items-center gap-1.5"></div>
+        <button id="an-info-next" class="inline-flex items-center gap-1.5 text-[13px] font-semibold text-white bg-ink rounded-[8px] px-3.5 py-2 hover:opacity-90 transition"><span class="hidden sm:inline">Berikutnya</span><i class="fa-solid fa-chevron-right text-[11px]"></i></button>
+      </div>
+    </div>
+  </div>
+
   <script src="../../scripts/pages/analytics.page.js"></script>
 </DashboardLayout>

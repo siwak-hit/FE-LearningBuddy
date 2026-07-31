@@ -7,7 +7,7 @@ export function appendTypingIndicator(opts = {}) {
       <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shrink-0 text-[15px] shadow-sm">
         <i class="fa-solid fa-robot"></i>
       </div>
-      <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none px-5 py-4 max-w-[80%] shadow-[0_4px_16px_rgba(0,0,0,0.04)] flex gap-1.5 items-center min-h-[52px]">
+      <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none px-5 py-4 max-w-[80%] flex gap-1.5 items-center min-h-[52px]">
         <style>
           @keyframes alb-pulse-dot {
             0%, 80%, 100% { transform: scale(0.5); opacity: 0.4; }
@@ -339,7 +339,7 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
             labelText = found ? `Materi: ${found.title}` : `Materi ${mm[1]}`;
             icon = 'fa-book-open';
           }
-          const cls = 'font-semibold text-primary bg-primary/10 border border-primary/20 max-md:text-white max-md:bg-white/20 max-md:border-white/40 rounded px-1.5 py-px text-[13px]';
+          const cls = 'font-semibold text-primary bg-primary/20 border border-primary/30 rounded px-1.5 py-px text-[13px]';
           // [#5] Pill materi bisa panjang → truncate 1 baris + klik untuk lihat penuh
           //      (saat dibuka fontnya dikecilkan biar tak melebar/terbungkus).
           if (mm) {
@@ -629,11 +629,11 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   // (user mobile = gelap → max-md:teks putih).
   const encodedUserMsg = isUser ? encodeURIComponent(String(rawText ?? '')) : '';
   const userActionsHtml = isUser ? `
-    <div class="flex items-center justify-end gap-1.5 mt-2.5 pt-2 border-t border-black/5 max-md:border-white/15">
-      <button type="button" class="btn-user-copy inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors bg-black/[0.04] hover:bg-black/10 border border-black/5 text-muted hover:text-ink max-md:bg-white/15 max-md:hover:bg-white/25 max-md:border-white/15 max-md:text-white/80 max-md:hover:text-white" data-msg="${encodedUserMsg}" title="Salin pertanyaan">
+    <div class="flex items-center justify-end gap-1.5 mt-2.5 pt-2 border-t border-black/5">
+      <button type="button" class="btn-user-copy inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors bg-black/[0.04] hover:bg-black/10 border border-black/5 text-muted hover:text-ink" data-msg="${encodedUserMsg}" title="Salin pertanyaan">
         <i class="fa-regular fa-copy"></i> Salin
       </button>
-      <button type="button" class="btn-user-reload inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors bg-black/[0.04] hover:bg-black/10 border border-black/5 text-muted hover:text-primary max-md:bg-white/15 max-md:hover:bg-white/25 max-md:border-white/15 max-md:text-white/80 max-md:hover:text-white" data-msg="${encodedUserMsg}" title="Kirim ulang pertanyaan yang sama">
+      <button type="button" class="btn-user-reload inline-flex items-center gap-1 text-[11px] font-medium rounded-full px-2.5 py-1 transition-colors bg-black/[0.04] hover:bg-black/10 border border-black/5 text-muted hover:text-primary" data-msg="${encodedUserMsg}" title="Kirim ulang pertanyaan yang sama">
         <i class="fa-solid fa-rotate-right"></i> Kirim ulang
       </button>
     </div>` : '';
@@ -659,8 +659,8 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   // [v0.9.9] Desktop (base) = bubble user abu terang + teks gelap (seperti semula).
   // Mobile (max-md) = latar gelap + teks putih.
   const bubbleHtml = isUser
-    ? `<div class="bg-surface-strong text-ink border border-hairline max-md:bg-ink max-md:text-white max-md:border-ink rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] shadow-[0_4px_16px_rgba(0,0,0,0.02)] leading-relaxed">${userImageHtml}${formattedText}${userActionsHtml}</div>`
-    : `<div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] text-body shadow-[0_4px_16px_rgba(0,0,0,0.04)] leading-relaxed">${badgeHtml}${formattedText}${visualHtml}${actionsHtml}${disclaimerHtml}${botActionsHtml}</div>`;
+    ? `<div class="bg-primary/10 text-ink border border-primary/20 rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] leading-relaxed">${userImageHtml}${formattedText}${userActionsHtml}</div>`
+    : `<div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] text-body leading-relaxed">${badgeHtml}${formattedText}${visualHtml}${actionsHtml}${disclaimerHtml}${botActionsHtml}</div>`;
 
   // [v0.9.10] Notif/pengingat (bukan jawaban chat) → kartu di TENGAH, gaya & warna beda,
   // tanpa avatar, bisa ditutup. Dipakai untuk rekomendasi kesulitan & pindah konteks.

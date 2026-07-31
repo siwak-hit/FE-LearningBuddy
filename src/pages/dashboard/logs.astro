@@ -6,43 +6,30 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
   <div class="max-w-[1200px] mx-auto w-full flex-1 flex flex-col min-h-0">
 
     <!-- Header: judul + sub judul -->
-    <div class="mb-8 shrink-0">
+    <div class="mb-6 shrink-0">
       <h1 class="font-serif text-3xl md:text-4xl text-ink tracking-tight mb-2">Logs Percakapan</h1>
       <p class="text-body text-[15px] max-w-2xl">Pantau percakapan siswa dengan AI Buddy, tinjau jawaban, dan tangani peringatan keamanan (SARA, kata kasar, sinyal stres) dengan cepat.</p>
     </div>
 
-    <!-- Filter bar -->
-    <div class="bg-surface-card border border-hairline rounded-[16px] p-3 md:p-4 mb-6 shadow-sm shrink-0">
-      <div class="flex flex-col md:flex-row gap-3 md:items-center">
-        <div class="relative flex-1 min-w-[220px]">
-          <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
-            <i class="fa-solid fa-magnifying-glass text-muted-soft text-[13px]"></i>
-          </div>
-          <input type="text" id="filter-search" placeholder="Cari pesan atau nama siswa..." class="w-full bg-canvas-soft border border-hairline-strong rounded-full pl-10 pr-4 py-2.5 text-[14px] text-ink placeholder:text-muted-soft focus:outline-none focus:border-ink transition-colors">
-        </div>
-        <div class="flex flex-wrap gap-2.5">
-          <select id="filter-project" class="bg-canvas-soft border border-hairline-strong rounded-full px-4 py-2.5 text-[13px] text-ink focus:outline-none focus:border-ink min-w-[140px] cursor-pointer">
-            <option value="">Semua Project</option>
-          </select>
-          <input type="date" id="filter-date" class="bg-canvas-soft border border-hairline-strong rounded-full px-4 py-2.5 text-[13px] text-ink focus:outline-none focus:border-ink cursor-pointer" title="Filter berdasarkan tanggal">
-          <select id="filter-mod" class="bg-canvas-soft border border-hairline-strong rounded-full px-4 py-2.5 text-[13px] text-ink focus:outline-none focus:border-ink min-w-[150px] cursor-pointer">
-            <option value="">Semua Alert</option>
-            <option value="hate_speech">SARA / Hate Speech</option>
-            <option value="profanity">Kata Kasar</option>
-            <option value="mental_health">Sinyal Stres / Burnout</option>
-          </select>
-        </div>
-      </div>
-    </div>
-
     <!-- Daftar sesi -->
     <div class="w-full flex flex-col bg-surface-card border border-hairline rounded-[16px] shadow-sm min-h-[400px] flex-1 mb-4 overflow-hidden shrink-0">
-      <div class="px-5 py-4 border-b border-hairline flex items-center justify-between shrink-0">
+      <div class="px-5 py-4 border-b border-hairline shrink-0 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
         <div>
-          <h3 class="font-serif text-lg text-ink">Daftar Sesi</h3>
+          <div class="flex items-center gap-2.5">
+            <h3 class="font-serif text-lg text-ink">Daftar Sesi</h3>
+            <span class="bg-canvas-soft border border-hairline px-2.5 py-0.5 rounded-full text-[12px] font-medium text-muted" id="total-session-count">0 sesi</span>
+          </div>
           <p class="text-[12px] text-muted-soft mt-0.5">Klik sebuah sesi untuk membuka transkrip lengkap.</p>
         </div>
-        <span class="bg-canvas-soft border border-hairline px-3 py-1 rounded-full text-[12px] font-medium text-muted" id="total-session-count">0</span>
+        <div class="flex flex-col sm:flex-row gap-2.5 shrink-0 w-full lg:w-auto">
+          <div class="relative flex-1 sm:min-w-[220px]">
+            <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none">
+              <i class="fa-solid fa-magnifying-glass text-muted-soft text-[13px]"></i>
+            </div>
+            <input type="text" id="filter-search" placeholder="Cari pesan atau nama siswa..." class="w-full bg-canvas-soft border border-hairline-strong rounded-full pl-10 pr-4 py-2 text-[13px] text-ink placeholder:text-muted-soft focus:outline-none focus:border-ink transition-colors">
+          </div>
+          <input type="date" id="filter-date" class="bg-canvas-soft border border-hairline-strong rounded-full px-4 py-2 text-[13px] text-ink focus:outline-none focus:border-ink cursor-pointer" title="Filter berdasarkan tanggal">
+        </div>
       </div>
 
       <div id="session-list" class="flex-1 overflow-y-auto p-4 grid grid-cols-1 md:grid-cols-2 gap-4 bg-canvas content-start">

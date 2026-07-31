@@ -20,7 +20,7 @@ import '../styles/global.css';
     }
   </style>
 </head>
-<body class="bg-canvas text-body font-sans h-screen flex flex-col overflow-hidden relative">
+<body class="bg-canvas text-body font-sans min-h-screen flex flex-col relative">
 
   <div class="gradient-orb"></div>
 
@@ -29,28 +29,184 @@ import '../styles/global.css';
     <a href="/auth/login?redirect=/dashboard" data-admin-dashboard-link class="text-ink font-medium text-[15px] hover:opacity-70 transition-opacity">Masuk Dashboard</a>
   </nav>
 
-  <main class="relative z-10 flex-1 flex flex-col justify-center items-center text-center px-6 -mt-10">
-    <h1 class="font-serif text-[64px] text-ink leading-[1.05] tracking-[-1.92px] mb-6 max-w-3xl">
+  <main class="relative z-10 flex flex-col justify-center items-center text-center px-6 pt-8 pb-16 md:pt-14 md:pb-24">
+    <h1 class="font-serif text-[44px] md:text-[64px] text-ink leading-[1.05] tracking-[-1.92px] mb-6 max-w-3xl">
       Asisten Pribadi<br>untuk Kelas Virtual Anda.
     </h1>
     <p class="text-[16px] text-body max-w-xl mb-10 leading-relaxed">
       Suntikkan kecerdasan buatan langsung ke dalam Moodle VClass. Berikan siswa Anda pendamping belajar interaktif yang memahami konteks setiap halaman.
     </p>
 
-    <div class="flex gap-4">
+    <div class="flex flex-wrap gap-4 justify-center">
       <a href="/auth/login?redirect=/dashboard" data-admin-dashboard-link class="bg-primary text-white rounded-full px-8 py-3 text-[15px] font-medium hover:bg-primary-active transition-colors shadow-sm">
         Buka Dashboard Guru
       </a>
-      <!-- Harus ambil project_key asli dari DB. Dummy hanya untuk demo lokal. -->
-      <a href="/buddy?projectKey=alb_dummy" class="bg-transparent border border-hairline-strong text-ink rounded-full px-8 py-3 text-[15px] font-medium hover:bg-canvas-soft transition-colors">
-        Lihat Demo Siswa
-      </a>
+      <button type="button" id="btn-try-student" class="bg-transparent border border-hairline-strong text-ink rounded-full px-8 py-3 text-[15px] font-medium hover:bg-canvas-soft transition-colors">
+        <i class="fa-solid fa-user-graduate mr-1.5"></i> Uji Coba sebagai Siswa
+      </button>
     </div>
   </main>
+
+  <!-- DOKUMENTASI -->
+  <section class="relative z-10 w-full max-w-4xl mx-auto px-6 pb-20">
+    <div class="text-center mb-10">
+      <h2 class="font-serif text-3xl md:text-4xl text-ink mb-3">Panduan Penggunaan</h2>
+      <p class="text-[15px] text-muted-soft max-w-xl mx-auto">Langkah demi langkah untuk guru (menyiapkan &amp; mengelola aplikasi) dan siswa (memakai AI Buddy di VClass).</p>
+    </div>
+
+    <!-- Untuk Guru -->
+    <div class="mb-10">
+      <h3 class="text-[18px] font-bold text-ink mb-4 flex items-center gap-2"><i class="fa-solid fa-chalkboard-user text-primary"></i> Untuk Guru (Admin)</h3>
+      <div class="space-y-3">
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">1.</span> Buat akun &amp; login ke dashboard</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            Buka halaman <b>Login</b> → klik <b>Daftar di sini</b>, isi email, password, dan <b>Kode Registrasi</b> (diberikan oleh admin sistem, demi keamanan agar tidak sembarang orang bisa jadi admin). Setelah akun jadi, login untuk masuk ke Dashboard Guru.
+          </div>
+        </details>
+
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">2.</span> Siapkan situs &amp; akun Moodle</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            Sekolah harus punya situs <b>Moodle/VClass</b> yang aktif, dan Anda perlu akun Moodle dengan hak <b>admin/manager</b> — karena mengaktifkan Web Service &amp; membuat token hanya bisa dilakukan oleh admin Moodle.
+          </div>
+        </details>
+
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">3.</span> Aktifkan Web Service &amp; buat token Moodle</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            <p class="mb-2">Di Moodle (sebagai admin): <b>Site administration → Advanced features</b> → aktifkan <b>Enable web services</b>. Lalu <b>Server → Web services → Manage protocols</b> → aktifkan <b>REST</b>. Buat sebuah <b>External service</b>, tambahkan fungsi-fungsi di bawah, lalu buat <b>token</b> untuk service tersebut.</p>
+            <p class="mb-1.5 font-semibold text-ink">Fungsi/API Moodle yang dipakai aplikasi:</p>
+            <ul class="space-y-1 font-mono text-[12.5px]">
+              <li><code>core_webservice_get_site_info</code> — validasi token &amp; info situs</li>
+              <li><code>core_course_get_courses</code> — daftar course/kelas</li>
+              <li><code>core_course_get_contents</code> — materi tiap course</li>
+              <li><code>core_enrol_get_enrolled_users</code> — daftar siswa per course</li>
+              <li><code>core_enrol_get_users_courses</code> — daftar course milik siswa</li>
+              <li><code>core_completion_get_activities_completion_status</code> — status penyelesaian materi</li>
+              <li><code>mod_page_get_pages_by_courses</code> — materi tipe Page</li>
+              <li><code>mod_resource_get_resources_by_courses</code> — materi tipe File/Resource</li>
+              <li><code>mod_assign_get_assignments</code> — daftar tugas</li>
+              <li><code>mod_forum_get_forum_discussions</code> — diskusi forum</li>
+              <li><code>mod_quiz_get_quizzes_by_courses</code> — daftar kuis</li>
+            </ul>
+          </div>
+        </details>
+
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">4.</span> Hubungkan &amp; sinkronkan di dashboard</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            Di Dashboard: <b>Konfigurasi → Moodle</b>, isi <b>REST endpoint</b> (biasanya <code class="text-[12.5px]">https://situs-moodle/webservice/rest/server.php</code>) dan <b>token</b> tadi → <b>Uji &amp; Simpan</b> (pemetaan kelas dibuat otomatis). Lalu buka <b>Basis Pengetahuan → Sinkronkan dengan Moodle</b> untuk menarik materi jadi sumber jawaban chatbot.
+          </div>
+        </details>
+
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">5.</span> Pantau pembelajaran</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            <b>Analitik Pembelajaran</b> menampilkan tingkat kesulitan siswa &amp; efisiensi jawaban; <b>Log Percakapan</b> menampilkan transkrip chat siswa beserta indikator moderasi. Widget "Tanya AI" untuk siswa juga diatur dari menu <b>Konfigurasi → Widget</b>.
+          </div>
+        </details>
+      </div>
+    </div>
+
+    <!-- Untuk Siswa -->
+    <div>
+      <h3 class="text-[18px] font-bold text-ink mb-4 flex items-center gap-2"><i class="fa-solid fa-user-graduate text-primary"></i> Untuk Siswa</h3>
+      <div class="space-y-3">
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">1.</span> Buka VClass/Moodle &amp; login</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            Kunjungi situs LMS sekolahmu (contoh: <code class="text-[12.5px]">lms.smpn167jakarta.sch.id</code>), lalu login memakai akun Moodle yang diberikan guru/sekolah.
+          </div>
+        </details>
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">2.</span> Buka widget "Tanya AI"</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            Masuk ke halaman course/kelasmu, lalu klik tombol/widget <b>Tanya AI</b> di pojok kanan bawah halaman.
+          </div>
+        </details>
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">3.</span> Verifikasi email &amp; mulai bertanya</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            Masukkan <b>email Moodle</b> + <b>kelas</b>, lalu mulai bertanya dengan bahasa sehari-hari — misalnya "gimana cara mengumpulkan tugas?".
+          </div>
+        </details>
+        <details class="group bg-surface-card border border-hairline rounded-[12px] overflow-hidden">
+          <summary class="cursor-pointer list-none px-5 py-4 flex items-center justify-between gap-3 text-[15px] font-semibold text-ink hover:bg-canvas-soft transition-colors">
+            <span><span class="text-primary mr-1.5">4.</span> Fitur yang bisa dipakai</span>
+            <i class="fa-solid fa-chevron-down text-[12px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+          </summary>
+          <div class="px-5 pb-4 pt-1 text-[14px] text-muted leading-relaxed border-t border-hairline">
+            <b>Panduan bergambar</b> (cara login, kumpul tugas, forum, kuis), ketik <b>@</b> untuk merujuk materi tertentu (rangkum / jelaskan ulang / buat soal latihan), dan tombol <b>Hubungi Guru</b> (WhatsApp) kalau masih bingung.
+          </div>
+        </details>
+      </div>
+    </div>
+  </section>
 
   <footer class="relative z-10 text-center py-8 text-muted-soft text-[14px]">
     Skripsi Project &copy; 2026. Designed with Editorial Guidelines.
   </footer>
+
+  <!-- MODAL: Uji Coba sebagai Siswa -->
+  <div id="student-demo-modal" class="hidden fixed inset-0 z-[120] flex items-center justify-center p-4">
+    <div class="absolute inset-0 bg-black/40" id="student-demo-overlay"></div>
+    <div class="relative bg-surface-card border border-hairline rounded-[16px] shadow-lg w-full max-w-md">
+      <div class="border-b border-hairline px-6 py-4 flex items-center justify-between">
+        <h3 class="font-serif text-[20px] text-ink"><i class="fa-solid fa-user-graduate text-primary mr-2 text-[16px]"></i>Uji Coba sebagai Siswa</h3>
+        <button type="button" id="student-demo-close" class="w-8 h-8 rounded-full text-muted-soft hover:text-ink hover:bg-black/5 flex items-center justify-center transition-colors"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div class="px-6 py-5 text-[14px] text-body leading-relaxed">
+        <p class="text-muted mb-4">Untuk mencoba sebagai siswa, kamu perlu login ke VClass/Moodle memakai <b>akun demo</b> berikut, lalu buka widget <b>Tanya AI</b> di halaman course.</p>
+
+        <div class="bg-canvas-soft border border-hairline rounded-[12px] p-4 mb-4 space-y-2.5">
+          <div class="flex items-center justify-between gap-3">
+            <span class="text-[12px] font-semibold uppercase tracking-wider text-muted-soft">Email</span>
+            <code class="text-[13px] font-semibold text-ink">siswadummy1@gmail.com</code>
+          </div>
+          <div class="flex items-center justify-between gap-3 border-t border-hairline pt-2.5">
+            <span class="text-[12px] font-semibold uppercase tracking-wider text-muted-soft">Password</span>
+            <code class="text-[13px] font-semibold text-ink">Smpn167jkt*</code>
+          </div>
+        </div>
+
+        <ol class="space-y-1.5 text-muted mb-5">
+          <li class="flex gap-2"><span class="font-bold text-ink shrink-0">1.</span> Klik tombol <b>Buka VClass/Moodle</b> di bawah.</li>
+          <li class="flex gap-2"><span class="font-bold text-ink shrink-0">2.</span> Login memakai akun demo di atas.</li>
+          <li class="flex gap-2"><span class="font-bold text-ink shrink-0">3.</span> Masuk ke course, lalu klik widget <b>Tanya AI</b> di pojok kanan bawah.</li>
+        </ol>
+
+        <a href="https://lms.smpn167jakarta.sch.id" target="_blank" rel="noopener" class="block text-center bg-primary text-white rounded-full py-3 text-[15px] font-medium hover:bg-primary-active transition-colors">
+          <i class="fa-solid fa-arrow-up-right-from-square mr-1.5"></i> Buka VClass/Moodle
+        </a>
+        <a href="/buddy?projectKey=alb_dummy" class="block text-center text-[13px] text-muted-soft hover:text-ink mt-3 transition-colors">Atau lihat demo workspace langsung (tanpa Moodle)</a>
+      </div>
+    </div>
+  </div>
 
   <script is:inline>
     (() => {
@@ -98,6 +254,15 @@ import '../styles/global.css';
       } catch (error) {
         console.warn('[PWA entry] gagal menentukan rute:', error);
       }
+
+      // Modal "Uji Coba sebagai Siswa" (info akun demo Moodle).
+      const demoModal = document.getElementById('student-demo-modal');
+      const openDemo = () => demoModal && demoModal.classList.remove('hidden');
+      const closeDemo = () => demoModal && demoModal.classList.add('hidden');
+      document.getElementById('btn-try-student')?.addEventListener('click', openDemo);
+      document.getElementById('student-demo-close')?.addEventListener('click', closeDemo);
+      document.getElementById('student-demo-overlay')?.addEventListener('click', closeDemo);
+      document.addEventListener('keydown', (e) => { if (e.key === 'Escape') closeDemo(); });
     })();
   </script>
 

@@ -260,6 +260,45 @@ $(document).ready(function () {
   $('#btn-refresh').on('click', loadAnalytics);
   $('#filter-project').on('change', loadAnalytics);
 
+  // Modal panduan membaca analitik (carousel Info).
+  let anInfoIdx = 0;
+  const anSlides = () => $('.an-info-slide');
+  function renderAnInfo() {
+    const slides = anSlides();
+    const total = slides.length || 1;
+    if (anInfoIdx < 0) anInfoIdx = 0;
+    if (anInfoIdx > total - 1) anInfoIdx = total - 1;
+    slides.addClass('hidden').eq(anInfoIdx).removeClass('hidden');
+    $('#an-info-prev').prop('disabled', anInfoIdx === 0).toggleClass('opacity-40 cursor-not-allowed', anInfoIdx === 0);
+    const last = anInfoIdx === total - 1;
+    $('#an-info-next').html(last
+      ? '<span class="hidden sm:inline">Selesai</span><i class="fa-solid fa-check text-[11px]"></i>'
+      : '<span class="hidden sm:inline">Berikutnya</span><i class="fa-solid fa-chevron-right text-[11px]"></i>');
+    $('#an-info-dots').html(
+      Array.from({ length: total }, (_, i) =>
+        `<span class="w-2 h-2 rounded-full ${i === anInfoIdx ? 'bg-ink' : 'bg-hairline-strong'}"></span>`
+      ).join('')
+    );
+    // Scroll badan modal balik ke atas tiap ganti slide.
+    $('#analytics-info-modal .overflow-y-auto').scrollTop(0);
+  }
+  const openInfo = () => { anInfoIdx = 0; $('#analytics-info-modal').removeClass('hidden'); renderAnInfo(); };
+  const closeInfo = () => $('#analytics-info-modal').addClass('hidden');
+  $('#btn-info-analytics').on('click', openInfo);
+  $('#analytics-info-close, #analytics-info-overlay').on('click', closeInfo);
+  $('#an-info-prev').on('click', () => { anInfoIdx -= 1; renderAnInfo(); });
+  $('#an-info-next').on('click', () => {
+    const total = anSlides().length;
+    if (anInfoIdx >= total - 1) { closeInfo(); return; }
+    anInfoIdx += 1; renderAnInfo();
+  });
+  $(document).on('keydown', (e) => {
+    if ($('#analytics-info-modal').hasClass('hidden')) return;
+    if (e.key === 'Escape') closeInfo();
+    else if (e.key === 'ArrowRight') { anInfoIdx = Math.min(anSlides().length - 1, anInfoIdx + 1); renderAnInfo(); }
+    else if (e.key === 'ArrowLeft') { anInfoIdx = Math.max(0, anInfoIdx - 1); renderAnInfo(); }
+  });
+
   // Tab menu analitik (Section 2): tab bar di desktop, dropdown di mobile — tersinkron.
   function activateAnalyticsTab(target) {
     if (!target) return;

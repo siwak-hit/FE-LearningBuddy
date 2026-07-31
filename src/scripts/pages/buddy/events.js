@@ -309,6 +309,21 @@ async function sendChatMessage(context, options = {}) {
         sessionId: context.sessionId
       });
 
+      // [v0.9.52] Mode darurat: koneksi Moodle bermasalah (token kadaluarsa / endpoint mati).
+      // Beri tahu siswa bahwa jawaban berasal dari PANDUAN penggunaan Moodle, bukan materi/
+      // forum terbaru. Tampilkan sekali per "episode" darurat supaya tidak spam tiap pesan.
+      if (res.data.degraded) {
+        if (!context._degradedNoticeShown) {
+          context._degradedNoticeShown = true;
+          context.appendBubble(
+            res.data.degraded_note || 'Koneksi ke Moodle sedang bermasalah. Jawaban ini dari panduan penggunaan Moodle, bukan materi atau forum terbaru.',
+            false, 'system', [], { noFeedbackLock: true, notice: 'context' }
+          );
+        }
+      } else {
+        context._degradedNoticeShown = false;
+      }
+
       if (typeof context.handleBotResponse === 'function') {
         context.handleBotResponse(res.data);
       } else {
@@ -558,11 +573,15 @@ function initGlobalAiUsageBar(context) {
   // buka panel → sembunyikan tombol kecil; klik ✕ → tutup panel & munculkan tombol lagi.
   $(document).off('click.albUsageToggle').on('click.albUsageToggle', '#alb-global-ai-usage-toggle', function () {
     $('#alb-global-ai-usage').removeClass('hidden');
-    $('#alb-global-ai-usage-toggle').addClass('hidden');
+    // .hide() (inline display:none) — `hidden` class kalah dari `inline-flex` di urutan CSS Tailwind.
+    $('#alb-global-ai-usage-toggle').hide();
+    // Panel baru dibuka → segarkan angka & pindah ke ritme aktif (8 dtk).
+    poll();
+    scheduleNext();
   });
   $(document).off('click.albUsageClose').on('click.albUsageClose', '#alb-global-ai-usage-close', function () {
     $('#alb-global-ai-usage').addClass('hidden');
-    $('#alb-global-ai-usage-toggle').removeClass('hidden');
+    $('#alb-global-ai-usage-toggle').show();
   });
 
   const render = (data = {}) => {
@@ -601,15 +620,41 @@ function initGlobalAiUsageBar(context) {
     }
   };
 
+  // [v0.9.52] Polling diringankan (ganti setInterval 8dtk tetap):
+  //  - panel dibuka  → 8 dtk (butuh angka live)
+  //  - panel tertutup → 45 dtk (cukup untuk memutakhirkan ~% di tombol)
+  //  - tab tidak aktif → berhenti total (hemat jaringan & kuota Gemini)
+  const ACTIVE_MS = 8000;
+  const IDLE_MS = 45000;
+
+  const isPanelOpen = () => {
+    const el = document.getElementById('alb-global-ai-usage');
+    return !!el && !el.classList.contains('hidden');
+  };
+
   const poll = () => {
+    if (document.hidden) return; // jangan poll saat tab disembunyikan
     ApiService.get('/chat/ai-usage-global')
       .then((res) => { if (res?.status === 'success' && res.data) render(res.data); })
       .catch(() => {});
   };
 
+  const scheduleNext = () => {
+    if (window.__albGlobalUsageTimer) clearTimeout(window.__albGlobalUsageTimer);
+    const delay = isPanelOpen() ? ACTIVE_MS : IDLE_MS;
+    window.__albGlobalUsageTimer = setTimeout(() => { poll(); scheduleNext(); }, delay);
+  };
+
   poll();
-  if (window.__albGlobalUsageTimer) clearInterval(window.__albGlobalUsageTimer);
-  window.__albGlobalUsageTimer = setInterval(poll, 8000);
+  scheduleNext();
+
+  // Saat tab kembali terlihat → segarkan langsung lalu jadwalkan ulang.
+  if (!window.__albUsageVisBound) {
+    window.__albUsageVisBound = true;
+    document.addEventListener('visibilitychange', () => {
+      if (!document.hidden) { poll(); scheduleNext(); }
+    });
+  }
 }
 
 function registerAlbPwa(context) {
@@ -654,28 +699,18 @@ export function bindWorkspaceEvents() {
 
 function bindSidebarTabs(context) {
   bindIfExists(context.$tabBtnGuide, 'click', () => {
-    context.$tabBtnGuide
-      .addClass('font-bold text-primary border-primary')
-      .removeClass('font-semibold text-muted border-transparent');
-
-    context.$tabBtnElements
-      .addClass('font-semibold text-muted border-transparent')
-      .removeClass('font-bold text-primary border-primary');
+    context.$tabBtnGuide.addClass('bg-ink text-white shadow-sm').removeClass('text-muted');
+    context.$tabBtnElements.addClass('text-muted').removeClass('bg-ink text-white shadow-sm');
 
     context.$tabContentGuide.removeClass('hidden');
-    context.$elList.addClass('hidden');
+    context.$tabContentElements.addClass('hidden');
   });
 
   bindIfExists(context.$tabBtnElements, 'click', () => {
-    context.$tabBtnElements
-      .addClass('font-bold text-primary border-primary')
-      .removeClass('font-semibold text-muted border-transparent');
+    context.$tabBtnElements.addClass('bg-ink text-white shadow-sm').removeClass('text-muted');
+    context.$tabBtnGuide.addClass('text-muted').removeClass('bg-ink text-white shadow-sm');
 
-    context.$tabBtnGuide
-      .addClass('font-semibold text-muted border-transparent')
-      .removeClass('font-bold text-primary border-primary');
-
-    context.$elList.removeClass('hidden');
+    context.$tabContentElements.removeClass('hidden');
     context.$tabContentGuide.addClass('hidden');
   });
 }
@@ -694,12 +729,24 @@ function bindContextDrawer(context) {
   // [#6] Tombol info → modal judul/konteks lengkap.
   $('#btn-context-info').off('click.albCtxInfo').on('click.albCtxInfo', () => context.openContextInfoModal?.());
 
-  // [E] Accordion "Preview Konteks": toggle buka/tutup body + putar chevron.
+  // Menu titik-3 konteks (berisi Ganti + Info): toggle dropdown, tutup saat klik luar / pilih item.
+  $('#ctx-menu-toggle').off('click.albCtxMenu').on('click.albCtxMenu', (e) => {
+    e.stopPropagation();
+    $('#ctx-menu').toggleClass('hidden');
+  });
+  $('#ctx-menu').off('click.albCtxMenuItem').on('click.albCtxMenuItem', 'button, a', () => $('#ctx-menu').addClass('hidden'));
+  $(document).off('click.albCtxMenuOut').on('click.albCtxMenuOut', (e) => {
+    if (!$(e.target).closest('#ctx-menu, #ctx-menu-toggle').length) $('#ctx-menu').addClass('hidden');
+  });
+
+  // [E] Preview konteks ringkas: chevron memperbesar (judul & deskripsi penuh) / meringkas
+  // (judul 1 baris terpotong + deskripsi 1 baris). `.text()` tetap judul penuh (info modal aman).
   $('#ctx-preview-toggle').off('click.albCtxAcc').on('click.albCtxAcc', () => {
-    const $body = $('#ctx-preview-body');
-    const open = $body.hasClass('hidden');
-    $body.toggleClass('hidden', !open);
-    $('#ctx-preview-chevron').toggleClass('rotate-180', open);
+    const $title = $('#context-title');
+    const collapsed = $title.hasClass('truncate');
+    $title.toggleClass('truncate', !collapsed);
+    $('#context-desc').toggleClass('line-clamp-1', !collapsed);
+    $('#ctx-preview-chevron').toggleClass('rotate-180', collapsed);
   });
 }
 

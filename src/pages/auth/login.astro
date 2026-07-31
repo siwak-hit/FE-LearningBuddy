@@ -17,16 +17,17 @@ import '../../styles/global.css';
     }
   </style>
 </head>
-<body class="bg-canvas text-body font-sans min-h-screen w-full flex flex-col justify-center items-center relative overflow-hidden p-4">
+<body class="bg-canvas text-body font-sans min-h-screen w-full flex flex-col justify-center items-center relative overflow-x-hidden p-4 py-8">
 
   <div class="gradient-orb"></div>
 
   <div class="bg-surface-card border border-hairline p-8 md:p-10 rounded-[24px] shadow-sm w-full max-w-md mx-auto relative z-10">
     <div class="text-center mb-8">
       <h1 class="font-serif text-3xl text-ink tracking-tight mb-2"><i class="fa-solid fa-feather-pointed mr-2"></i>AI Buddy</h1>
-      <p class="text-[15px] text-muted-soft">Masuk ke Dashboard Guru</p>
+      <p id="auth-subtitle" class="text-[15px] text-muted-soft">Masuk ke Dashboard Guru</p>
     </div>
 
+    <!-- FORM LOGIN -->
     <form id="login-form" class="space-y-5">
       <div>
         <label class="block text-[14px] font-medium text-ink mb-2">Email</label>
@@ -34,12 +35,48 @@ import '../../styles/global.css';
       </div>
       <div>
         <label class="block text-[14px] font-medium text-ink mb-2">Password</label>
-        <input type="password" id="password" class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors" placeholder="••••••••" required>
+        <div class="relative">
+          <input type="password" id="password" class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 pr-11 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors" placeholder="••••••••" required>
+          <button type="button" id="toggle-password" tabindex="-1" aria-label="Tampilkan atau sembunyikan password" class="absolute inset-y-0 right-0 flex items-center px-3.5 text-muted-soft hover:text-ink transition-colors">
+            <i class="fa-solid fa-eye" id="toggle-password-icon"></i>
+          </button>
+        </div>
       </div>
       <button type="submit" class="w-full bg-primary text-white rounded-full py-3 text-[15px] font-medium hover:bg-primary-active transition-colors mt-4">
         Masuk
       </button>
     </form>
+
+    <!-- FORM DAFTAR (tersembunyi awal) -->
+    <form id="register-form" class="space-y-5 hidden">
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Email</label>
+        <input type="email" id="reg-email" class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors" placeholder="guru@sekolah.com" required>
+      </div>
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Password <span class="text-muted-soft font-normal">(min. 6 karakter)</span></label>
+        <div class="relative">
+          <input type="password" id="reg-password" class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 pr-11 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors" placeholder="••••••••" required>
+          <button type="button" id="toggle-reg-password" tabindex="-1" aria-label="Tampilkan atau sembunyikan password" class="absolute inset-y-0 right-0 flex items-center px-3.5 text-muted-soft hover:text-ink transition-colors">
+            <i class="fa-solid fa-eye" id="toggle-reg-password-icon"></i>
+          </button>
+        </div>
+      </div>
+      <div>
+        <label class="block text-[14px] font-medium text-ink mb-2">Kode Registrasi</label>
+        <input type="text" id="reg-code" class="w-full bg-canvas-soft border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors" placeholder="Kode dari admin sistem" required>
+        <p class="text-[12px] text-muted-soft mt-1.5"><i class="fa-solid fa-shield-halved mr-1"></i> Pendaftaran dibatasi kode rahasia agar hanya guru berwenang yang bisa membuat akun.</p>
+      </div>
+      <button type="submit" class="w-full bg-primary text-white rounded-full py-3 text-[15px] font-medium hover:bg-primary-active transition-colors mt-4">
+        Daftar
+      </button>
+    </form>
+
+    <!-- Toggle login/daftar -->
+    <p class="text-center text-[14px] text-muted-soft mt-6">
+      <span id="to-register-wrap">Belum punya akun? <button type="button" id="to-register" class="text-primary font-semibold hover:underline">Daftar di sini</button></span>
+      <span id="to-login-wrap" class="hidden">Sudah punya akun? <button type="button" id="to-login" class="text-primary font-semibold hover:underline">Masuk di sini</button></span>
+    </p>
   </div>
 
   <script type="text/javascript" src="https://cdn.jsdelivr.net/npm/toastify-js"></script>

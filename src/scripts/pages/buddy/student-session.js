@@ -334,9 +334,21 @@ export function bindExternalSessionGate(context) {
       sessionStorage.setItem('alb_student_class', verifiedIdentity.class_code || classCode);
       setStartEnabled(true);
       Toast.show('Email Moodle valid. Sesi bisa dimulai.', 'success');
+    } else if (res?.data?.allow_guest) {
+      // [v0.9.52] Moodle bermasalah (token kadaluarsa / belum sinkron) → jangan blokir;
+      // izinkan masuk sebagai TAMU dengan mode panduan penggunaan Moodle saja.
+      verifiedIdentity = {
+        email, class_code: classCode || null, sessionId: context.sessionId,
+        guest: true, guidance_only: true, fullname: ''
+      };
+      persistReusableStudentSession(context, verifiedIdentity);
+      sessionStorage.setItem('alb_student_email', email);
+      if (classCode) sessionStorage.setItem('alb_student_class', classCode);
+      setStartEnabled(true, 'Masuk sebagai tamu (mode panduan). Moodle sedang bermasalah.');
+      Toast.show(res?.data?.message || 'Masuk sebagai tamu — mode panduan penggunaan Moodle.', 'warn');
     } else {
       setStartEnabled(false, res?.data?.message || res?.message || 'Email tidak ditemukan di kelas tersebut.');
-      Toast.show(res?.data?.message || res?.message || 'Email tidak ditemukan di Moodle untuk kelas itu.', 'error');
+      Toast.show(res?.data?.message || res?.message || 'Email tidak ditemukan di Moodle untuk kelas itu.', 'warn');
     }
   };
 

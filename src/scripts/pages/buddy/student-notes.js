@@ -50,16 +50,25 @@ export function ensureStudentNotesMenu(context) {
   if (!$guide.length || $guide.find('[data-alb-notes-menu="1"]').length) return;
 
   $guide.append(`
-    <div data-alb-notes-menu="1" class="mt-5 pt-4 border-t border-hairline space-y-3">
-      <div class="px-1">
-        <div class="text-[10px] font-black uppercase tracking-[0.12em] text-muted flex items-center gap-2"><span class="w-1.5 h-1.5 rounded-full bg-primary/60"></span>Menu Catatan &amp; Tugas</div>
-        <div class="text-[11px] text-muted-soft mt-0.5 leading-snug">Catatan pribadi & daftar tugas saat memakai AI.</div>
+    <details data-alb-notes-menu="1" class="guide-section pb-4 mb-4 border-b border-hairline" open>
+      <summary class="flex items-center justify-between gap-2 mb-3">
+        <span class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px]">Catatan &amp; Tugas</span>
+        <i class="fa-solid fa-chevron-down guide-sec-chev text-[11px] text-muted-soft transition-transform"></i>
+      </summary>
+      <div class="guide-section-list space-y-2">
+        <button type="button" id="alb-note-add-btn" class="guide-btn w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200">
+          <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-note-sticky text-[13px]"></i></span>
+          <span class="flex-1 text-left truncate">Catatan Saya</span>
+          <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
+        </button>
+        <button type="button" id="alb-todo-btn" class="guide-btn w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200">
+          <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-list-check text-[13px]"></i></span>
+          <span class="flex-1 text-left truncate">Tugas Wajib (To-do)</span>
+          <span id="alb-todo-badge" class="hidden shrink-0 text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5"></span>
+          <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
+        </button>
       </div>
-      <div class="space-y-2.5">
-        <button type="button" id="alb-note-add-btn" class="w-full text-left bg-white hover:bg-canvas-soft border border-hairline rounded-xl px-3 py-3 flex items-center gap-3 transition-colors"><i class="fa-solid fa-note-sticky text-amber-500"></i><span><b class="block text-[13px] text-ink">Catatan Saya</b><small class="text-[11px] text-muted-soft">Tambah & kelola pengingat singkat</small></span></button>
-        <button type="button" id="alb-todo-btn" class="w-full text-left bg-white hover:bg-canvas-soft border border-hairline rounded-xl px-3 py-3 flex items-center gap-3 transition-colors"><i class="fa-solid fa-list-check text-primary"></i><span class="flex-1"><b class="block text-[13px] text-ink">Tugas Wajib (To-do)</b><small class="text-[11px] text-muted-soft">Checklist yang harus kamu lakukan</small></span><span id="alb-todo-badge" class="hidden shrink-0 text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 rounded-full px-2 py-0.5"></span></button>
-      </div>
-    </div>
+    </details>
   `);
 
   // [v0.9.41] Animasi PULSE pada tombol Tugas Wajib agar menarik perhatian saat sidebar

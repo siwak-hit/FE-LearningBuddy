@@ -574,6 +574,17 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
           <h2 class="font-serif text-2xl text-ink mb-2">Verifikasi Siswa VClass</h2>
           <p class="text-[14px] text-body leading-relaxed mb-4">Masukkan email Moodle/VClass dan pilih kelas kamu. Sistem akan mengecek apakah email tersebut benar-benar terdaftar di kelas yang dipilih.</p>
           ${reasonHtml}
+          <details class="mb-4 bg-canvas-soft border border-hairline rounded-xl overflow-hidden group">
+            <summary class="cursor-pointer list-none px-3.5 py-2.5 flex items-center justify-between gap-2 text-[12.5px] font-semibold text-ink hover:bg-surface-strong transition-colors">
+              <span><i class="fa-solid fa-circle-info text-primary mr-1.5"></i>Kok diminta email lagi? Padahal sudah login…</span>
+              <i class="fa-solid fa-chevron-down text-[10px] text-muted-soft group-open:rotate-180 transition-transform"></i>
+            </summary>
+            <div class="px-3.5 pb-3 pt-2.5 text-[12.5px] text-muted leading-relaxed border-t border-hairline space-y-1.5">
+              <p>• <b>Diminta email lagi walau sudah login</b> di VClass itu wajar — cukup masukkan ulang email Moodle-mu.</p>
+              <p>• <b>Biar otomatis</b> (tak perlu isi email lagi), biasanya kamu harus <b>masuk ke halaman detail kursus</b> dulu, baru buka widget Tanya AI dari situ — di halaman itu widget bisa mengenali identitasmu.</p>
+              <p>• <b>Kenapa tanpa password?</b> AI Buddy sengaja <b>tidak meminta password Moodle</b> demi keamanan &amp; privasi. Ia hanya mencocokkan <b>email</b>-mu dengan data siswa yang sudah disinkronkan dari VClass untuk memastikan kamu memang terdaftar di kelas ini.</p>
+            </div>
+          </details>
           <label class="block text-[12px] font-bold text-muted uppercase tracking-wide mb-1">Email Moodle</label>
           <input id="alb-student-email-input" type="email" value="${emailValue}" class="w-full bg-canvas border border-hairline-strong rounded-xl px-4 py-3 text-[14px] text-ink focus:outline-none focus:border-primary mb-3" placeholder="nama@smpn167jakarta.sch.id">
           <label class="block text-[12px] font-bold text-muted uppercase tracking-wide mb-1">Kelas</label>

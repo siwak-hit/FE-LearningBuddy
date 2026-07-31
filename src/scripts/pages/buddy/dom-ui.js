@@ -76,6 +76,7 @@ export function cacheWorkspaceDOM() {
   this.$tabBtnGuide = $('#tab-btn-guide');
   this.$tabBtnElements = $('#tab-btn-elements');
   this.$tabContentGuide = $('#tab-content-guide');
+  this.$tabContentElements = $('#tab-content-elements');
 
   this.$modeToggleBtn = $('#btn-mode-dropdown-toggle');
   this.$modeMenu = $('#response-mode-menu');
@@ -624,163 +625,106 @@ export function _renderElementCards(elements) {
     const safeName = this.escapeHtml(el.name || `@element${idx + 1}`);
     const safeType = this.escapeHtml(el.type || 'Elemen');
     const safeTitle = this.escapeHtml(el.title || '');
-    const safeText = this.escapeHtml(el.text || 'Tidak ada teks konten.');
     const safeImage = el.image ? this.escapeHtml(el.image) : '';
+    const subtitle = safeTitle ? `${safeType} · ${safeTitle}` : safeType;
 
-    // Preview elemen wajib diisolasi. Jangan inject style/link template langsung ke DOM workspace.
-    const previewSrcdoc = this.buildElementPreviewSrcdoc(el, this.activeTemplate);
-    const safePreviewSrcdoc = this.escapeHtml(previewSrcdoc);
+    const placeholder = `<div class="flex flex-col items-center justify-center gap-1 py-10 text-muted-soft text-[12px]"><i class="fa-regular fa-image text-2xl"></i><span>Tanpa gambar</span></div>`;
+    const bodyHtml = safeImage
+      ? `<img src="${safeImage}" alt="${safeName}" loading="lazy" class="alb-element-img w-full h-auto block rounded-md">`
+      : placeholder;
 
-    // Kartu visual (punya gambar) selalu menampilkan gambar + keterangan + tombol.
-    // Kartu non-visual tetap memakai accordion + preview iframe.
-    const isVisualCard = !!safeImage;
-
-    const headerHtml = `
-      <div class="p-4 bg-surface-strong ${isVisualCard ? '' : 'cursor-pointer buddy-accordion-toggle'} flex justify-between items-center group">
-        <div class="min-w-0">
-          <div class="font-bold text-ink text-[14px]">${safeName}</div>
-          <div class="text-[12px] text-muted-soft mt-0.5">${safeType} · ${safeTitle}</div>
+    // Kartu ringkas: header (judul + subjudul) + foto. Klik kartu → modal detail.
+    const $card = $(`
+      <div class="element-card bg-surface-card border border-hairline rounded-xl mb-3 overflow-hidden shadow-sm cursor-pointer hover:border-primary/50 hover:shadow transition-all" id="accordion-${el.key}">
+        <div class="px-4 py-3 border-b border-hairline">
+          <div class="font-bold text-ink text-[14px] truncate">${safeName}</div>
+          <div class="text-[12px] text-muted-soft mt-0.5 truncate">${subtitle}</div>
         </div>
-        ${isVisualCard
-          ? '<i class="fa-solid fa-image text-muted-soft"></i>'
-          : '<i class="fa-solid fa-chevron-down text-muted-soft transition-transform duration-300 buddy-accordion-icon"></i>'}
-      </div>`;
+        <div class="bg-slate-50 p-3">${bodyHtml}</div>
+      </div>`);
 
-    const imageBlockHtml = isVisualCard ? `
-      <div class="alb-element-img-wrap border-t border-hairline bg-slate-50">
-        <div class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border-b border-hairline text-[10px] font-bold uppercase tracking-wide text-slate-500">
-          <i class="fa-solid fa-camera"></i> Tangkapan layar — contoh tampilan
-        </div>
-        <div class="relative p-3">
-          <img src="${safeImage}" alt="${safeName}" loading="lazy"
-               class="alb-element-img btn-zoom-element-image w-full h-auto block rounded-md border border-slate-300 shadow-sm cursor-zoom-in"
-               data-src="${safeImage}" data-title="${safeName}">
-          <div class="absolute bottom-5 right-5 bg-black/60 text-white text-[10px] px-2 py-1 rounded-full flex items-center gap-1 pointer-events-none">
-            <i class="fa-solid fa-magnifying-glass-plus"></i> klik perbesar
-          </div>
-        </div>
-        <div class="px-3 pb-2 -mt-1 text-[10px] text-slate-400 text-center leading-snug">
-          <i class="fa-regular fa-circle-info"></i> Ini hanya gambar ilustrasi, bukan tombol/kolom yang bisa diklik atau diisi.
-        </div>
-      </div>` : '';
-
-    const buttonsHtml = `
-      <div class="flex gap-2">
-        <button type="button" class="btn-ask-element flex-1 bg-surface-strong text-ink border border-hairline-strong rounded-lg py-2 text-[13px] font-medium hover:bg-hairline-strong transition-colors">
-          <i class="fa-solid fa-comments mr-1"></i> Tanya Sistem
-        </button>
-        <button type="button" class="btn-explain-element-ai flex-1 bg-amber-50 text-amber-700 border border-amber-200 rounded-lg py-2 text-[13px] font-medium hover:bg-amber-100 transition-colors">
-          <i class="fa-solid fa-sparkles mr-1"></i> Jelaskan AI
-        </button>
-        ${isVisualCard ? '' : `<button type="button" class="btn-visualize-element flex-1 bg-transparent text-ink border border-hairline-strong rounded-lg py-2 text-[13px] font-medium hover:bg-surface-strong transition-colors">
-          <i class="fa-solid fa-eye mr-1"></i> Visual
-        </button>`}
-      </div>`;
-
-    const bodyHtml = `
-      <div class="${isVisualCard ? '' : 'hidden'} bg-white p-4 border-t border-hairline buddy-accordion-body">
-        <div class="flex items-start gap-2 mb-4 text-[12px] text-body bg-canvas-soft border border-hairline rounded-lg px-3 py-2.5 leading-relaxed">
-          <i class="fa-regular fa-circle-question mt-0.5 text-primary shrink-0"></i>
-          <span>Bingung dengan ${isVisualCard ? 'tampilan' : 'elemen'} ini? Klik <b>Tanya Sistem</b> untuk penjelasan singkat, atau <b>Jelaskan AI</b> kalau ingin lebih dalam.</span>
-        </div>
-        ${buttonsHtml}
-        ${isVisualCard ? '' : `
-        <div class="visual-container hidden mt-3 p-2 border border-hairline rounded-lg bg-[#f9fafb] overflow-hidden relative">
-           <iframe class="buddy-element-preview-frame w-full h-[220px] rounded-lg bg-white border-0" sandbox="" referrerpolicy="no-referrer" loading="lazy" srcdoc="${safePreviewSrcdoc}"></iframe>
-        </div>`}
-      </div>`;
-
-    const cardHtml = `
-      <div class="element-card bg-surface-card border border-hairline rounded-xl mb-3 overflow-hidden shadow-sm transition-all duration-300" id="accordion-${el.key}">
-        ${headerHtml}${imageBlockHtml}${bodyHtml}
-      </div>`;
-
-    const $card = $(cardHtml);
-
-    // Fallback gambar: jika 404/gagal, tampilkan placeholder + path (jangan hilang diam-diam).
+    // Fallback gambar 404 → placeholder (jangan hilang diam-diam).
     const $img = $card.find('.alb-element-img');
     if ($img.length) {
-      const showImgFallback = () => {
-        if ($card.find('.alb-img-fallback').length) return;
-        $img.closest('.alb-element-img-wrap').html(
-          `<div class="alb-img-fallback flex flex-col items-center justify-center gap-1 py-8 px-3 text-center text-muted-soft text-[12px]">
-             <i class="fa-regular fa-image text-2xl"></i>
-             <span>Gambar belum tersedia</span>
-             <span class="text-[10px] break-all opacity-70">${this.escapeHtml(el.image || '')}</span>
-           </div>`
-        );
-      };
+      const showImgFallback = () => $img.replaceWith(placeholder);
       $img.on('error', showImgFallback);
       if ($img[0].complete && $img[0].naturalWidth === 0) showImgFallback();
     }
 
-    // Event: Buka Tutup Accordion Utama
-    $card.find('.buddy-accordion-toggle').on('click', function() {
-      const $body = $card.find('.buddy-accordion-body');
-      const $icon = $(this).find('.buddy-accordion-icon');
-
-      // Tutup accordion lain yang sedang terbuka
-      $('.buddy-accordion-body').not($body).slideUp(200).addClass('hidden');
-      $('.buddy-accordion-icon').not($icon).removeClass('rotate-180');
-
-      if ($body.hasClass('hidden')) {
-        $body.removeClass('hidden').hide().slideDown(200);
-        $icon.addClass('rotate-180');
-      } else {
-        $body.slideUp(200, function() { $(this).addClass('hidden'); });
-        $icon.removeClass('rotate-180');
-      }
-    });
-
-    // Event: Klik Tombol "Tanya Sistem" — JAWABAN SISTEM deterministik dari keterangan elemen.
-    $card.find('.btn-ask-element').on('click', () => {
-      this.answerElementViaSystem(el);
-      if (window.innerWidth < 768) this.closeContextSidebar?.();
-    });
-
-    // Event: Klik Tombol "Jelaskan AI" — kirim LANGSUNG ke AI (tanpa mengisi kolom input).
-    $card.find('.btn-explain-element-ai').on('click', () => {
-      const where = el.page_label ? ` pada ${el.page_label}` : '';
-      const q = `Tolong jelaskan "${el.name || 'elemen ini'}"${where} secara singkat dan jelas.`;
-      this.sendDirectMessage?.({
-        message: q,
-        userImage: el.image || null,
-        forceAI: true,
-        forceFAQ: false,
-        responseMode: 'short',
-        intent: 'penjelasan_materi',
-        expectedSourceType: 'all'
-      });
-      if (window.innerWidth < 768) this.closeContextSidebar?.();
-    });
-
-    // Event: Zoom gambar elemen (pakai overlay tutorial statis bila tersedia).
-    $card.find('.btn-zoom-element-image').on('click', function (e) {
-      e.stopPropagation();
-      const src = $(this).attr('data-src');
-      if (!src) return;
-      const $overlay = $('#alb-static-image-zoom');
-      if ($overlay.length) {
-        $('#alb-static-image-zoom-img').attr('src', src);
-        $overlay.removeClass('hidden');
-      } else {
-        window.open(src, '_blank');
-      }
-    });
-
-    // Event: Klik Tombol "Visual" (munculin HTML)
-    $card.find('.btn-visualize-element').on('click', function() {
-       const $vis = $card.find('.visual-container');
-       if ($vis.hasClass('hidden')) {
-          $vis.removeClass('hidden').hide().slideDown(200);
-          $(this).addClass('bg-surface-strong');
-       } else {
-          $vis.slideUp(200, function(){ $(this).addClass('hidden'); });
-          $(this).removeClass('bg-surface-strong');
-       }
-    });
-
+    $card.on('click', () => this.openElementModal(el));
     this.$elList.append($card);
+  });
+}
+
+// Modal detail elemen: gambar besar + info "Tanya biasa" vs "Tanya AI" + 2 tombol aksi.
+export function openElementModal(el) {
+  $('#alb-element-modal').remove();
+  const name = this.escapeHtml(el.name || 'Elemen');
+  const type = this.escapeHtml(el.type || 'Elemen');
+  const title = this.escapeHtml(el.title || '');
+  const image = el.image ? this.escapeHtml(el.image) : '';
+  const subtitle = title ? `${type} · ${title}` : type;
+
+  const imgHtml = image
+    ? `<img src="${image}" alt="${name}" class="w-full h-auto rounded-lg border border-hairline">`
+    : `<div class="flex flex-col items-center justify-center gap-1 py-12 text-muted-soft text-[13px] bg-slate-50 rounded-lg border border-hairline"><i class="fa-regular fa-image text-3xl"></i><span>Tanpa gambar</span></div>`;
+
+  $('body').append(`
+    <div id="alb-element-modal" class="fixed inset-0 z-[9600] flex items-center justify-center p-4">
+      <div class="absolute inset-0 bg-ink/50 backdrop-blur-sm alb-el-modal-close"></div>
+      <div class="relative bg-surface-card w-full max-w-md rounded-2xl shadow-2xl border border-hairline flex flex-col max-h-[88vh]">
+        <div class="px-5 py-4 border-b border-hairline flex items-start justify-between gap-3 shrink-0">
+          <div class="min-w-0">
+            <h3 class="font-bold text-ink text-xl truncate">${name}</h3>
+            <p class="text-[12px] text-muted-soft truncate">${subtitle}</p>
+          </div>
+          <button type="button" class="alb-el-modal-close w-8 h-8 rounded-full text-muted-soft hover:text-ink hover:bg-black/5 flex items-center justify-center shrink-0"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="p-5 overflow-y-auto">
+          <div class="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 border border-hairline border-b-0 rounded-t-lg text-[10px] font-bold uppercase tracking-wide text-slate-500"><i class="fa-solid fa-camera"></i> Tangkapan layar — contoh tampilan</div>
+          <div class="border border-hairline rounded-b-lg p-2 bg-slate-50 mb-4">${imgHtml}</div>
+
+          <div class="space-y-2 mb-4 text-[12.5px] leading-relaxed">
+            <div class="flex gap-2 bg-canvas-soft border border-hairline rounded-lg px-3 py-2">
+              <i class="fa-solid fa-comments text-slate-500 mt-0.5 shrink-0"></i>
+              <span><b class="text-ink">Tanya biasa</b> — tanya untuk mendapat <b>jawaban dari sistem</b> tentang elemen ini. Jawaban sistem itu teks baku yang sudah disiapkan: cepat, konsisten, dan <b>tidak memakai kuota AI</b>.</span>
+            </div>
+            <div class="flex gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+              <i class="fa-solid fa-sparkles text-amber-600 mt-0.5 shrink-0"></i>
+              <span><b class="text-amber-800">Tanya AI</b> — tanya untuk mendapat <b>jawaban dari AI</b> tentang elemen ini. Jawaban AI dibuat langsung oleh AI: bisa lebih dalam &amp; menyesuaikan pertanyaanmu, tapi <b>memakai kuota AI</b> dan bisa antre saat sibuk.</span>
+            </div>
+          </div>
+
+          <div class="flex gap-2">
+            <button type="button" class="alb-el-ask flex-1 bg-ink text-white border border-ink rounded-lg py-2.5 text-[13px] font-semibold hover:opacity-90 transition-opacity"><i class="fa-solid fa-comments mr-1"></i> Tanya biasa</button>
+            <button type="button" class="alb-el-ai flex-1 bg-white text-ink border border-hairline-strong rounded-lg py-2.5 text-[13px] font-semibold hover:bg-surface-strong transition-colors"><i class="fa-solid fa-sparkles mr-1"></i> Tanya AI</button>
+          </div>
+        </div>
+      </div>
+    </div>`);
+
+  const $modal = $('#alb-element-modal');
+  const close = () => $modal.remove();
+  $modal.find('.alb-el-modal-close').on('click', close);
+
+  $modal.find('.alb-el-ask').on('click', () => {
+    close();
+    this.answerElementViaSystem(el);
+    if (window.innerWidth < 768) this.closeContextSidebar?.();
+  });
+  $modal.find('.alb-el-ai').on('click', () => {
+    close();
+    const where = el.page_label ? ` pada ${el.page_label}` : '';
+    this.sendDirectMessage?.({
+      message: `Tolong jelaskan "${el.name || 'elemen ini'}"${where} secara singkat dan jelas.`,
+      userImage: el.image || null,
+      forceAI: true,
+      forceFAQ: false,
+      responseMode: 'short',
+      intent: 'penjelasan_materi',
+      expectedSourceType: 'all'
+    });
+    if (window.innerWidth < 768) this.closeContextSidebar?.();
   });
 }
 
@@ -805,35 +749,16 @@ export function renderTemplatePreview(template) {
 // --- FUNGSI BARU: HIGHLIGHT ELEMENT (TUTORIAL) ---
 export function highlightElementInPreview(elementKey) {
   const $targetCard = $(`#accordion-${elementKey}`);
-
-  // Jika tidak ditemukan di sidebar, batalkan
   if (!$targetCard.length) return;
 
-  // 1. Gulung sidebar agar elemen terlihat (Scroll to view)
-  $('#element-list').animate({
-      scrollTop: $('#element-list').scrollTop() + $targetCard.position().top - 20
-  }, 500);
-
-  // 2. Jika accordion masih tertutup, buka!
-  const $body = $targetCard.find('.buddy-accordion-body');
-  if ($body.hasClass('hidden')) {
-      $targetCard.find('.buddy-accordion-toggle').click();
-  }
-
-  // 3. Tambahkan efek glow (Highlight) berwarna biru primary
+  $targetCard[0].scrollIntoView({ behavior: 'smooth', block: 'center' });
   $targetCard.css({
       'box-shadow': '0 0 0 4px rgba(59, 130, 246, 0.4)',
       'border-color': '#3b82f6',
       'transform': 'scale(1.02)'
   });
-
-  // 4. Hilangkan efek highlight secara halus setelah 3 detik
   setTimeout(() => {
-      $targetCard.css({
-          'box-shadow': '',
-          'border-color': '',
-          'transform': 'scale(1)'
-      });
+      $targetCard.css({ 'box-shadow': '', 'border-color': '', 'transform': 'scale(1)' });
   }, 3000);
 }
 
