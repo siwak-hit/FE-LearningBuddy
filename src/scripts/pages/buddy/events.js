@@ -224,6 +224,52 @@ export function sendDirectMessage(options = {}) {
   return sendChatMessage(this, options);
 }
 
+// [v0.9.58] Kartu KONFIRMASI alih-ke-AI (bukan bubble chat) — tampil di tengah, menunggu klik.
+function appendAiConfirmCard(context, botMessage) {
+  const raw = String(botMessage.message || 'Mau dialihkan ke Jawaban AI?');
+  const html = raw
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/\*\*(.+?)\*\*/g, '<b>$1</b>').replace(/\n/g, '<br>');
+  const payload = (botMessage.actions || []).find((a) => a.type === 'confirm_ai')?.payload || {};
+  const id = 'alb-ai-confirm-' + Date.now();
+  context.$chatArea.append(`
+    <div id="${id}" class="alb-ai-confirm my-4 mx-auto w-full max-w-[92%] md:max-w-[80%]">
+      <div class="bg-surface-card border border-primary/30 rounded-2xl shadow-lg p-4 md:p-5">
+        <div class="flex items-start gap-3">
+          <div class="w-9 h-9 rounded-full bg-primary/10 text-primary flex items-center justify-center shrink-0"><i class="fa-solid fa-wand-magic-sparkles"></i></div>
+          <div class="flex-1 min-w-0 text-[14px] text-ink leading-relaxed">${html}</div>
+        </div>
+        <div class="flex flex-col sm:flex-row gap-2 mt-4">
+          <button type="button" class="alb-confirm-ai-yes flex-1 bg-ink text-white rounded-lg py-2.5 text-[13px] font-semibold hover:opacity-90 transition-opacity"><i class="fa-solid fa-wand-magic-sparkles mr-1"></i> Ya, alihkan ke AI</button>
+          <button type="button" class="alb-confirm-ai-no flex-1 bg-white text-ink border border-hairline-strong rounded-lg py-2.5 text-[13px] font-semibold hover:bg-surface-strong transition-colors">Tidak</button>
+        </div>
+      </div>
+    </div>`);
+  context.scrollToBottom?.();
+  const $card = $('#' + id);
+  $card.find('.alb-confirm-ai-yes').on('click', () => {
+    $card.remove();
+    sendChatMessage(context, {
+      message: payload.message || '',
+      forceAI: true,
+      responseMode: payload.responseMode || 'short',
+      intent: payload.intent || null,
+      suppressUserBubble: true,
+      loadingText: 'Mengalihkan ke jawaban AI…'
+    });
+  });
+  $card.find('.alb-confirm-ai-no').on('click', () => {
+    $card.remove();
+    context.appendBubble(
+      'Baik. Kalau informasinya memang belum tersedia di sistem, kamu bisa menanyakannya langsung ke guru ya. 🙏',
+      false, 'system',
+      [{ type: 'wa_teacher', label: 'Hubungi Guru (WhatsApp)' }],
+      { noFeedbackLock: true }
+    );
+    context.scrollToBottom?.();
+  });
+}
+
 async function sendChatMessage(context, options = {}) {
   const modeConfig = getModeConfig(context.currentResponseMode);
   const messageText = String(options.message ?? context.$inputArea?.val() ?? '').trim();
@@ -247,7 +293,7 @@ async function sendChatMessage(context, options = {}) {
   // [v0.9.28 #3] Tahap loading "mengalihkan ke AI" hanya bila request memang mode AI,
   // supaya tak muncul saat jawaban ternyata dari sistem.
   const _aiMode = (options.forceAI === true) || (options.forceAI !== false && modeConfig.forceAI === true);
-  context.appendTypingIndicator?.({ aiMode: _aiMode });
+  context.appendTypingIndicator?.({ aiMode: _aiMode, initialText: options.loadingText });
   context.scrollToBottom?.();
 
   const selectedResponseMode = options.responseMode || modeConfig.responseMode;
@@ -308,6 +354,14 @@ async function sendChatMessage(context, options = {}) {
         ...(readActiveStudentIdentity(context) || {}),
         sessionId: context.sessionId
       });
+
+      // [v0.9.58] Sistem tak punya jawaban → kartu KONFIRMASI (bukan bubble chat) di tengah:
+      // siswa memilih dialihkan ke AI atau tidak. Jangan render bubble bot normal.
+      if (res.data.needs_ai_confirm) {
+        context.isRequesting = false;
+        appendAiConfirmCard(context, res.data.botMessage || {});
+        return;
+      }
 
       // [v0.9.52] Mode darurat: koneksi Moodle bermasalah (token kadaluarsa / endpoint mati).
       // Beri tahu siswa bahwa jawaban berasal dari PANDUAN penggunaan Moodle, bukan materi/
@@ -602,22 +656,25 @@ function initGlobalAiUsageBar(context) {
       .removeClass('text-muted-soft text-amber-600 text-red-600')
       .addClass(pct >= 90 ? 'text-red-600' : pct >= 70 ? 'text-amber-600' : 'text-muted-soft');
 
-    if (data.rate_limited) {
-      // Baru saja kena 429 dari Google — biasanya batas per-menit, pulih beberapa menit.
+    const mins = data.resets_in_seconds ? Math.max(1, Math.ceil(Number(data.resets_in_seconds) / 60)) : 0;
+    const resetTxt = mins ? ` Coba lagi sekitar <b>${mins} menit</b> lagi.` : '';
+
+    if (data.exhausted) {
       $note.removeClass('hidden bg-amber-50 text-amber-800 border-amber-200')
         .addClass('bg-red-50 text-red-700 border border-red-200')
-        .html('<i class="fa-solid fa-circle-exclamation mr-1"></i> AI sedang kena <b>batas pemakaian</b> (dipakai banyak siswa). Tunggu beberapa menit lalu coba lagi, atau gunakan <b>Jawaban Sistem</b> dulu.');
-    } else if (data.exhausted) {
-      $note.removeClass('hidden bg-amber-50 text-amber-800 border-amber-200')
-        .addClass('bg-red-50 text-red-700 border border-red-200')
-        .html(`<i class="fa-solid fa-circle-exclamation mr-1"></i> Kuota AI bersama hari ini sudah penuh. ${data.resets_at_label ? '<b>' + data.resets_at_label + '</b>. ' : ''}Sementara ini gunakan <b>Jawaban Sistem</b> ya.`);
+        .html(`<i class="fa-solid fa-circle-exclamation mr-1"></i> Kuota AI bersama <b>penuh</b> — jawaban AI dinonaktifkan sementara.${resetTxt} Gunakan <b>Jawaban Sistem</b> dulu ya.`);
     } else if (data.busy) {
       $note.removeClass('hidden bg-red-50 text-red-700 border-red-200')
         .addClass('bg-amber-50 text-amber-800 border border-amber-200')
-        .html('<i class="fa-solid fa-hourglass-half mr-1"></i> Kuota AI bersama hampir penuh — jawaban AI mungkin lebih lambat. Kalau gagal, coba lagi nanti atau pakai <b>Jawaban Sistem</b>.');
+        .html('<i class="fa-solid fa-hourglass-half mr-1"></i> Kuota AI bersama hampir penuh — sebentar lagi jawaban AI dinonaktifkan. Pakai <b>Jawaban Sistem</b> kalau bisa.');
     } else {
       $note.addClass('hidden').empty();
     }
+
+    // [v0.9.58] Saat kuota AI penuh → nonaktifkan pilihan mode AI (siswa harus tunggu reset).
+    $('.opt-response-mode[data-mode="ai_short"], .opt-response-mode[data-mode="ai_detail"]')
+      .prop('disabled', !!data.exhausted)
+      .toggleClass('opacity-40 cursor-not-allowed pointer-events-none', !!data.exhausted);
   };
 
   // [v0.9.52] Polling diringankan (ganti setInterval 8dtk tetap):

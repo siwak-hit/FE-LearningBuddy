@@ -36,13 +36,15 @@ export function appendTypingIndicator(opts = {}) {
   //     (server/VClass sedang sibuk), bukan diam/hang.
   clearTypingTimers();
   const $txt = $('#alb-typing-text');
-  $txt.text('Mencari jawaban…');
+  // initialText: dipakai saat siswa mengonfirmasi alih ke AI → "Mengalihkan ke jawaban AI…".
+  $txt.text(opts.initialText || 'Mencari jawaban…');
   window.__albTypingTimers = [];
   const stage = (ms, text) => window.__albTypingTimers.push(setTimeout(() => {
     $('#alb-typing-text').text(text);
   }, ms));
 
-  stage(1500, 'Mengecek basis pengetahuan sistem…');
+  // Kalau sudah eksplisit dialihkan ke AI, lewati tahap "mengecek basis pengetahuan".
+  if (!opts.initialText) stage(1500, 'Mengecek basis pengetahuan sistem…');
   // [v0.9.28] Tahap "menyusun jawaban AI" HANYA saat mode AI (biar tak menyesatkan
   // kalau ternyata jawabannya dari sistem).
   if (aiMode) stage(3200, 'Menyusun jawaban dengan AI…');

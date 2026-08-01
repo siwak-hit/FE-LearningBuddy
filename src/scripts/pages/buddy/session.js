@@ -580,7 +580,7 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
               <i class="fa-solid fa-chevron-down text-[10px] text-muted-soft group-open:rotate-180 transition-transform"></i>
             </summary>
             <div class="px-3.5 pb-3 pt-2.5 text-[12.5px] text-muted leading-relaxed border-t border-hairline space-y-1.5">
-              <p>• <b>Diminta email lagi walau sudah login</b> di VClass itu wajar — cukup masukkan ulang email Moodle-mu.</p>
+              <p>• <b>Kenapa diminta email lagi walau sudah login?</b> Widget AI Buddy berjalan di domain yang berbeda dari VClass, sehingga <b>tidak bisa membaca cookie/sesi login</b> Moodle-mu — browser sengaja membatasi akses cookie antar-domain demi keamanan. Karena itu kamu perlu memasukkan email sekali untuk mencocokkan identitasmu.</p>
               <p>• <b>Biar otomatis</b> (tak perlu isi email lagi), biasanya kamu harus <b>masuk ke halaman detail kursus</b> dulu, baru buka widget Tanya AI dari situ — di halaman itu widget bisa mengenali identitasmu.</p>
               <p>• <b>Kenapa tanpa password?</b> AI Buddy sengaja <b>tidak meminta password Moodle</b> demi keamanan &amp; privasi. Ia hanya mencocokkan <b>email</b>-mu dengan data siswa yang sudah disinkronkan dari VClass untuk memastikan kamu memang terdaftar di kelas ini.</p>
             </div>
