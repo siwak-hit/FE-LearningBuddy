@@ -2,6 +2,7 @@
 // "kurang sesuai?" → Iya (hubungi guru) / Tidak (selesai).
 import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
+import { fetchSessionActivities } from './utils.js';
 
 const esc = (s) => String(s == null ? '' : s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -33,8 +34,9 @@ export function openGradeComplaintModal(context) {
   $('#alb-grade-sub').text('Pilih tugas/kuis yang nilainya ingin kamu tanyakan.');
   $body.html('<div class="flex items-center gap-2 text-[13px] text-muted py-6 justify-center"><i class="fa-solid fa-spinner fa-spin text-primary"></i> Memuat daftar dari VClass…</div>');
 
-  ApiService.get(`/chat/session-activities/${context.sessionId}`).then((res) => {
-    const data = (res?.status === 'success' && res.data) ? res.data : {};
+  // [v0.9.68] Daftar aktivitas dari cache bersama (dipakai juga modal Komplain) —
+  // balik ke "pilih item lain" tidak menembak API lagi.
+  fetchSessionActivities(context.sessionId).then((data) => {
     const items = []
       .concat((data.Tugas || []).filter((a) => !a.locked).map((a) => ({ ...a, type: 'Tugas' })))
       .concat((data.Kuis || []).filter((a) => !a.locked).map((a) => ({ ...a, type: 'Kuis' })));
@@ -72,10 +74,15 @@ function showGrade(context, type, title) {
 
     if (d.graded && d.grade != null) {
       const maxTxt = d.maxgrade ? ` <span class="text-[16px] text-muted-soft font-bold">dari ${esc(d.maxgrade)}</span>` : '';
+      const percentTxt = d.percent ? `<div class="text-[12px] text-muted-soft -mt-1 mb-3">(${esc(d.percent)})</div>` : '';
+      const feedbackTxt = d.feedback
+        ? `<div class="text-left text-[12px] text-ink bg-surface-strong border border-hairline rounded-xl px-3 py-2 mb-4"><b class="block text-[11px] uppercase tracking-wide text-muted mb-1">Catatan guru</b>${esc(d.feedback)}</div>`
+        : '';
       $body.html(`
         <div class="text-center py-2">
           <div class="text-[13px] text-muted mb-1">Berdasarkan hasil pengerjaanmu untuk <b class="text-ink">${esc(d.title || title)}</b>, kamu mendapat nilai:</div>
           <div class="text-[42px] font-black text-ink leading-none my-3">${esc(d.grade)}${maxTxt}</div>
+          ${percentTxt}${feedbackTxt}
           <div class="text-[13px] text-ink font-semibold mb-4">Apakah menurutmu nilai itu <b>kurang sesuai</b> dengan usahamu?</div>
           <div class="flex flex-col gap-2">
             <button type="button" id="alb-grade-yes" class="w-full bg-ink text-white rounded-xl py-2.5 text-[13px] font-semibold hover:opacity-90 transition-opacity">Iya, mau kutanyakan ke guru</button>
@@ -86,8 +93,12 @@ function showGrade(context, type, title) {
       $body.find('#alb-grade-no').on('click', () => closeAndSay('Oke, kalau nilaimu sudah sesuai berarti aman ya. Semangat terus belajarnya! 😊'));
     } else {
       const msg = d.reason === 'not_found'
-        ? 'Aku belum menemukan item itu di VClass. Coba pilih yang lain ya.'
-        : 'Sepertinya tugas/kuis itu <b class="text-ink">belum dinilai</b> guru, jadi nilainya belum keluar.';
+        ? 'Aku belum menemukan item itu di daftar nilai VClass. Coba pilih yang lain ya.'
+        : d.reason === 'no_context'
+          ? 'Akun/kelas Moodle-mu belum terbaca, jadi nilainya belum bisa aku ambil. Coba buka AI Buddy dari dalam VClass ya.'
+          : d.reason === 'error'
+            ? 'Aku gagal membaca daftar nilai dari VClass (kemungkinan izin sistem). Untuk hal ini paling tepat tanya gurumu ya.'
+            : 'Sepertinya tugas/kuis itu <b class="text-ink">belum dinilai</b> guru, jadi nilainya belum keluar.';
       $body.html(`
         <div class="text-center py-2">
           <div class="text-[13px] text-muted mb-4">${msg}</div>

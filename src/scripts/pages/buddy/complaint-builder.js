@@ -10,8 +10,12 @@
 // ============================================================
 import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
+import { fetchSessionActivities } from './utils.js';
+import { openGradeComplaintModal } from './grade-complaint.js';
 
-const COMPLAINT_TYPES = ['Tugas', 'Kuis', 'Materi', 'Forum'];
+// [v0.9.68] "Nilai" bukan jenis aktivitas — chip ini pintasan ke alur Komplain Nilai
+// (cek nilai dari VClass dulu, baru tanya ke guru).
+const COMPLAINT_TYPES = ['Tugas', 'Kuis', 'Nilai', 'Materi', 'Forum'];
 const WA_TEACHER_PHONE = '628989807094';
 
 // [v0.9.17] Cache aktivitas live Moodle per sesi (untuk dropdown "Nama/bagian").
@@ -181,19 +185,10 @@ function populateReasonOptions(type) {
 }
 
 async function loadActivities(context) {
-  const sessionId = context?.sessionId;
-  if (!sessionId) { activitiesCache = {}; }
-  else {
-    try {
-      const res = await ApiService.get(`/chat/session-activities/${sessionId}`);
-      const data = (res?.status === 'success' && res.data) ? res.data : {};
-      activitiesCache = {
-        Kuis: data.Kuis || [], Tugas: data.Tugas || [],
-        Materi: data.Materi || [], Forum: data.Forum || []
-      };
-    } catch (e) {
-      activitiesCache = {};
-    }
+  try {
+    activitiesCache = await fetchSessionActivities(context?.sessionId);
+  } catch (e) {
+    activitiesCache = {};
   }
   // Selesai memuat → kalau jenis sudah dipilih, isi dropdown + matikan spinner.
   const activeType = $('#alb-complaint-types .alb-complaint-type.is-active').attr('data-type');
@@ -358,6 +353,12 @@ export function openComplaintComposer(context) {
 
   // Langkah 1: pilih jenis → tampilkan langkah 2, reset langkah lanjutan.
   $('#alb-complaint-types').off('click', '.alb-complaint-type').on('click', '.alb-complaint-type', function () {
+    // Chip "Nilai" → alur tersendiri: cek nilai dari VClass dulu.
+    if ($(this).attr('data-type') === 'Nilai') {
+      $('#alb-complaint-modal').addClass('hidden');
+      openGradeComplaintModal(context);
+      return;
+    }
     $('.alb-complaint-type').removeClass('is-active bg-primary text-white border-primary').addClass('bg-white text-ink border-hairline hover:bg-canvas-soft');
     $(this).addClass('is-active bg-primary text-white border-primary').removeClass('bg-white text-ink border-hairline hover:bg-canvas-soft');
     populateNameOptions($(this).attr('data-type'));

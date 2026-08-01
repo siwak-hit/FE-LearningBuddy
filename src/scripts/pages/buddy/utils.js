@@ -1,3 +1,26 @@
+import { ApiService } from '../../fetch/api.js';
+
+// [v0.9.68] Cache daftar aktivitas VClass per sesi. Modal Komplain & Komplain Nilai
+// sama-sama butuh daftar ini; tanpa cache tiap buka modal / balik "pilih item lain"
+// selalu menembak API lagi. Panggil dengan { force: true } kalau perlu data segar.
+const activitiesBySession = new Map();
+const EMPTY_ACTIVITIES = { Kuis: [], Tugas: [], Materi: [], Forum: [] };
+
+export function fetchSessionActivities(sessionId, { force = false } = {}) {
+  if (!sessionId) return Promise.resolve({ ...EMPTY_ACTIVITIES });
+  if (force) activitiesBySession.delete(sessionId);
+  if (!activitiesBySession.has(sessionId)) {
+    const req = ApiService.get(`/chat/session-activities/${sessionId}`)
+      .then((res) => {
+        const d = (res?.status === 'success' && res.data) ? res.data : {};
+        return { Kuis: d.Kuis || [], Tugas: d.Tugas || [], Materi: d.Materi || [], Forum: d.Forum || [] };
+      })
+      .catch((e) => { activitiesBySession.delete(sessionId); throw e; });
+    activitiesBySession.set(sessionId, req);
+  }
+  return activitiesBySession.get(sessionId);
+}
+
 export function safeParseJson(value, fallback = {}) {
   if (!value) return fallback;
   if (typeof value === 'object') return value;
