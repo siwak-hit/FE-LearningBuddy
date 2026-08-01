@@ -198,6 +198,22 @@ export function scrollToBottom() {
   this.$chatArea.stop().animate({ scrollTop: this.$chatArea[0].scrollHeight }, 300);
 }
 
+// [v0.9.63] Ganti skeleton label intent dengan chip hasil deteksi (estimasi keyword).
+export function fillIntentLabel(id, scores = []) {
+  const $el = $('#' + id);
+  if (!$el.length) return;
+  if (!Array.isArray(scores) || !scores.length) { $el.remove(); return; }
+  const chips = scores.map((s, i) => {
+    const strong = i === 0;
+    const cls = strong
+      ? 'text-primary bg-primary/10 border-primary/20'
+      : 'text-muted bg-black/[0.04] border-black/5';
+    const icon = strong ? '<i class="fa-solid fa-tag text-[8px]"></i> ' : '';
+    return `<span class="inline-flex items-center gap-1 text-[10px] font-semibold rounded-full px-2 py-0.5 border ${cls}">${icon}${s.label} ${s.percent}%</span>`;
+  }).join('');
+  $el.html(`<span class="text-[9px] text-muted-soft mr-0.5">terdeteksi:</span>${chips}`);
+}
+
 export function appendBubble(rawText, isUser = false, source = 'ai', actions = [], options = {}) {
   // [v0.9.27 #1] Pengingat/notice → TOAST yang bisa diklik (buka modal), bukan kartu inline.
   if (!isUser && options.notice && typeof this.showReminderToast === 'function') {
@@ -680,7 +696,11 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         ${actionsHtml}
       </div>`;
   } else if (isUser) {
-    html = `<div><div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div></div>`;
+    // [v0.9.63] Label intent (skeleton dulu, diisi setelah respons) untuk pesan yang diketik siswa.
+    const labelHtml = options.intentLabelId
+      ? `<div id="${options.intentLabelId}" class="flex justify-end gap-1.5 mt-1.5 pr-[52px] max-md:pr-0 items-center flex-wrap"><span class="h-[18px] w-24 rounded-full bg-black/5 animate-pulse"></span></div>`
+      : '';
+    html = `<div><div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div>${labelHtml}</div>`;
   } else {
     html = `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div></div>`;
   }

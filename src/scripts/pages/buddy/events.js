@@ -284,8 +284,11 @@ async function sendChatMessage(context, options = {}) {
   context.isRequesting = true;
 
   // suppressUserBubble: bubble pertanyaan sudah ditampilkan pemanggil (mis. auto-pindah konteks).
+  // [v0.9.63] Label intent HANYA untuk pesan yang diketik siswa (bukan @mention / tombol pilih).
+  let intentLabelId = null;
   if (!options.suppressUserBubble) {
-    context.appendBubble(messageText, true, 'user', [], { image: pendingUserImage });
+    if (!options.mention && !options.intent) intentLabelId = 'alb-intent-' + Date.now();
+    context.appendBubble(messageText, true, 'user', [], { image: pendingUserImage, intentLabelId });
   }
   context.$inputArea?.val('');
   context.resetInputHeight?.();
@@ -338,6 +341,9 @@ async function sendChatMessage(context, options = {}) {
     context.removeTypingIndicator?.();
 
     if (res?.status === 'success' && res.data) {
+      // [v0.9.63] Isi label intent pada bubble pertanyaan siswa (estimasi keyword dari BE).
+      if (intentLabelId) context.fillIntentLabel?.(intentLabelId, res.data.intent_scores || []);
+
       const botMessage = res.data.botMessage || res.data;
       const cooldownSecondsFromText = Number(String(botMessage?.message || '').match(/Tunggu\s+(\d+)\s+detik/i)?.[1] || 0);
 
@@ -405,6 +411,8 @@ async function sendChatMessage(context, options = {}) {
         ensureLocalLockOverlay(context, { warnings: res.data.warnings || 3, reason: res.data.lock_reason || 'profanity_limit' });
       }
     } else {
+      // [v0.9.63] Respons gagal → buang skeleton label supaya tak berkedip selamanya.
+      if (intentLabelId) context.fillIntentLabel?.(intentLabelId, []);
       // [v0.9.19] Error/timeout → simpan payload terakhir + tombol "Kirim ulang" agar
       // user cukup 1 klik (tak perlu copas & ketik ulang).
       const resendActions = messageText
@@ -418,6 +426,7 @@ async function sendChatMessage(context, options = {}) {
   } catch (err) {
     console.error('[Buddy External] Gagal mengirim chat:', err);
     context.removeTypingIndicator?.();
+    if (intentLabelId) context.fillIntentLabel?.(intentLabelId, []);
     if (messageText) {
       context._lastFailedSend = { message: messageText, options: { ...options, suppressUserBubble: true } };
     }
