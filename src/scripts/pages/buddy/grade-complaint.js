@@ -92,16 +92,34 @@ function showGrade(context, type, title) {
       $body.find('#alb-grade-yes').on('click', () => closeAndSay(`Baik, aku bantu kamu hubungi guru soal nilai **${title}** ya. Klik tombol di bawah 👇`.replace(/\*\*(.+?)\*\*/g, '$1'), [{ type: 'wa_teacher', label: 'Hubungi Guru (WhatsApp)' }]));
       $body.find('#alb-grade-no').on('click', () => closeAndSay('Oke, kalau nilaimu sudah sesuai berarti aman ya. Semangat terus belajarnya! 😊'));
     } else {
+      // Status pengajuan tugas (dari mod_assign_get_submission_status) → info yang berguna
+      // walau nilainya belum keluar ("Belum dinilai" tetap ada info "sudah terkirim").
+      const statusLine = () => {
+        if (d.submitted || d.submission_status === 'submitted' || d.submission_status === 'reopened') {
+          return 'Tugasmu <b class="text-ink">sudah terkirim &amp; siap dinilai</b>, tapi <b class="text-ink">belum dinilai</b> guru — jadi nilainya belum keluar.';
+        }
+        if (d.submission_status === 'draft') {
+          return 'Tugas ini masih berstatus <b class="text-ink">Draf</b> (belum kamu tekan <b>Kirim</b>), jadi belum ada yang bisa dinilai.';
+        }
+        if (d.reason === 'not_submitted') {
+          return 'Tugas ini <b class="text-ink">belum kamu kumpulkan</b>, jadi nilainya belum ada.';
+        }
+        return 'Sepertinya tugas/kuis itu <b class="text-ink">belum dinilai</b> guru, jadi nilainya belum keluar.';
+      };
       const msg = d.reason === 'not_found'
         ? 'Aku belum menemukan item itu di daftar nilai VClass. Coba pilih yang lain ya.'
         : d.reason === 'no_context'
           ? 'Akun/kelas Moodle-mu belum terbaca, jadi nilainya belum bisa aku ambil. Coba buka AI Buddy dari dalam VClass ya.'
           : d.reason === 'error'
             ? 'Aku gagal membaca daftar nilai dari VClass (kemungkinan izin sistem). Untuk hal ini paling tepat tanya gurumu ya.'
-            : 'Sepertinya tugas/kuis itu <b class="text-ink">belum dinilai</b> guru, jadi nilainya belum keluar.';
+            : statusLine();
+      const feedbackBox = d.feedback
+        ? `<div class="text-left text-[12px] text-ink bg-surface-strong border border-hairline rounded-xl px-3 py-2 mb-4"><b class="block text-[11px] uppercase tracking-wide text-muted mb-1">Catatan guru</b>${esc(d.feedback)}</div>`
+        : '';
       $body.html(`
         <div class="text-center py-2">
           <div class="text-[13px] text-muted mb-4">${msg}</div>
+          ${feedbackBox}
           <div class="flex flex-col gap-2">
             <button type="button" id="alb-grade-yes" class="w-full bg-ink text-white rounded-xl py-2.5 text-[13px] font-semibold hover:opacity-90 transition-opacity">Tetap mau tanya ke guru</button>
             <button type="button" id="alb-grade-back" class="w-full bg-white text-ink border border-hairline-strong rounded-xl py-2.5 text-[13px] font-semibold hover:bg-surface-strong transition-colors">Pilih item lain</button>
