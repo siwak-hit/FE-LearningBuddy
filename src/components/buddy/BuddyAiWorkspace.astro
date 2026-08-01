@@ -220,6 +220,10 @@ const { API_BASE } = Astro.props;
       </div>
     </div>
 
+    <button id="btn-scroll-bottom" type="button" class="hidden absolute bottom-28 md:bottom-32 right-4 md:right-8 z-20 w-10 h-10 rounded-full bg-surface-card border border-hairline-strong shadow-lg text-ink hover:bg-surface-strong transition-colors flex items-center justify-center" title="Ke pesan terbaru">
+      <i class="fa-solid fa-arrow-down text-[14px]"></i>
+    </button>
+
     <div class="shrink-0 p-3 md:p-4 lg:p-5 bg-gradient-to-t from-canvas via-canvas to-transparent border-t border-hairline/50">
       <div id="selected-bar" class="hidden items-center justify-between bg-surface-strong border border-hairline-strong rounded-xl px-4 py-2.5 mb-2 shadow-sm">
         <div class="text-[14px] text-ink font-medium truncate flex-1" id="selected-text">@element dipilih</div>

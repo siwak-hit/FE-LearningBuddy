@@ -727,6 +727,21 @@ function registerAlbPwa(context) {
 }
 
 
+// [v0.9.59] Tombol "ke pesan terbaru": muncul saat area chat di-scroll ke atas.
+function bindScrollToBottomButton(context) {
+  const $area = context.$chatArea?.length ? context.$chatArea : $('#chat-area');
+  const $btn = $('#btn-scroll-bottom');
+  if (!$area.length || !$btn.length) return;
+  const nearBottom = () => {
+    const el = $area[0];
+    return !el || (el.scrollHeight - el.scrollTop - el.clientHeight) < 120;
+  };
+  const update = () => $btn.toggleClass('hidden', nearBottom());
+  $area.off('scroll.albScrollBtm').on('scroll.albScrollBtm', update);
+  $btn.off('click.albScrollBtm').on('click.albScrollBtm', () => { context.scrollToBottom?.(); $btn.addClass('hidden'); });
+  update();
+}
+
 export function bindWorkspaceEvents() {
   let suggestionTimer = null;
 
@@ -740,6 +755,7 @@ export function bindWorkspaceEvents() {
 
   bindSidebarTabs(this);
   bindContextDrawer(this);
+  bindScrollToBottomButton(this);
   bindInputEvents(this, () => suggestionTimer, (timer) => { suggestionTimer = timer; });
   bindFormSubmit(this);
   bindFastGuideButtons(this);
