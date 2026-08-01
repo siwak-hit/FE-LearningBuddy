@@ -4,6 +4,7 @@ import { Modal } from '../../components/modal.js';
 import { ApiService } from '../../fetch/api.js';
 import { resolvePageKeyFromText, PAGE_ELEMENTS } from './pageElements.js';
 import { openStaticTutorialModal, openVideoTutorialModal } from './static-tutorial.js';
+import { openGradeComplaintModal } from './grade-complaint.js';
 import { openVclassPreviewModal, openMoodleMaterialModal, openHtmlViewModal } from './material-modals.js';
 import {
   showCooldownToast,
@@ -1420,6 +1421,15 @@ function bindChatActionButtons(context) {
       e.preventDefault();
       markSingleChatButtonClicked($(e.currentTarget));
       context.openComplaintComposer?.(context);
+    });
+
+  // [v0.9.67] Tombol "Cek Nilai & Komplain" → modal pilih item → cek nilai → konfirmasi.
+  context.$chatArea
+    .off('click', '.btn-open-grade-complaint')
+    .on('click', '.btn-open-grade-complaint', (e) => {
+      e.preventDefault();
+      markSingleChatButtonClicked($(e.currentTarget));
+      openGradeComplaintModal(context);
     });
 
   // [v0.9.19] Tombol "Kirim ulang" pada bubble error/timeout → ulangi request terakhir.

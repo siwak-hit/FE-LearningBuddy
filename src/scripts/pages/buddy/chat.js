@@ -493,6 +493,9 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         } else if (act.type === 'open_complaint') {
           // [v0.9.17] Buka modal form komplain terpandu.
           actionsHtml += `<button type="button" class="btn-open-complaint inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-[13px] font-semibold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-flag"></i> ${label}</button>`;
+        } else if (act.type === 'open_grade_complaint') {
+          // [v0.9.67] Buka modal komplain NILAI (pilih item → cek nilai → konfirmasi).
+          actionsHtml += `<button type="button" class="btn-open-grade-complaint inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-semibold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-chart-simple"></i> ${label}</button>`;
         } else if (act.type === 'resend_last') {
           // [v0.9.19] Kirim ulang request terakhir yang gagal/timeout (1 klik).
           actionsHtml += `<button type="button" class="btn-resend-last inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-semibold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-rotate-right"></i> ${label}</button>`;
