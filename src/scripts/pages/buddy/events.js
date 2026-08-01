@@ -638,6 +638,8 @@ function initGlobalAiUsageBar(context) {
     $('#alb-global-ai-usage').removeClass('hidden');
     // .hide() (inline display:none) — `hidden` class kalah dari `inline-flex` di urutan CSS Tailwind.
     $('#alb-global-ai-usage-toggle').hide();
+    // [v0.9.66] Panel kuota membesar → geser tombol "ke pesan terbaru" naik supaya tak tertutup.
+    $('#btn-scroll-bottom').addClass('!bottom-52 md:!bottom-56');
     // Panel baru dibuka → segarkan angka & pindah ke ritme aktif (8 dtk).
     poll();
     scheduleNext();
@@ -645,6 +647,7 @@ function initGlobalAiUsageBar(context) {
   $(document).off('click.albUsageClose').on('click.albUsageClose', '#alb-global-ai-usage-close', function () {
     $('#alb-global-ai-usage').addClass('hidden');
     $('#alb-global-ai-usage-toggle').show();
+    $('#btn-scroll-bottom').removeClass('!bottom-52 md:!bottom-56');
   });
 
   const render = (data = {}) => {

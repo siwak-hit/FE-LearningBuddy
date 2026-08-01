@@ -55,6 +55,15 @@ function mdListsToHtml(escaped = '') {
   return out.join('\n');
 }
 
+// [v0.9.66] Markdown inline: **x** & *x* → <b>, _x_ → <em>. Jalankan SETELAH escapeHtml.
+// _x_ hanya diproses bila underscore-nya di batas kata (agar cek_tugas_belum tak jadi miring).
+function applyInlineMarkdown(s = '') {
+  return String(s)
+    .replace(/\*\*([^*\n]+?)\*\*/g, '<b>$1</b>')
+    .replace(/\*([^*\n]+?)\*/g, '<b>$1</b>')
+    .replace(/(^|[^\w*])_([^_\n]+?)_(?=[^\w*]|$)/g, '$1<em>$2</em>');
+}
+
 export function formatResponseText(text = '') {
   const htmlBlocks = [];
   const accordions = [];
@@ -134,16 +143,15 @@ export function formatResponseText(text = '') {
     }
   );
 
-  // 3. Escape teks biasa. (markdown bold → <b>, list → <ul>/<ol>, sisanya \n → <br/>)
-  let safeText = this.escapeHtml(parsedText)
-    .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+  // 3. Escape teks biasa. Markdown: **x**/*x* → bold, _x_ → italic (aman dari underscore
+  //    di tengah kata seperti cek_tugas), list → <ul>/<ol>, sisanya \n → <br/>.
+  let safeText = applyInlineMarkdown(this.escapeHtml(parsedText));
   safeText = mdListsToHtml(safeText).replace(/\n/g, '<br/>');
 
   // 4. Balikin accordion custom.
   accordions.forEach((acc, idx) => {
     const safeTitle = this.escapeHtml(acc.title);
-    const safeContent = mdListsToHtml(this.escapeHtml(acc.content)
-      .replace(/\*\*(.*?)\*\*/g, '<b>$1</b>'))
+    const safeContent = mdListsToHtml(applyInlineMarkdown(this.escapeHtml(acc.content)))
       .replace(/\n/g, '<br/>');
 
     const openAttr = idx === 0 ? 'open' : '';
