@@ -39,6 +39,10 @@ function getInitialProject(projects = []) {
   return projects[0] || null;
 }
 
+// Key fitur workspace AI (harus sama dgn id switch di WidgetConfigForm.astro).
+// Disimpan di theme.features supaya tak perlu kolom DB baru.
+const FEATURE_KEYS = ['complaint', 'contact_teacher', 'notes', 'guide', 'class_data'];
+
 function showIntegrationCard(show = true) {
   const $card = $('#btn-reveal-integration').closest('.bg-surface-card');
   if (show) $card.removeClass('hidden');
@@ -252,6 +256,11 @@ const WidgetSettingsPage = {
     $('#is_active').prop('checked', config.is_active !== false);
     $('#read_dom_context').prop('checked', config.read_dom_context !== false);
 
+    const features = theme.features || {};
+    FEATURE_KEYS.forEach((key) => {
+      $(`#feature-${key}`).prop('checked', features[key] !== false);
+    });
+
     if (config.active_from) $('#active_from').val(new Date(config.active_from).toISOString().slice(0, 16));
     if (config.active_until) $('#active_until').val(new Date(config.active_until).toISOString().slice(0, 16));
 
@@ -314,7 +323,10 @@ const WidgetSettingsPage = {
       theme: {
         title: $('#title').val(),
         subtitle: $('#subtitle').val(),
-        primaryColor: $('#primaryColor').val()
+        primaryColor: $('#primaryColor').val(),
+        features: Object.fromEntries(
+          FEATURE_KEYS.map((key) => [key, $(`#feature-${key}`).is(':checked')])
+        )
       },
       allowed_origin: origins,
       is_active: $('#is_active').is(':checked'),

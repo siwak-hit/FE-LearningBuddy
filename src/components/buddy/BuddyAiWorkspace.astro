@@ -64,7 +64,7 @@ const { API_BASE } = Astro.props;
 
   <div id="tab-content-guide" class="flex-1 overflow-y-auto p-5 md:p-6 w-full md:w-[320px] lg:w-[380px]">
 
-    <details class="guide-section pb-4 mb-4 border-b border-hairline" open>
+    <details data-alb-feature="guide" class="guide-section pb-4 mb-4 border-b border-hairline" open>
       <summary class="flex items-center justify-between gap-2 mb-3">
         <span class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px]">Panduan Penggunaan</span>
         <i class="fa-solid fa-chevron-down guide-sec-chev text-[11px] text-muted-soft transition-transform"></i>
@@ -108,7 +108,7 @@ const { API_BASE } = Astro.props;
       </div>
     </details>
 
-    <details class="guide-section pb-4 mb-4 border-b border-hairline" open>
+    <details data-alb-feature="class_data" class="guide-section pb-4 mb-4 border-b border-hairline" open>
       <summary class="flex items-center justify-between gap-2 mb-3">
         <span class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px]">Data Kelas &amp; Tugas</span>
         <i class="fa-solid fa-chevron-down guide-sec-chev text-[11px] text-muted-soft transition-transform"></i>
@@ -142,7 +142,7 @@ const { API_BASE } = Astro.props;
       </div>
     </details>
 
-    <button type="button" class="btn-fast-guide w-full flex items-center gap-3 bg-emerald-50/60 hover:bg-emerald-100/80 border border-emerald-200/80 rounded-xl px-3 py-2.5 mb-6 text-[13px] font-semibold text-emerald-800 transition-colors" data-intent="hubungi_guru" data-msg="Hubungi Guru">
+    <button type="button" data-alb-feature="contact_teacher" class="btn-fast-guide w-full flex items-center gap-3 bg-emerald-50/60 hover:bg-emerald-100/80 border border-emerald-200/80 rounded-xl px-3 py-2.5 mb-6 text-[13px] font-semibold text-emerald-800 transition-colors" data-intent="hubungi_guru" data-msg="Hubungi Guru">
       <span class="w-8 h-8 rounded-lg bg-green-600 text-white flex items-center justify-center shrink-0"><i class="fa-brands fa-whatsapp text-[15px]"></i></span>
       <span class="flex-1 text-left">Hubungi Guru (WhatsApp)</span>
     </button>

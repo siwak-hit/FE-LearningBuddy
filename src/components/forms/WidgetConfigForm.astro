@@ -3,6 +3,16 @@ import Modal from '../common/Modal.astro';
 
 const inputClass = "w-full bg-surface-card border border-hairline-strong rounded-[8px] px-4 py-3 text-[15px] text-ink focus:border-ink focus:outline-none transition-colors";
 const labelClass = "block text-[14px] font-medium text-ink mb-2";
+
+// Daftar fitur workspace AI yang bisa dimatikan guru. `id` dipakai apa adanya
+// sebagai key di theme.features (lihat widget-settings.page.js).
+const featureToggles = [
+  { id: 'complaint', label: 'Komplain', desc: 'Menu "Buat Komplain" di sidebar + tombol komplain di chat.' },
+  { id: 'contact_teacher', label: 'Hubungi Guru', desc: 'Menu "Hubungi Guru (WhatsApp)" di sidebar + tombol WA di chat.' },
+  { id: 'notes', label: 'Catatan & Tugas', desc: 'Section sidebar berisi "Catatan Saya" dan "Tugas Wajib (To-do)".' },
+  { id: 'guide', label: 'Panduan Penggunaan', desc: 'Section sidebar berisi tutorial VClass (buat forum, kumpulkan tugas, dll).' },
+  { id: 'class_data', label: 'Data Kelas & Tugas', desc: 'Section sidebar untuk cek deadline, tugas/kuis belum selesai, info pengajar.' }
+];
 ---
 
 <!-- 1. SCRIPT & LINK INTEGRASI -->
@@ -48,6 +58,25 @@ const labelClass = "block text-[14px] font-medium text-ink mb-2";
         <textarea id="allowed_origin" rows="3" class={inputClass} placeholder="Contoh: https://vclass.sekolah.com"></textarea>
         <p class="text-[13px] text-muted-soft mt-1">Daftar alamat VClass tempat widget dipasang, untuk mencegah error CORS. Pisahkan dengan Enter. Kosongkan jika mengizinkan semua.</p>
       </div>
+    </div>
+  </div>
+
+  <!-- FITUR WORKSPACE AI -->
+  <div class="pt-8 border-t border-hairline">
+    <h3 class="text-[18px] font-medium text-ink mb-1"><i class="fa-solid fa-toggle-on mr-2"></i> Fitur Workspace AI</h3>
+    <p class="text-[13px] text-muted-soft mb-5">Matikan switch untuk menyembunyikan fitur dari halaman AI siswa. Semua aktif secara default.</p>
+
+    <div class="space-y-3">
+      {featureToggles.map((feature) => (
+        <label class="flex items-start justify-between gap-4 bg-canvas-soft border border-hairline rounded-[12px] px-4 py-3 cursor-pointer hover:border-hairline-strong transition-colors">
+          <span class="min-w-0">
+            <span class="block text-[15px] font-medium text-ink">{feature.label}</span>
+            <span class="block text-[13px] text-muted-soft mt-0.5">{feature.desc}</span>
+          </span>
+          <input type="checkbox" id={`feature-${feature.id}`} class="sr-only peer" checked />
+          <span class="relative shrink-0 mt-1 w-11 h-6 rounded-full bg-hairline-strong transition-colors peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-5"></span>
+        </label>
+      ))}
     </div>
   </div>
 

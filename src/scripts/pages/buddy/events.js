@@ -779,8 +779,36 @@ export function bindWorkspaceEvents() {
   bindModeSelector(this);
   bindExternalSessionGate(this);
   ensureDeleteSessionButton(this);
-  ensureStudentNotesMenu(this);
-  this.ensureComplaintMenu?.(this);
+  applyFeatureFlags(this);
+}
+
+// [v0.9.70] Toggle fitur dari dashboard guru (widget_configs.theme.features).
+// Nilai `false` = fitur disembunyikan; key hilang / fetch gagal = tetap tampil (fail-open)
+// supaya sidebar tak pernah kosong hanya karena jaringan bermasalah.
+async function applyFeatureFlags(context) {
+  let flags = {};
+
+  if (context.projectKey) {
+    try {
+      const res = await ApiService.get(`/widget/config/${context.projectKey}`);
+      let theme = res?.data?.theme;
+      if (typeof theme === 'string') theme = JSON.parse(theme);
+      flags = theme?.features || {};
+    } catch (e) {
+      console.warn('[Buddy] gagal memuat feature flags, semua fitur ditampilkan:', e);
+    }
+  }
+
+  context.featureFlags = flags;
+  const isOn = (key) => flags[key] !== false;
+
+  if (isOn('notes')) ensureStudentNotesMenu(context);
+  if (isOn('complaint')) context.ensureComplaintMenu?.(context);
+
+  // Section statik di BuddyAiWorkspace.astro cukup dibuang dari DOM.
+  ['guide', 'class_data', 'contact_teacher'].forEach((key) => {
+    if (!isOn(key)) $(`#tab-content-guide [data-alb-feature="${key}"]`).remove();
+  });
 }
 
 function bindSidebarTabs(context) {

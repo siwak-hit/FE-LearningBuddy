@@ -388,6 +388,17 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   let actionsHtml = '';
   let visualHtml = '';
 
+  // [v0.9.70] Kalau guru mematikan fitur Hubungi Guru / Komplain, tombol aksinya juga
+  // tak boleh muncul di bubble chat — bukan cuma menunya di sidebar.
+  if (actions?.length && this.featureFlags) {
+    const isOff = (key) => this.featureFlags[key] === false;
+    actions = actions.filter((act) => {
+      if (isOff('contact_teacher') && ['wa_teacher', 'wa_specific_task'].includes(act?.type)) return false;
+      if (isOff('complaint') && ['open_complaint', 'open_grade_complaint'].includes(act?.type)) return false;
+      return true;
+    });
+  }
+
   if (actions && actions.length > 0) {
     const mainActions = [];
     const feedbackActions = [];
