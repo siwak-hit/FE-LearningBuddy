@@ -14,13 +14,27 @@ function getVerifiedStudentKey(context, email = '', classCode = '') {
   return `alb:${host}:${projectKey}:student-session:${cleanEmail}:${cleanClass}`;
 }
 
-export function readActiveStudentIdentity(context) {
+// [v0.9.84] Identitas terverifikasi hanya berlaku untuk SATU kunjungan browser.
+// localStorage tetap menyimpannya (supaya sesi lama bisa dilanjutkan), tapi baru boleh
+// DIBACA setelah siswa memasukkan email di kunjungan ini — ditandai oleh
+// `alb_student_lms_identity` di sessionStorage yang hilang saat browser ditutup.
+// Tanpa gate ini, buka ulang browser lewat widget langsung membawa nama siswa lama.
+export function isIdentityVerifiedThisVisit() {
+  try { return Boolean(sessionStorage.getItem('alb_student_lms_identity')); } catch (_) { return false; }
+}
+
+function readStoredActiveStudent(context) {
   try {
     const host = window.location.host || 'localhost';
     const projectKey = context?.projectKey || context?.project_key || 'default-project';
     const raw = localStorage.getItem(`alb:${host}:${projectKey}:active-student`);
     return raw ? JSON.parse(raw) : null;
   } catch (_) { return null; }
+}
+
+export function readActiveStudentIdentity(context) {
+  if (!isIdentityVerifiedThisVisit()) return null;
+  return readStoredActiveStudent(context);
 }
 
 function writeActiveStudentIdentity(context, identity = {}) {
@@ -94,7 +108,9 @@ function readReusableStudentSession(context, email = '', classCode = '') {
 }
 
 function removeReusableStudentSession(context) {
-  const active = readActiveStudentIdentity(context);
+  // Pakai pembacaan MENTAH: pembersihan harus tetap jalan walau identitas belum
+  // diverifikasi di kunjungan ini (mis. "Hapus Sesi" dari modal Konfigurasi).
+  const active = readStoredActiveStudent(context);
   if (active?.email && active?.class_code) {
     localStorage.removeItem(getVerifiedStudentKey(context, active.email, active.class_code));
   }

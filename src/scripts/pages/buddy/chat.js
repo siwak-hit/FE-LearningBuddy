@@ -706,7 +706,8 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   // [v0.9.9] Desktop (base) = bubble user abu terang + teks gelap (seperti semula).
   // Mobile (max-md) = latar gelap + teks putih.
   const bubbleHtml = isUser
-    ? `<div class="bg-primary/10 text-ink border border-primary/20 rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] leading-relaxed">${userImageHtml}${formattedText}${userActionsHtml}</div>`
+    // .alb-user-msg-text = titik ganti teks kalau BE mengembalikan versi tersensor.
+    ? `<div class="bg-primary/10 text-ink border border-primary/20 rounded-2xl rounded-tr-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] leading-relaxed">${userImageHtml}<div class="alb-user-msg-text">${formattedText}</div>${userActionsHtml}</div>`
     : `<div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none p-4 md:p-5 max-w-[88%] md:max-w-[80%] text-[15px] text-body leading-relaxed">${badgeHtml}${formattedText}${visualHtml}${actionsHtml}${disclaimerHtml}${botActionsHtml}</div>`;
 
   // [v0.9.10] Notif/pengingat (bukan jawaban chat) → kartu di TENGAH, gaya & warna beda,

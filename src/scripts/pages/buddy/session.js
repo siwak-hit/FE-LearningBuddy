@@ -3,6 +3,7 @@ import { ApiService } from '../../fetch/api.js';
 import Toast from '../../components/toast.js';
 import { resolvePageKeyFromContext } from './pageElements.js';
 import { persistLockdown, ensureLocalLockOverlay } from './safety-overlays.js';
+import { isIdentityVerifiedThisVisit } from './student-session.js';
 
 function getPrimaryCourseFromContext(contextData = {}) {
   const meta = contextData.session_meta || {};
@@ -283,10 +284,14 @@ export async function createOrLoadSession() {
     return;
   }
 
-  // [PATCH] Cek localStorage untuk session reusable sebelum buat baru
+  // [PATCH] Cek localStorage untuk session reusable sebelum buat baru.
+  // [v0.9.84] HANYA kalau siswa sudah memasukkan email di kunjungan ini. Kalau belum,
+  // biarkan sesi baru dibuat sebagai pengunjung anonim — jangan bangkitkan identitas lama.
   try {
     const host = window.location.host || 'localhost';
-    const activeStudentRaw = localStorage.getItem(`alb:${host}:${this.projectKey}:active-student`);
+    const activeStudentRaw = isIdentityVerifiedThisVisit()
+      ? localStorage.getItem(`alb:${host}:${this.projectKey}:active-student`)
+      : null;
     if (activeStudentRaw) {
       const activeStudent = JSON.parse(activeStudentRaw);
       if (activeStudent.email && activeStudent.class_code) {

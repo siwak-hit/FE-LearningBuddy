@@ -344,9 +344,12 @@ async function sendChatMessage(context, options = {}) {
   // suppressUserBubble: bubble pertanyaan sudah ditampilkan pemanggil (mis. auto-pindah konteks).
   // [v0.9.63] Label intent HANYA untuk pesan yang diketik siswa (bukan @mention / tombol pilih).
   let intentLabelId = null;
+  let $userBubble = null;
   if (!options.suppressUserBubble) {
     if (!options.mention && !options.intent) intentLabelId = 'alb-intent-' + Date.now();
     context.appendBubble(messageText, true, 'user', [], { image: pendingUserImage, intentLabelId });
+    // Simpan referensinya — dipakai kalau BE mengembalikan versi tersensor.
+    $userBubble = context.$chatArea?.children().last();
   }
   context.$inputArea?.val('');
   context.resetInputHeight?.();
@@ -406,6 +409,16 @@ async function sendChatMessage(context, options = {}) {
     if (res?.status === 'success' && res.data) {
       // [v0.9.63] Isi label intent pada bubble pertanyaan siswa (estimasi keyword dari BE).
       if (intentLabelId) context.fillIntentLabel?.(intentLabelId, res.data.intent_scores || []);
+
+      // [v0.9.84] Bahasa tidak pantas terdeteksi → ganti isi bubble pertanyaan dengan versi
+      // tersensor dari BE ("BEGO banget" → "**** banget"), termasuk data tombol Salin/Kirim ulang.
+      if (res.data.censored_message && $userBubble?.length) {
+        const censored = String(res.data.censored_message);
+        $userBubble.find('.alb-user-msg-text').html(
+          context.formatResponseText ? context.formatResponseText(censored) : escapeHtml(censored)
+        );
+        $userBubble.find('.btn-user-copy, .btn-user-reload').attr('data-msg', encodeURIComponent(censored));
+      }
 
       const botMessage = res.data.botMessage || res.data;
       const cooldownSecondsFromText = Number(String(botMessage?.message || '').match(/Tunggu\s+(\d+)\s+detik/i)?.[1] || 0);
