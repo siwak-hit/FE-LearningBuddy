@@ -616,6 +616,9 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           const safePayload = encodeURIComponent(JSON.stringify(act.payload || {}));
           actionsHtml += `<button type="button" class="btn-ask-ai-fallback inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
 
+        } else if (act.type === 'verify_email') {
+          // [v0.9.83] Gate identitas untuk pertanyaan data kelas/tugas → buka modal email.
+          actionsHtml += `<button type="button" class="btn-verify-email inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-bold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-envelope"></i> ${label}</button>`;
         } else if (act.type === 'show_steps' || act.type === 'highlight_element') {
           actionsHtml += `<button type="button" class="inline-flex items-center gap-1.5 bg-surface-strong border border-hairline hover:bg-hairline-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-bolt"></i> ${label}</button>`;
         }

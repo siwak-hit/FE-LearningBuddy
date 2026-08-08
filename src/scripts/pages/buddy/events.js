@@ -88,6 +88,31 @@ function getModeConfig(mode = 'system') {
   return RESPONSE_MODES[normalizedMode] || RESPONSE_MODES.system;
 }
 
+// [v0.9.83] Pertanyaan yang jawabannya diambil dari DATA Moodle siswa (tugas, deadline,
+// kuis, forum, nilai, pengajar) tidak bisa dijawab tanpa tahu siswa ini siapa. Sama seperti
+// gate fitur "@materi": tampilkan info + tombol email, jangan kirim ke server.
+const LMS_DATA_INTENTS = new Set([
+  'cek_tugas_belum_selesai', 'cek_deadline_hari_ini', 'cek_quiz_belum_dikerjakan',
+  'cek_forum_belum_dijawab', 'cek_pengajar_course', 'cek_nilai', 'lihat_nilai',
+  'detail_tugas', 'detail_kuis'
+]);
+const LMS_DATA_RE = /\b(tugas|pr|deadline|tenggat|batas waktu|dikumpul\w*|pengumpulan|nilai|rapor|kuis|quiz|ulangan|forum|diskusi|absen|presensi|jadwal|aktivitas|pengajar|wali kelas)\b/i;
+// Pertanyaan "cara ...", "apa itu ..." dijawab dari panduan/materi umum — tidak butuh identitas
+// walau menyebut kata "tugas"/"kuis". Tanpa pengecualian ini, "cara mengumpulkan tugas" ikut kena gate.
+const LMS_GENERIC_RE = /\b(cara|gimana|bagaimana|panduan|tutorial|langkah|apa itu|pengertian|definisi|maksud)\b/i;
+
+function needsMoodleIdentity(context, messageText = '', options = {}) {
+  if (options.skipIdentityGate) return false;
+  if (context.hasVerifiedStudentIdentity?.()) return false;
+  // Tombol sidebar mengirim intent eksplisit → paling akurat. Semua intent `cek_*`
+  // memang membaca data Moodle siswa (lihat `isLmsCheck` di bindFastGuideButtons).
+  const intent = String(options.intent || '');
+  if (intent.startsWith('cek_') || LMS_DATA_INTENTS.has(intent)) return true;
+  if (options.mention) return false;                                   // @materi punya gate sendiri
+  if (LMS_GENERIC_RE.test(messageText)) return false;
+  return LMS_DATA_RE.test(messageText);
+}
+
 function normalizePageType(pageType = '') {
   return String(pageType || '')
     .toLowerCase()
@@ -284,6 +309,27 @@ async function sendChatMessage(context, options = {}) {
   context._pendingUserImage = null;
 
   if (!messageText || context.isRequesting) return;
+
+  // [v0.9.83] Butuh data kelas/tugas tapi email Moodle belum diverifikasi → jangan kirim
+  // ke server (jawabannya pasti kosong/keliru). Tampilkan bubble info + tombol email;
+  // pertanyaannya disimpan dan dikirim ulang otomatis setelah verifikasi berhasil.
+  if (needsMoodleIdentity(context, messageText, options)) {
+    if (!options.suppressUserBubble) {
+      context.appendBubble(messageText, true, 'user', [], { image: pendingUserImage });
+    }
+    context.$inputArea?.val('');
+    context.resetInputHeight?.();
+    context.hideSuggestionWrapper?.();
+    context._pendingIdentityRequest = { message: messageText, options };
+    context.appendBubble(
+      'Pertanyaan ini butuh **data kelasmu di VClass** — tugas, deadline, kuis, forum, atau nilai. Aku belum tahu kamu siswa yang mana, jadi datanya belum bisa kuambil.\n\nMasukkan **email Moodle** kamu dulu ya. Cukup sekali, setelah itu pertanyaan ini langsung kujawab.',
+      false, 'system',
+      [{ type: 'verify_email', label: 'Masukkan Email Moodle' }],
+      { noFeedbackLock: true }
+    );
+    context.scrollToBottom?.();
+    return;
+  }
 
   context.isRequesting = true;
 
@@ -1338,6 +1384,35 @@ function bindChatActionButtons(context) {
   // [v0.9.82] Handler tombol "Sudah jelas" (.btn-system-feedback-ok) & "Terbantu"
   // (.btn-feedback-resolved) dihapus bersama tombolnya — termasuk toast "Terima kasih…".
   // Sinyal resolusi kini dikirim otomatis dari sendChatMessage.
+
+  // [v0.9.83] Tombol "Masukkan Email Moodle" pada bubble gate data kelas/tugas.
+  context.$chatArea
+    .off('click', '.btn-verify-email')
+    .on('click', '.btn-verify-email', async (e) => {
+      e.preventDefault();
+      const $btn = $(e.currentTarget);
+      $btn.prop('disabled', true).addClass('opacity-60 cursor-wait');
+
+      const ok = await context.showStudentIdentityModal?.(context.getCandidateStudentEmail?.() || '');
+      $btn.prop('disabled', false).removeClass('opacity-60 cursor-wait');
+      if (!ok) return;
+
+      markSingleChatButtonClicked($btn);
+      $btn.html('<i class="fa-solid fa-circle-check"></i> Email terverifikasi');
+      context.loadMateriMentions?.();
+
+      // Kirim ulang pertanyaan yang tadi tertahan (bubble pertanyaannya sudah tampil).
+      const pending = context._pendingIdentityRequest;
+      context._pendingIdentityRequest = null;
+      if (pending) {
+        sendChatMessage(context, {
+          ...pending.options,
+          message: pending.message,
+          suppressUserBubble: true,
+          skipIdentityGate: true
+        });
+      }
+    });
 
   context.$chatArea
     .off('click', '.btn-system-feedback-ai')
