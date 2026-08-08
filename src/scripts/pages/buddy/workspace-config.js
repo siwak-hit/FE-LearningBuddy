@@ -31,6 +31,12 @@ const CFG_GROUPS = [
     ]
   },
   {
+    title: 'Area Chat',
+    items: [
+      { key: 'hide_suggest', cls: 'alb-cfg-suggest-off', def: false, label: 'Sembunyikan chip saran', hint: 'Tombol saran pertanyaan tepat di atas kolom input.' }
+    ]
+  },
+  {
     title: 'Konten Panduan Cepat',
     items: [
       { key: 'guide', cls: 'alb-cfg-guide', def: true, label: 'Panduan Penggunaan' },

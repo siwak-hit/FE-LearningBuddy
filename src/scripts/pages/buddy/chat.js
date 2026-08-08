@@ -1,57 +1,134 @@
 import $ from 'jquery';
 
+// [v0.9.82] Teks loading BERVARIASI sesuai konteks pertanyaan. Tiap kategori punya
+// beberapa kalimat yang dirotasi selama menunggu, jadi tidak terasa monoton/menggantung.
+const TYPING_TEXTS = {
+  greeting: [
+    'Menyiapkan sapaan…',
+    'Sebentar ya…',
+    'Oke, aku dengar…'
+  ],
+  tutorial: [
+    'Mencari panduan langkah-langkahnya…',
+    'Membuka arsip panduan VClass…',
+    'Menyusun langkah yang paling mudah diikuti…',
+    'Mengumpulkan tangkapan layarnya…'
+  ],
+  lms: [
+    'Mengecek data kelasmu di VClass…',
+    'Menarik daftar tugas & aktivitas terbaru…',
+    'Menghitung tenggat waktunya…',
+    'Mencocokkan dengan catatan pengerjaanmu…'
+  ],
+  materi: [
+    'Membaca materi yang kamu pilih…',
+    'Menyisir isi materinya…',
+    'Mencari bagian yang paling relevan…',
+    'Menandai kutipan pentingnya…'
+  ],
+  quiz: [
+    'Menyiapkan soal latihannya…',
+    'Memilih soal yang sesuai materi…',
+    'Mengacak pilihan jawabannya…'
+  ],
+  ai: [
+    'Menyusun jawaban dengan AI…',
+    'Merangkai penjelasannya…',
+    'Memikirkan cara paling mudah menjelaskannya…',
+    'Menyaring supaya tidak bertele-tele…'
+  ],
+  default: [
+    'Mencari jawaban…',
+    'Mengecek basis pengetahuan sistem…',
+    'Menghubungkan titik-titiknya…',
+    'Sebentar, aku cari dulu…'
+  ]
+};
+
+// Kalimat menenangkan saat menunggu sudah lama (dipakai apa pun kategorinya).
+const TYPING_TEXTS_SLOW = [
+  'Masih diproses ya, jangan ditutup dulu… 🙏',
+  'Server VClass lagi agak sibuk — aku belum berhenti kok.',
+  'Sedikit lagi, terima kasih sudah sabar menunggu…'
+];
+
+function pickTypingCategory(message = '', opts = {}) {
+  const t = String(message || '').toLowerCase();
+  if (opts.mention || /@materi|\bmateri\b|rangkum|ringkas/.test(t)) return 'materi';
+  if (/\b(kuis|quiz|soal|latihan|ulangan)\b/.test(t)) return 'quiz';
+  if (/\b(cara|gimana|bagaimana|panduan|tutorial|langkah|tata cara)\b/.test(t)) return 'tutorial';
+  if (/\b(tugas|deadline|tenggat|nilai|forum|absen|jadwal|aktivitas|pengajar|guru)\b/.test(t)) return 'lms';
+  if (/^(halo|hai|hi|hey|pagi|siang|sore|malam|tes|test|ping|p)\b/.test(t.trim())) return 'greeting';
+  return opts.aiMode ? 'ai' : 'default';
+}
+
 export function appendTypingIndicator(opts = {}) {
   const aiMode = opts && opts.aiMode === true;
+  const category = pickTypingCategory(opts.message, { aiMode, mention: opts.mention });
+  const isFast = category === 'greeting';
+
+  // Bukan bubble lagi — cukup baris spinner titik + teks berkedip (skeleton) yang miring
+  // dan berwarna redup, supaya jelas ini status loading, bukan jawaban.
   const html = `
-    <div id="typing-indicator" class="flex items-start gap-3 md:gap-4">
-      <div class="w-10 h-10 rounded-full bg-primary text-white flex items-center justify-center shrink-0 text-[15px] shadow-sm">
-        <i class="fa-solid fa-robot"></i>
-      </div>
-      <div class="bg-surface-card border border-hairline rounded-2xl rounded-tl-none px-5 py-4 max-w-[80%] flex gap-1.5 items-center min-h-[52px]">
-        <style>
-          @keyframes alb-pulse-dot {
-            0%, 80%, 100% { transform: scale(0.5); opacity: 0.4; }
-            40% { transform: scale(1); opacity: 1; }
-          }
-          .alb-dot-anim {
-            width: 7px; height: 7px; border-radius: 50%; background-color: #a8a29e;
-            animation: alb-pulse-dot 1.4s infinite ease-in-out both;
-          }
-          .alb-dot-anim:nth-child(1) { animation-delay: -0.32s; }
-          .alb-dot-anim:nth-child(2) { animation-delay: -0.16s; }
-        </style>
-        <div class="alb-dot-anim"></div>
-        <div class="alb-dot-anim"></div>
-        <div class="alb-dot-anim"></div>
-        <span id="alb-typing-text" class="text-[12px] text-muted-soft ml-1.5 leading-tight"></span>
-      </div>
+    <div id="typing-indicator" class="flex items-center gap-2.5 pl-1 md:pl-14">
+      <style>
+        @keyframes alb-pulse-dot {
+          0%, 80%, 100% { transform: scale(0.45); opacity: 0.35; }
+          40% { transform: scale(1); opacity: 1; }
+        }
+        @keyframes alb-text-skeleton {
+          0% { background-position: 140% 0; }
+          100% { background-position: -40% 0; }
+        }
+        #typing-indicator .alb-dot-anim {
+          width: 6px; height: 6px; border-radius: 50%; background-color: #a8a29e;
+          animation: alb-pulse-dot 1.3s infinite ease-in-out both;
+        }
+        #typing-indicator .alb-dot-anim:nth-child(1) { animation-delay: -0.32s; }
+        #typing-indicator .alb-dot-anim:nth-child(2) { animation-delay: -0.16s; }
+        #alb-typing-text {
+          background: linear-gradient(90deg, #b6b1ac 20%, #e9e6e3 45%, #b6b1ac 70%);
+          background-size: 220% 100%;
+          -webkit-background-clip: text; background-clip: text;
+          color: transparent;
+          animation: alb-text-skeleton 1.9s linear infinite;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          #typing-indicator .alb-dot-anim, #alb-typing-text { animation: none; }
+          #alb-typing-text { color: #a8a29e; background: none; }
+        }
+      </style>
+      <div class="alb-dot-anim"></div>
+      <div class="alb-dot-anim"></div>
+      <div class="alb-dot-anim"></div>
+      <span id="alb-typing-text" class="text-[13px] italic leading-tight select-none"></span>
     </div>`;
 
   this.$chatArea.append(html);
 
-  // [v0.9.31 #spinner] Teks loading BERTINGKAT mengikuti lama tunggu:
-  //   • < 10 dtk  → spinner + label ringan (sistem/cache biasanya secepat ini).
-  //   • 10–~18 dtk → "mohon tunggu sebentar lagi" (kesan: masih diproses).
-  //   • mendekati timeout (20 dtk) → kata-kata jelas bahwa sistem MASIH bekerja
-  //     (server/VClass sedang sibuk), bukan diam/hang.
   clearTypingTimers();
-  const $txt = $('#alb-typing-text');
-  // initialText: dipakai saat siswa mengonfirmasi alih ke AI → "Mengalihkan ke jawaban AI…".
-  $txt.text(opts.initialText || 'Mencari jawaban…');
   window.__albTypingTimers = [];
-  const stage = (ms, text) => window.__albTypingTimers.push(setTimeout(() => {
-    $('#alb-typing-text').text(text);
-  }, ms));
 
-  // Kalau sudah eksplisit dialihkan ke AI, lewati tahap "mengecek basis pengetahuan".
-  if (!opts.initialText) stage(1500, 'Mengecek basis pengetahuan sistem…');
-  // [v0.9.28] Tahap "menyusun jawaban AI" HANYA saat mode AI (biar tak menyesatkan
-  // kalau ternyata jawabannya dari sistem).
-  if (aiMode) stage(3200, 'Menyusun jawaban dengan AI…');
-  // Tier 2: 10 dtk → reassurance.
-  stage(10000, 'Sebentar ya, jawabanmu masih diproses… 🙏');
-  // Tier 3: mendekati timeout → tegaskan sistem masih bekerja.
-  stage(16000, 'Masih memproses — server VClass lagi agak sibuk. Aku belum berhenti kok, mohon tunggu sebentar lagi…');
+  // initialText: dipakai saat siswa mengonfirmasi alih ke AI → "Mengalihkan ke jawaban AI…".
+  const pool = opts.initialText ? [opts.initialText] : (TYPING_TEXTS[category] || TYPING_TEXTS.default);
+  const setText = (text) => $('#alb-typing-text').text(text);
+  setText(pool[0]);
+
+  // Sapaan & sejenisnya: teks tunggal, tanpa tahapan — request-nya memang cepat.
+  if (isFast && !opts.initialText) {
+    this.scrollToBottom();
+    return;
+  }
+
+  // Rotasi kalimat dalam kategori tiap 2,4 dtk; setelah 11 dtk pindah ke kalimat sabar.
+  let i = 0;
+  const rotate = setInterval(() => {
+    i += 1;
+    const slow = i >= 4;
+    const list = slow ? TYPING_TEXTS_SLOW : pool;
+    setText(list[(slow ? i - 4 : i) % list.length]);
+  }, 2400);
+  window.__albTypingTimers.push(rotate);
 
   this.scrollToBottom();
 }
@@ -62,7 +139,8 @@ function clearTypingTimers() {
     if (window[k]) { clearTimeout(window[k]); window[k] = null; }
   });
   if (Array.isArray(window.__albTypingTimers)) {
-    window.__albTypingTimers.forEach((t) => clearTimeout(t));
+    // Isi array bisa timeout ATAU interval (rotasi teks) → bersihkan keduanya.
+    window.__albTypingTimers.forEach((t) => { clearTimeout(t); clearInterval(t); });
     window.__albTypingTimers = [];
   }
 }
@@ -72,105 +150,25 @@ export function removeTypingIndicator() {
   $('#typing-indicator').remove();
 }
 
-const INPUT_LOCK_NOTICE_HIDE_KEY = `alb_hide_input_lock_notice:${window.location.host}`;
-const INPUT_LOCK_NOTICE_COUNT_KEY = `alb_input_lock_notice_count:${window.location.host}`;
-
-function getNoticeCount() {
-  return Number(localStorage.getItem(INPUT_LOCK_NOTICE_COUNT_KEY) || 0) || 0;
-}
-
-function setNoticeCount(value) {
-  localStorage.setItem(INPUT_LOCK_NOTICE_COUNT_KEY, String(Math.max(0, Number(value || 0))));
-}
-
-function isInputLockNoticeHiddenForever() {
-  return localStorage.getItem(INPUT_LOCK_NOTICE_HIDE_KEY) === '1';
-}
-
-function showInputLockedNotice(context) {
-  if (!context?.$inputArea?.length) return;
-  if (isInputLockNoticeHiddenForever()) return;
-
-  const noticeId = 'alb-input-locked-notice';
-  let count = getNoticeCount() + 1;
-  setNoticeCount(count);
-
-  let $notice = $('#' + noticeId);
-  if (!$notice.length) {
-    $notice = $(
-      `<div id="${noticeId}" class="mt-2 mb-1 rounded-xl border border-amber-200 bg-amber-50 text-amber-800 px-3 py-2 text-[12px] leading-relaxed shadow-sm">
-        <div class="flex items-start gap-2">
-          <i class="fa-solid fa-circle-info mt-0.5 shrink-0"></i>
-          <div class="flex-1 min-w-0">
-            <div class="alb-input-lock-text">Input dikunci sementara. Klik tombol <b>"Sudah jelas"</b> pada respons chat terakhir untuk bisa mengetik lagi, atau pilih <b>"Belum jelas"</b> jika ingin AI menjelaskan.</div>
-            <div class="alb-input-lock-extra hidden mt-2 pt-2 border-t border-amber-200/70">
-              <label class="inline-flex items-center gap-2 cursor-pointer select-none">
-                <input type="checkbox" id="alb-hide-input-lock-notice-switch" class="rounded border-amber-300 text-primary focus:ring-primary" />
-                <span>Jangan tampilkan info ini lagi</span>
-              </label>
-            </div>
-          </div>
-          <button type="button" id="alb-input-lock-notice-close" class="w-7 h-7 rounded-full bg-white/70 border border-amber-100 text-amber-800 hover:bg-white shrink-0" aria-label="Tutup info input terkunci">
-            <i class="fa-solid fa-xmark"></i>
-          </button>
-        </div>
-      </div>`
-    );
-
-    const $form = context.$inputArea.closest('form');
-    if ($form.length) $form.before($notice);
-    else context.$inputArea.before($notice);
-
-    $notice.on('click', '#alb-input-lock-notice-close', () => hideInputLockedNotice());
-    $notice.on('change', '#alb-hide-input-lock-notice-switch', function () {
-      if ($(this).is(':checked')) {
-        localStorage.setItem(INPUT_LOCK_NOTICE_HIDE_KEY, '1');
-        hideInputLockedNotice();
-      }
-    });
-  }
-
-  $notice.find('.alb-input-lock-extra').toggleClass('hidden', count < 3);
-  $notice.removeClass('hidden');
-}
-
+// [v0.9.82] Banner "input dikunci, klik Sudah jelas" beserta preferensi localStorage-nya
+// dihapus — input tak pernah dikunci lagi oleh konfirmasi. Sisa pemanggil lama cukup
+// dilayani no-op ringan di bawah supaya tak perlu menyentuh banyak file.
 function hideInputLockedNotice() {
-  $('#alb-input-locked-notice').addClass('hidden');
-}
-
-export function clearInputLockedNoticePreference() {
-  localStorage.removeItem(INPUT_LOCK_NOTICE_HIDE_KEY);
-  setNoticeCount(0);
-  hideInputLockedNotice();
+  $('#alb-input-locked-notice').remove();
 }
 
 export function hideInputLockedNoticeExternal() {
   hideInputLockedNotice();
 }
 
-function disableSupersededFeedbackActions(context) {
-  const $chatArea = context?.$chatArea;
-  if (!$chatArea || !$chatArea.length) return false;
+// Tombol yang MEMANGGIL AI. Hanya kelompok ini yang dimatikan saat respons sudah berlalu —
+// memanggil AI untuk pertanyaan lama membakar kuota & jawabannya sudah tak relevan.
+const AI_ACTION_SELECTOR = '.btn-ask-ai-fallback, .btn-system-feedback-ai, .btn-mention-regenerate';
 
-  const $pending = $chatArea.find('.alb-system-message-wrap[data-waiting-feedback="1"]');
-  if (!$pending.length) return false;
-
-  $pending.each((_, wrap) => {
-    const $wrap = $(wrap);
-    $wrap.find('.btn-system-feedback-ok, .btn-system-feedback-ai, .btn-ask-ai-fallback, .btn-feedback-resolved')
-      .prop('disabled', true)
-      .addClass('opacity-60 cursor-not-allowed pointer-events-none')
-      .attr('title', 'Tombol ini sudah digantikan oleh percakapan terbaru.');
-    $wrap.removeAttr('data-waiting-feedback').attr('data-superseded-feedback', '1');
-  });
-
-  hideInputLockedNotice();
-  return true;
-}
-
-// [v0.9.27 #4] Saat user mengirim pertanyaan BARU, tombol-tombol dari respons sebelumnya
-// "berlalu": di-disable + dibungkus accordion tertutup (auto-hide) agar layar tak ramai
-// tombol. Tetap bisa dibuka kalau perlu.
+// [v0.9.27 #4 / rev v0.9.82] Saat user mengirim pertanyaan BARU, tombol respons sebelumnya
+// dibungkus accordion tertutup agar layar tak ramai. Tombol panduan/tutorial/materi TETAP
+// bisa diklik (siswa sering membukanya lagi sambil lanjut bertanya); hanya tombol "Tanya AI"
+// yang di-disable.
 function collapseSupersededActions(context) {
   const $area = context?.$chatArea;
   if (!$area || !$area.length) return;
@@ -179,13 +177,21 @@ function collapseSupersededActions(context) {
     const $btns = $grp.find('button');
     $grp.addClass('alb-superseded');
     if (!$btns.length) return;
-    $btns.prop('disabled', true).addClass('opacity-50 cursor-not-allowed pointer-events-none').attr('title', 'Respons ini sudah berlalu.');
-    const n = $btns.length;
+
+    $btns.filter(AI_ACTION_SELECTOR)
+      .prop('disabled', true)
+      .addClass('opacity-50 cursor-not-allowed pointer-events-none')
+      .attr('title', 'Sudah ada percakapan yang lebih baru — tanyakan lagi di chat kalau masih perlu AI.');
+
+    const active = $btns.not(AI_ACTION_SELECTOR).length;
+    const label = active
+      ? `${active} tombol dari respons sebelumnya · masih bisa dibuka`
+      : `${$btns.length} tombol dari respons sebelumnya`;
     const $details = $(`
       <details class="alb-superseded-acc group mt-3 border border-hairline rounded-xl bg-surface-strong/50 overflow-hidden">
         <summary class="cursor-pointer list-none px-3 py-2 text-[11px] font-semibold text-muted-soft flex items-center gap-2 [&::-webkit-details-marker]:hidden hover:bg-surface-strong transition-colors">
           <i class="fa-solid fa-clock-rotate-left text-[10px]"></i>
-          <span>${n} tombol dari respons sebelumnya</span>
+          <span>${label}</span>
           <i class="fa-solid fa-chevron-down text-[10px] ml-auto transition-transform group-open:rotate-180"></i>
         </summary>
       </details>`);
@@ -224,9 +230,6 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
   let text = rawText;
   let isTutorialMode = false;
 
-  if (isUser && disableSupersededFeedbackActions(this)) {
-    this._unlockInputAfterCurrentResponse = true;
-  }
   // [v0.9.27 #4] Pertanyaan baru dari user → rapikan tombol respons lama ke accordion.
   if (isUser) collapseSupersededActions(this);
 
@@ -397,6 +400,15 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
       if (isOff('complaint') && ['open_complaint', 'open_grade_complaint'].includes(act?.type)) return false;
       return true;
     });
+  }
+
+  // [v0.9.82] Buang tombol konfirmasi pemahaman ("Sudah jelas" / "Terbantu, sudah teratasi").
+  // Sinyal "resolved" ke server tetap dikirim, tapi dari perilaku: begitu siswa mengirim
+  // permintaan berikutnya, jawaban ini dianggap sudah dipahami (lihat events.js).
+  if (!isUser && Array.isArray(actions) && actions.length) {
+    const before = actions.length;
+    actions = actions.filter((act) => !['system_feedback_ok', 'feedback_resolved'].includes(act?.type));
+    if (actions.length !== before) this._awaitingImplicitResolve = true;
   }
 
   if (actions && actions.length > 0) {
@@ -639,9 +651,9 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     }
   }
 
-  const hasWaAction = !isUser && Array.isArray(actions) && actions.some((act) => ['wa_teacher', 'wa_specific_task'].includes(act?.type));
-  const shouldWaitForSystemFeedback = !isUser && !hasWaAction && !options.noFeedbackLock && Array.isArray(actions) && actions.some((act) => act?.type === 'system_feedback_ok' || act?.type === 'feedback_resolved');
-  if (!isUser) this._lastBotMessageWaitsForFeedback = shouldWaitForSystemFeedback;
+  // [v0.9.82] Tombol konfirmasi "Sudah jelas"/"Terbantu" dihapus, jadi tidak ada lagi
+  // kondisi "menunggu konfirmasi" yang mengunci input.
+  if (!isUser) this._lastBotMessageWaitsForFeedback = false;
 
   // [v0.9.9] Mobile: avatar disembunyikan — bubble dibedakan dari warna saja.
   const avatarHtml = isUser
@@ -716,7 +728,7 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
       : '';
     html = `<div><div class="flex items-start justify-end gap-3 md:gap-4">${bubbleHtml}${avatarHtml}</div>${labelHtml}</div>`;
   } else {
-    html = `<div class="alb-system-message-wrap"${shouldWaitForSystemFeedback ? ' data-waiting-feedback="1"' : ''}><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div></div>`;
+    html = `<div class="alb-system-message-wrap"><div class="flex items-start gap-3 md:gap-4">${avatarHtml}${bubbleHtml}</div></div>`;
   }
 
   this.$chatArea.append(html);
@@ -726,18 +738,10 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     this.syncLmsTablesPagination?.();
   }
 
-  // Untuk jawaban sistem yang meminta konfirmasi, tahan input dulu supaya siswa
-  // tidak lanjut bertanya sebelum memilih "Sudah jelas" atau "Belum jelas".
-  // Tombol "Sudah jelas" akan mengaktifkan input lagi dari events.js.
-  if (shouldWaitForSystemFeedback && this.$inputArea?.length && this.$btnSend?.length) {
-    this.$inputArea
-      .prop('disabled', true)
-      .attr('placeholder', 'Klik tombol "Sudah jelas" pada respons chat terakhir untuk bisa ngechat lagi.');
-    this.$btnSend.prop('disabled', true);
-    showInputLockedNotice(this);
-  } else if (!isUser) {
-    hideInputLockedNotice();
-  }
+  // [v0.9.82] Input TIDAK dikunci lagi. Dulu siswa wajib klik "Sudah jelas" dulu; sekarang
+  // konfirmasi "sudah paham" disimpulkan dari perilaku — begitu siswa mengirim permintaan
+  // berikutnya, itu dianggap paham (lihat `_awaitingImplicitResolve`).
+  if (!isUser) hideInputLockedNotice();
 
   this.scrollToBottom();
 }

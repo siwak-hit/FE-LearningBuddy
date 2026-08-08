@@ -44,6 +44,7 @@ const { API_BASE } = Astro.props;
   #alb-delete-session-btn { display: none !important; }
 
   body.alb-cfg-popup-off #alb-reminder-toast-host { display: none !important; }
+  body.alb-cfg-suggest-off #suggestion-wrapper { display: none !important; }
 
   body:not(.alb-cfg-guide) #tab-content-guide [data-alb-feature="guide"],
   body:not(.alb-cfg-class-data) #tab-content-guide [data-alb-feature="class_data"],
@@ -63,8 +64,10 @@ const { API_BASE } = Astro.props;
     class="fixed md:relative inset-y-0 left-0 z-40 w-[86%] max-w-[380px] md:w-[320px] lg:w-[380px] shrink-0 h-full bg-canvas-soft border-r border-hairline flex flex-col transform -translate-x-full md:translate-x-0 transition-all duration-300 ease-out overflow-hidden"
   >
 
-  <div class="h-20 px-6 md:px-8 border-b border-hairline shrink-0 flex items-center justify-between w-full md:w-[320px] lg:w-[380px]">
-    <!-- [config] Tombol "Kembali ke VClass" di-hide: siswa masuk lewat tab/PWA terpisah. -->
+  <!-- [config] Baris header sidebar tinggal berisi tombol tutup (mobile) karena tombol
+       "Kembali ke VClass" di-hide — di desktop barisnya ikut dibuang supaya konten
+       sidebar naik ke atas, tidak menyisakan area kosong setinggi h-20. -->
+  <div class="md:hidden h-20 px-6 border-b border-hairline shrink-0 flex items-center justify-end w-full">
     <button id="btn-back" class="hidden text-muted hover:text-ink items-center text-[15px] font-medium transition-colors">
       <i class="fa-solid fa-arrow-left mr-2"></i> Kembali ke VClass
     </button>

@@ -38,7 +38,15 @@ function idfNeedsIdentity(context) {
   const name = meta.display_name || sessionStorage.getItem('alb_student_name') || '';
   return !name || GUEST_RE.test(name) || !meta.moodle_user_id;
 }
+// [v0.9.82] Dropdown "Halaman yang sedang kamu buka" hanya relevan kalau tab
+// "Elemen Halaman" dinyalakan di modal Konfigurasi. Kalau tab-nya mati, konteks halaman
+// tak pernah dipakai siswa → jangan tanyakan.
+function idfElementsTabOn() {
+  return document.body.classList.contains('alb-cfg-tabs');
+}
+
 function idfNeedsContext(context) {
+  if (!idfElementsTabOn()) return false;
   const cd = context.contextData || {};
   return !cd.page_key && !(Array.isArray(cd.elements) && cd.elements.length);
 }
@@ -247,7 +255,7 @@ async function idfLoadStudents(context, opts = {}) {
 export function openIdentityFallbackModal(opts = {}) {
   const context = this;
   const askName = opts.askName !== false;
-  const askContext = opts.askContext !== false;
+  const askContext = opts.askContext !== false && idfElementsTabOn();
   ensureIdfModal(context);
 
   $('#alb-idf-context').html('<option value="">— pilih halaman —</option>' +
@@ -296,12 +304,22 @@ export function openIdentityFallbackModal(opts = {}) {
   });
 }
 
-// [#3] Tampilkan ikon edit (pensil) di header samping nama → buka ulang modal pilih nama.
+// [v0.9.82] Ikon pensil di samping sapaan = GANTI EMAIL / AKUN. Membuka modal email yang
+// sama seperti verifikasi biasa; kalau email yang dimasukkan berbeda dari pemilik sesi
+// sekarang, `resolveStudentIdentityByEmail` otomatis memindahkan ke sesi akun itu
+// (efeknya = mulai sesi baru). Modal pilih-nama lama tidak lagi dibuka dari sini.
 export function showIdentityEditButton(context) {
   const ctx = context || this;
   const $btn = $('#btn-edit-identity');
   if (!$btn.length) return;
-  $btn.removeClass('hidden').off('click').on('click', () => {
-    openIdentityFallbackModal.call(ctx, { askName: true, askContext: true });
-  });
+  $btn
+    .removeClass('hidden')
+    .attr('title', 'Ganti email / akun (mulai sesi baru)')
+    .off('click')
+    .on('click', () => {
+      ctx.showStudentIdentityModal?.(
+        ctx.getCandidateStudentEmail?.() || '',
+        'Mau ganti akun? Masukkan email Moodle yang lain lalu pilih kelasnya. Chat akan berpindah ke sesi akun tersebut — riwayat akun sebelumnya tetap tersimpan.'
+      );
+    });
 }

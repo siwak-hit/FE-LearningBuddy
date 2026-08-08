@@ -287,6 +287,14 @@ async function sendChatMessage(context, options = {}) {
 
   context.isRequesting = true;
 
+  // [v0.9.82] Konfirmasi "sudah paham" tanpa tombol: kalau respons sebelumnya tadinya
+  // punya tombol konfirmasi dan siswa langsung bertanya lagi, itu artinya sudah paham.
+  // Sinyal resolusi (dipakai deteksi kesulitan di BE) dikirim dari sini.
+  if (context._awaitingImplicitResolve) {
+    context._awaitingImplicitResolve = false;
+    ApiService.post('/chat/feedback', { sessionId: context.sessionId, type: 'resolved' }).catch(() => {});
+  }
+
   // suppressUserBubble: bubble pertanyaan sudah ditampilkan pemanggil (mis. auto-pindah konteks).
   // [v0.9.63] Label intent HANYA untuk pesan yang diketik siswa (bukan @mention / tombol pilih).
   let intentLabelId = null;
@@ -300,7 +308,12 @@ async function sendChatMessage(context, options = {}) {
   // [v0.9.28 #3] Tahap loading "mengalihkan ke AI" hanya bila request memang mode AI,
   // supaya tak muncul saat jawaban ternyata dari sistem.
   const _aiMode = (options.forceAI === true) || (options.forceAI !== false && modeConfig.forceAI === true);
-  context.appendTypingIndicator?.({ aiMode: _aiMode, initialText: options.loadingText });
+  context.appendTypingIndicator?.({
+    aiMode: _aiMode,
+    initialText: options.loadingText,
+    message: messageText,
+    mention: options.mention || null
+  });
   context.scrollToBottom?.();
 
   const selectedResponseMode = options.responseMode || modeConfig.responseMode;
@@ -445,11 +458,6 @@ async function sendChatMessage(context, options = {}) {
 
     // [v0.4.0] Ingatkan user mode aktif (terutama AI) sesudah chat terkirim.
     updateModeReminder(context);
-
-    if (context._unlockInputAfterCurrentResponse && !context._lastBotMessageWaitsForFeedback) {
-      enableChatInputAfterFeedback(context);
-    }
-    context._unlockInputAfterCurrentResponse = false;
 
     context.scrollToBottom?.();
   }
@@ -875,7 +883,11 @@ function bindInputEvents(context, getSuggestionTimer, setSuggestionTimer) {
   if ($inputWrap.length) {
     $inputWrap.off('mousedown.albLocked touchstart.albLocked')
       .on('mousedown.albLocked touchstart.albLocked', (e) => {
-        if (context.$inputArea?.prop('disabled')) {
+        // [v0.9.82] Toast ini khusus kondisi "menunggu konfirmasi" yang sudah dihapus.
+        // Input yang disabled sekarang hanya karena lockdown/cooldown (punya overlay sendiri),
+        // jadi toast hanya muncul kalau memang masih ada respons yang menunggu konfirmasi.
+        const stillWaiting = context.$chatArea?.find('.alb-system-message-wrap[data-waiting-feedback="1"]').length > 0;
+        if (stillWaiting && context.$inputArea?.prop('disabled')) {
           // Jangan ganggu klik tombol kirim/mode di dalam form.
           if ($(e.target).closest('#btn-send, #response-mode-dropdown, button, a').length) return;
           context.showInputLockedToast?.();
@@ -1323,54 +1335,9 @@ function bindChatActionButtons(context) {
       openWaFormOnce(context, e.currentTarget, taskName);
     });
 
-  context.$chatArea
-    .off('click', '.btn-system-feedback-ok')
-    .on('click', '.btn-system-feedback-ok', (e) => {
-      e.preventDefault();
-
-      const $btn = $(e.currentTarget);
-      const $wrap = $btn.closest('.alb-system-message-wrap');
-
-      $wrap.find('.alb-action-group button')
-        .prop('disabled', true)
-        .addClass('opacity-60 cursor-not-allowed');
-
-      $btn
-        .removeClass('bg-emerald-50 opacity-60 cursor-not-allowed')
-        .addClass('bg-emerald-600 text-white')
-        .html('<i class="fa-solid fa-check"></i> Sip, masalah selesai');
-
-      $wrap.removeAttr('data-waiting-feedback');
-      enableChatInputAfterFeedback(context);
-      Toast.show('Terima kasih. Jawaban sistem ditandai membantu.', 'success');
-    });
-
-  // [v0.8.1] Tombol konfirmasi tipe SCORING — memengaruhi deteksi kesulitan.
-  // Fungsinya sama (buka input lagi), tapi mengirim sinyal "terbantu/teratasi" ke server.
-  context.$chatArea
-    .off('click', '.btn-feedback-resolved')
-    .on('click', '.btn-feedback-resolved', (e) => {
-      e.preventDefault();
-
-      const $btn = $(e.currentTarget);
-      const $wrap = $btn.closest('.alb-system-message-wrap');
-
-      $wrap.find('.alb-action-group button')
-        .prop('disabled', true)
-        .addClass('opacity-60 cursor-not-allowed');
-
-      $btn
-        .removeClass('bg-emerald-50 opacity-60 cursor-not-allowed')
-        .addClass('bg-emerald-600 text-white')
-        .html('<i class="fa-solid fa-circle-check"></i> Terbantu, makasih!');
-
-      $wrap.removeAttr('data-waiting-feedback');
-      enableChatInputAfterFeedback(context);
-
-      // Kirim sinyal resolusi ke server (memengaruhi skor kesulitan).
-      ApiService.post('/chat/feedback', { sessionId: context.sessionId, type: 'resolved' }).catch(() => {});
-      Toast.show('Senang bisa membantu! 🎉', 'success');
-    });
+  // [v0.9.82] Handler tombol "Sudah jelas" (.btn-system-feedback-ok) & "Terbantu"
+  // (.btn-feedback-resolved) dihapus bersama tombolnya — termasuk toast "Terima kasih…".
+  // Sinyal resolusi kini dikirim otomatis dari sendChatMessage.
 
   context.$chatArea
     .off('click', '.btn-system-feedback-ai')
