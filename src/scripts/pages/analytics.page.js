@@ -257,8 +257,78 @@ $(document).ready(function () {
   $('#btn-export-eval').on('click', exportEval);
   $('#file-eval').on('change', function () { if (this.files && this.files[0]) onEvalFile(this.files[0]); this.value = ''; });
 
+  // ===================== Fase 4: Rekap Skor SUS =====================
+  let susRows = [];
+  const susCard = (val, label, cls) =>
+    `<div class="bg-canvas-soft rounded-xl p-4 text-center"><div class="text-[26px] font-black ${cls || 'text-ink'} leading-none">${val}</div><div class="text-[12px] text-muted mt-1">${label}</div></div>`;
+
+  async function loadSus() {
+    const projectId = $('#filter-project').val() || 'all';
+    if (projectId === 'all') {
+      $('#sus-status').text('Pilih project spesifik di atas untuk melihat skor SUS.');
+      $('#sus-summary').empty(); $('#sus-table').empty(); susRows = [];
+      return;
+    }
+    $('#sus-status').text('Memuat…');
+    try {
+      const res = await ApiService.get(`/analytics/sus?projectId=${encodeURIComponent(projectId)}`);
+      const d = res?.data || {};
+      susRows = d.rows || [];
+      const avgCls = d.average >= 80 ? 'text-emerald-600' : d.average >= 68 ? 'text-primary' : 'text-amber-600';
+      $('#sus-summary').html(
+        susCard(d.count || 0, 'Responden') +
+        susCard(d.average || 0, 'Rata-rata SUS', avgCls) +
+        susCard(d.min || 0, 'Terendah') +
+        susCard(d.max || 0, 'Tertinggi')
+      );
+      if (!susRows.length) {
+        $('#sus-table').html('<div class="text-[13px] text-muted-soft py-4 text-center border border-hairline rounded-xl">Belum ada siswa yang mengisi SUS untuk project ini.</div>');
+        $('#sus-status').text('');
+        return;
+      }
+      const body = susRows.map((r) => {
+        const scCls = r.score >= 80 ? 'text-emerald-600' : r.score >= 68 ? 'text-primary' : 'text-amber-600';
+        const when = r.created_at ? new Date(r.created_at).toLocaleString('id-ID', { dateStyle: 'medium', timeStyle: 'short' }) : '-';
+        return `<tr class="border-t border-hairline">
+          <td class="p-2.5 text-ink">${esc(r.student_name || (r.student_email || '').split('@')[0] || '-')}</td>
+          <td class="p-2.5 text-muted">${esc(r.student_email || '-')}</td>
+          <td class="p-2.5 text-muted">${esc(r.class_code || '-')}</td>
+          <td class="p-2.5 font-black ${scCls}">${r.score}</td>
+          <td class="p-2.5 text-muted-soft text-[12px]">${esc(when)}</td>
+        </tr>`;
+      }).join('');
+      $('#sus-table').html(`<div class="overflow-x-auto border border-hairline rounded-xl"><table class="w-full text-[13px]"><thead class="bg-canvas-soft text-muted"><tr><th class="p-2.5 text-left">Nama</th><th class="p-2.5 text-left">Email</th><th class="p-2.5 text-left">Kelas</th><th class="p-2.5 text-left">Skor</th><th class="p-2.5 text-left">Waktu</th></tr></thead><tbody>${body}</tbody></table></div>`);
+      $('#sus-status').text('');
+    } catch (_) {
+      $('#sus-status').text('Gagal memuat data SUS.');
+    }
+  }
+
+  function exportSus() {
+    if (!susRows.length) { $('#sus-status').text('Belum ada data SUS untuk diunduh.'); return; }
+    const cols = ['student_name', 'student_email', 'class_code', 'score', 'created_at'];
+    const qCols = Array.from({ length: 10 }, (_, i) => `q${i + 1}`);
+    const header = [...cols, ...qCols];
+    const lines = [header.join(',')];
+    susRows.forEach((r) => {
+      const ans = Array.isArray(r.answers) ? r.answers : [];
+      const base = cols.map((c) => csvCell(r[c]));
+      const q = qCols.map((_, i) => csvCell(ans[i] == null ? '' : ans[i]));
+      lines.push([...base, ...q].join(','));
+    });
+    const blob = new Blob(['﻿' + lines.join('\n')], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = `hasil_sus_${$('#filter-project').val()}_${Date.now()}.csv`;
+    document.body.appendChild(a); a.click(); document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  }
+
+  $('#btn-export-sus').on('click', exportSus);
+  $('#btn-refresh-sus').on('click', loadSus);
+
   $('#btn-refresh').on('click', loadAnalytics);
-  $('#filter-project').on('change', loadAnalytics);
+  $('#filter-project').on('change', () => { loadAnalytics(); if (!$('#an-pane-sus').hasClass('hidden')) loadSus(); });
 
   // Modal panduan membaca analitik (carousel Info).
   let anInfoIdx = 0;
@@ -307,6 +377,7 @@ $(document).ready(function () {
     $('.an-pane').addClass('hidden');
     $('#' + target).removeClass('hidden');
     $('#analytics-tab-select').val(target);
+    if (target === 'an-pane-sus') loadSus();
   }
   $('#analytics-tabs .an-tab-btn').on('click', function () { activateAnalyticsTab($(this).data('target')); });
   $('#analytics-tab-select').on('change', function () { activateAnalyticsTab($(this).val()); });

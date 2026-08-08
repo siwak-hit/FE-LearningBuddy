@@ -23,6 +23,7 @@ import {
   ensureDeleteSessionButton,
   bindExternalSessionGate
 } from './student-session.js';
+import { initWorkspaceConfig } from './workspace-config.js';
 
 const LMS_BASE_URL = 'https://lms.smpn167jakarta.sch.id';
 const DEFAULT_COURSE_ID = '2';
@@ -36,15 +37,17 @@ const RESPONSE_MODES = {
     forceAI: false,
     activeClass: 'border-slate-200 bg-slate-50/70'
   },
+  // [config] UI hanya punya 2 mode: Jawaban Sistem & Jawaban AI. `ai_detail` tetap ada
+  // sebagai alias internal karena beberapa payload BE/tombol lama mengirim mode 'detail'.
   ai_short: {
-    label: 'AI Singkat',
+    label: 'Jawaban AI',
     responseMode: 'short',
     forceFAQ: false,
     forceAI: true,
     activeClass: 'border-amber-200 bg-amber-50/70'
   },
   ai_detail: {
-    label: 'AI Detail',
+    label: 'Jawaban AI',
     responseMode: 'detail',
     forceFAQ: false,
     forceAI: true,
@@ -201,7 +204,7 @@ function updateModeReminder(context) {
   }
 
   if (isAi) {
-    const modeName = mode === 'ai_detail' ? 'AI Detail' : 'AI Singkat';
+    const modeName = 'Jawaban AI';
     // [v0.9.2] Dibuat 1 baris ringkas supaya area bawah tidak penuh.
     $bar.html(`
       <div class="flex items-center justify-between gap-2 bg-amber-50 border border-amber-200 text-amber-800 rounded-lg px-2.5 py-1 text-[11px]">
@@ -758,6 +761,7 @@ function bindScrollToBottomButton(context) {
 export function bindWorkspaceEvents() {
   let suggestionTimer = null;
 
+  initWorkspaceConfig(this); // body-class tampilan dipasang paling awal (hindari kedip)
   hydrateReusableSessionIfAvailable(this);
   decorateAiUsageAutoReset(this);
   registerAlbPwa(this);

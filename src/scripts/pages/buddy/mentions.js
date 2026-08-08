@@ -20,6 +20,9 @@ function esc(s = '') {
 export async function loadMateriMentions() {
   this.materiList = this.materiList || [];
   if (!this.sessionId) return;
+  // [config] Materi hanya dimuat setelah email Moodle tervalidasi. Sebelum itu drawer
+  // "@" menampilkan ajakan memasukkan email, bukan daftar kosong yang membingungkan.
+  if (!this.hasVerifiedStudentIdentity?.()) { this._materiLoaded = false; return; }
 
   this._materiLoading = true;
   // Kalau dropdown sedang terbuka, segarkan agar spinner langsung muncul.
@@ -71,11 +74,53 @@ export function hideMentionDropdown() {
   this._mentionTab = undefined;
 }
 
+// [config] Drawer "@" — dibungkus wadah overflow-hidden tepat di atas kolom input, isinya
+// digeser dari bawah (translate-y-full → 0) sehingga terlihat keluar DARI BALIK input.
+function mountMentionDrawer(innerHtml) {
+  const $form = $('#chat-form');
+  if (!$form.length) return false;
+
+  // Sudah terbuka → cukup ganti isinya, jangan animasikan ulang tiap ketikan.
+  const $existing = $('#alb-mention-dropdown .alb-mention-panel');
+  if ($existing.length) {
+    $existing.html(innerHtml);
+    return true;
+  }
+
+  $form.css('position', 'relative').append(`
+    <div id="alb-mention-dropdown" class="absolute bottom-full left-0 right-0 z-0 overflow-hidden pb-2 pointer-events-none">
+      <div class="alb-mention-panel max-h-64 flex flex-col overflow-hidden bg-surface-card border border-hairline-strong rounded-2xl shadow-2xl pointer-events-auto translate-y-full transition-transform duration-200 ease-out">
+        ${innerHtml}
+      </div>
+    </div>`);
+  // setTimeout (bukan requestAnimationFrame) supaya animasi tetap jalan walau tab
+  // sempat tidak di-render — rAF bisa tak pernah terpanggil di kondisi itu.
+  setTimeout(() => $('#alb-mention-dropdown .alb-mention-panel').removeClass('translate-y-full'), 16);
+  return true;
+}
+
 export function renderMentionDropdown(query = '') {
+  // [config] Belum verifikasi email → drawer berisi info + tombol buka modal email.
+  if (!this.hasVerifiedStudentIdentity?.()) {
+    const ok = mountMentionDrawer(`
+      <div class="p-4">
+        <div class="flex items-start gap-3">
+          <span class="w-9 h-9 shrink-0 rounded-lg bg-primary/10 text-primary flex items-center justify-center"><i class="fa-solid fa-id-card-clip"></i></span>
+          <div class="min-w-0">
+            <div class="text-[13px] font-bold text-ink leading-snug">Masukkan email Moodle dulu</div>
+            <div class="text-[12px] text-muted-soft leading-relaxed mt-1">Daftar materi diambil dari kelas yang kamu ikuti di VClass, jadi aku perlu tahu kamu siapa dulu. Setelah emailmu tervalidasi, fitur <b>@materi</b> langsung bisa dipakai.</div>
+          </div>
+        </div>
+        <button type="button" class="alb-mention-verify mt-3 w-full bg-primary hover:bg-primary-active text-white rounded-xl px-4 py-2.5 text-[13px] font-bold transition-colors">
+          <i class="fa-solid fa-envelope mr-1.5"></i> Masukkan Email Moodle
+        </button>
+      </div>`);
+    if (ok) this._mentionOpen = true;
+    return;
+  }
+
   const groups = buildMentionGroups(this, query);
   const materiLoading = this._materiLoading === true;
-  // Jangan sembunyikan kalau materi masih dimuat (biar spinner tetap tampil).
-  if (!groups.elemen.length && !groups.materi.length && !materiLoading) { this.hideMentionDropdown(); return; }
   this._mentionGroups = groups;
 
   const renderItem = (it, idx) => {
@@ -95,55 +140,28 @@ export function renderMentionDropdown(query = '') {
       </button>`;
   };
 
-  // [F] DUA TAB: "Elemen" vs "Materi" → user pilih dulu mau tanya apa, jadi tak perlu
-  // scroll panjang menggabung dua daftar. Tab aktif disimpan di this._mentionTab.
-  if (this._mentionTab !== 'elemen' && this._mentionTab !== 'materi') {
-    this._mentionTab = groups.elemen.length ? 'elemen' : 'materi';
-  }
-  const activeTab = this._mentionTab;
-
-  // Body tab ELEMEN.
-  const elemenBody = groups.elemen.length
-    ? groups.elemen.map((it, idx) => renderItem(it, idx)).join('')
-    : `<div class="px-3 py-4 text-[12px] text-muted-soft leading-snug text-center">Tidak ada elemen halaman${query ? ' yang cocok' : ''}.</div>`;
-
-  // Body tab MATERI: baris kecil tombol "Muat ulang" + isi (spinner/daftar/kosong).
-  const materiReloadRow = `
-    <div class="px-3 py-1.5 flex justify-end bg-surface-strong/60 border-b border-hairline">
+  // [config] Tab "Elemen Halaman" di-hide — drawer "@" khusus MATERI.
+  const materiCount = (materiLoading && !groups.materi.length) ? '' : ` (${groups.materi.length})`;
+  const header = `
+    <div class="px-3 py-2 shrink-0 flex items-center justify-between gap-2 border-b border-hairline bg-surface-strong">
+      <span class="text-[11px] font-bold uppercase tracking-wide text-muted">📚 Materi${materiCount}</span>
       <button type="button" class="alb-materi-reload inline-flex items-center gap-1 text-[10px] font-semibold text-primary hover:text-primary-active normal-case" title="Muat ulang materi dari VClass">
         <i class="fa-solid fa-rotate ${materiLoading ? 'fa-spin' : ''}"></i> Muat ulang
       </button>
     </div>`;
-  let materiInner = '';
+
+  let body = '';
   if (materiLoading && !groups.materi.length) {
-    materiInner = `<div class="px-3 py-3 flex items-center gap-2 text-[12px] text-muted"><i class="fa-solid fa-spinner fa-spin text-primary"></i> Memuat materi dari VClass…</div>`;
+    body = `<div class="px-3 py-3 flex items-center gap-2 text-[12px] text-muted"><i class="fa-solid fa-spinner fa-spin text-primary"></i> Memuat materi dari VClass…</div>`;
   } else if (groups.materi.length) {
-    materiInner = groups.materi.map((it, idx) => renderItem(it, idx)).join('');
+    body = groups.materi.map((it, idx) => renderItem(it, idx)).join('');
   } else {
-    materiInner = `<div class="px-3 py-3 text-[12px] text-muted-soft leading-snug">Belum ada materi yang tersedia/terbaca${query ? ' cocok pencarian' : ''}.<br>Kalau kamu yakin ada, klik <b>Muat ulang</b> di atas ya (kadang koneksi VClass lambat).</div>`;
+    body = `<div class="px-3 py-3 text-[12px] text-muted-soft leading-snug">Belum ada materi yang tersedia/terbaca${query ? ' cocok pencarian' : ''}.<br>Kalau kamu yakin ada, klik <b>Muat ulang</b> di atas ya (kadang koneksi VClass lambat).</div>`;
   }
-  const materiBody = `${materiReloadRow}${materiInner}`;
 
-  const materiCount = (materiLoading && !groups.materi.length) ? '' : ` (${groups.materi.length})`;
-  const tabBtn = (key, label) => `
-    <button type="button" class="alb-mention-tab flex-1 px-3 py-2 text-[11px] font-bold uppercase tracking-wide border-b-2 transition-colors ${activeTab === key ? 'text-primary border-primary bg-surface-card' : 'text-muted border-transparent hover:text-ink'}" data-tab="${key}">${label}</button>`;
-
-  const html = `
-    <div id="alb-mention-dropdown" class="absolute bottom-full left-0 right-0 mb-2 max-h-64 flex flex-col overflow-hidden bg-surface-card border border-hairline-strong rounded-2xl shadow-2xl z-30">
-      <div class="flex shrink-0 border-b border-hairline bg-surface-strong">
-        ${tabBtn('elemen', `🧩 Elemen (${groups.elemen.length})`)}
-        ${tabBtn('materi', `📚 Materi${materiCount}`)}
-      </div>
-      <div class="overflow-y-auto">
-        ${activeTab === 'elemen' ? elemenBody : materiBody}
-      </div>
-    </div>`;
-
-  const $form = $('#chat-form');
-  if (!$form.length) return;
-  $('#alb-mention-dropdown').remove();
-  $form.css('position', 'relative').append(html);
-  this._mentionOpen = true;
+  if (mountMentionDrawer(`${header}<div class="overflow-y-auto">${body}</div>`)) {
+    this._mentionOpen = true;
+  }
 }
 
 // Dipanggil tiap input berubah — tampilkan dropdown bila sedang mengetik token "@...".
@@ -350,15 +368,20 @@ export function bindMentionEvents() {
     .on('click.albMentionItem', '.alb-mention-item', function () {
       context.selectMention($(this).attr('data-group'), Number($(this).attr('data-idx')));
     });
-  // [F] Klik tab "Elemen"/"Materi" di dropdown @ → ganti tab aktif + render ulang.
+  // [config] Tombol "Masukkan Email Moodle" di drawer @ → buka modal verifikasi yang
+  // sudah ada. Setelah sukses, materi langsung dimuat & drawer dibuka ulang.
   $(document)
-    .off('click.albMentionTab')
-    .on('click.albMentionTab', '.alb-mention-tab', function (e) {
+    .off('click.albMentionVerify')
+    .on('click.albMentionVerify', '.alb-mention-verify', async function (e) {
       e.preventDefault();
       e.stopPropagation();
-      context._mentionTab = $(this).attr('data-tab');
-      const m = (context.$inputArea?.val() || '').match(/@([\w-]*)$/);
-      context.renderMentionDropdown(m ? m[1] : '');
+      context.hideMentionDropdown();
+      const ok = await context.showStudentIdentityModal?.(context.getCandidateStudentEmail?.() || '');
+      if (!ok) return;
+      context._materiLoaded = false;
+      await context.loadMateriMentions?.();
+      context.$inputArea?.focus();
+      context.renderMentionDropdown('');
     });
   // [#5] Klik label @materi DI DALAM bubble pesan → tampilkan penuh (font dikecilkan biar
   // tak melebar/wrap), klik lagi → truncate 1 baris.

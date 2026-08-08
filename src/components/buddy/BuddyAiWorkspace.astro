@@ -26,6 +26,29 @@ const { API_BASE } = Astro.props;
 
   /* Tombol kirim tampak abu-abu (disabled) saat input kosong — murni CSS via :placeholder-shown */
   #chat-form:has(#chat-input:placeholder-shown) #btn-send { filter: grayscale(1) opacity(0.5); pointer-events: none; }
+
+  /* ============================================================
+     Konfigurasi tampilan (modal tombol gear di header).
+     Default = tampilan ringkas; tiap switch menambah body-class.
+     Sumber kebenaran state ada di workspace-config.js.
+     ============================================================ */
+  body:not(.alb-cfg-tabs) #sidebar-tabs { display: none !important; }
+
+  body:not(.alb-cfg-adv) #alb-global-ai-usage-wrap,
+  body:not(.alb-cfg-adv) #btn-session-info,
+  body:not(.alb-cfg-adv) [id^="alb-intent-"],
+  body:not(.alb-cfg-adv) div:has(> .btn-user-copy),
+  body:not(.alb-cfg-adv) div:has(> .btn-bot-copy) { display: none !important; }
+
+  /* Hapus chat/sesi sekarang tinggal di modal konfigurasi. */
+  #alb-delete-session-btn { display: none !important; }
+
+  body.alb-cfg-popup-off #alb-reminder-toast-host { display: none !important; }
+
+  body:not(.alb-cfg-guide) #tab-content-guide [data-alb-feature="guide"],
+  body:not(.alb-cfg-class-data) #tab-content-guide [data-alb-feature="class_data"],
+  body:not(.alb-cfg-notes) #tab-content-guide [data-alb-notes-menu="1"],
+  body:not(.alb-cfg-complaint) #tab-content-guide [data-alb-complaint-menu="1"] { display: none !important; }
 </style>
 
 <div class="h-screen flex bg-canvas overflow-hidden font-sans relative w-full">
@@ -41,7 +64,8 @@ const { API_BASE } = Astro.props;
   >
 
   <div class="h-20 px-6 md:px-8 border-b border-hairline shrink-0 flex items-center justify-between w-full md:w-[320px] lg:w-[380px]">
-    <button id="btn-back" class="text-muted hover:text-ink flex items-center text-[15px] font-medium transition-colors">
+    <!-- [config] Tombol "Kembali ke VClass" di-hide: siswa masuk lewat tab/PWA terpisah. -->
+    <button id="btn-back" class="hidden text-muted hover:text-ink items-center text-[15px] font-medium transition-colors">
       <i class="fa-solid fa-arrow-left mr-2"></i> Kembali ke VClass
     </button>
 
@@ -55,7 +79,7 @@ const { API_BASE } = Astro.props;
   </div>
 
   <!-- Switch button (segmented), lebih mencolok dari tab underline -->
-  <div class="px-5 md:px-6 py-3 shrink-0">
+  <div id="sidebar-tabs" class="px-5 md:px-6 py-3 shrink-0">
     <div class="flex gap-1 bg-canvas-soft border border-hairline rounded-full p-1">
       <button id="tab-btn-guide" type="button" class="flex-1 py-2 text-[13px] font-semibold rounded-full transition-colors outline-none bg-ink text-white shadow-sm">Panduan Cepat</button>
       <button id="tab-btn-elements" type="button" class="flex-1 py-2 text-[13px] font-semibold rounded-full transition-colors outline-none text-muted">Elemen Halaman</button>
@@ -204,9 +228,20 @@ const { API_BASE } = Astro.props;
         </div>
       </div>
 
-      <button id="btn-session-info" class="bg-surface-card border border-hairline text-[12px] font-semibold uppercase tracking-wider text-ink px-4 py-2 rounded-full hover:bg-surface-strong transition-colors shrink-0">
-        Sesi: <span id="chat-count">0</span>/3
-      </button>
+      <div class="flex items-center gap-2 shrink-0">
+        <button id="btn-session-info" class="bg-surface-card border border-hairline text-[12px] font-semibold uppercase tracking-wider text-ink px-4 py-2 rounded-full hover:bg-surface-strong transition-colors shrink-0">
+          Sesi: <span id="chat-count">0</span>/3
+        </button>
+
+        <button
+          id="btn-workspace-config"
+          type="button"
+          title="Konfigurasi tampilan"
+          class="w-10 h-10 rounded-full bg-surface-card border border-hairline text-ink hover:bg-surface-strong transition-colors flex items-center justify-center shrink-0"
+        >
+          <i class="fa-solid fa-gear"></i>
+        </button>
+      </div>
     </header>
 
     <div id="chat-area" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-8 bg-canvas">
@@ -279,18 +314,9 @@ const { API_BASE } = Astro.props;
               class="opt-response-mode w-full text-left px-3 py-2 text-[13px] font-semibold rounded-lg hover:bg-surface-strong transition-colors text-ink border-0 bg-transparent cursor-pointer"
               data-mode="ai_short"
             >
-              <i class="fa-solid fa-bolt mr-2 text-[12px] text-amber-500"></i>
-              AI Singkat
+              <i class="fa-solid fa-wand-magic-sparkles mr-2 text-[12px] text-sky-500"></i>
+              Jawaban AI
             </button>
-
-            <button
-            type="button"
-            class="opt-response-mode w-full text-left px-3 py-2 text-[13px] font-semibold rounded-lg hover:bg-surface-strong transition-colors text-ink border-0 bg-transparent cursor-pointer"
-            data-mode="ai_detail"
-          >
-            <i class="fa-solid fa-wand-magic-sparkles mr-2 text-[12px] text-sky-500"></i>
-            AI Detail
-          </button>
           </div>
         </div>
 

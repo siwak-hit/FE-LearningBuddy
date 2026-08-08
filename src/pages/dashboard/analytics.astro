@@ -50,6 +50,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
           <option value="an-pane-efficiency">Efisiensi Jawaban</option>
           <option value="an-pane-topics">Topik Sering Ditanya</option>
           <option value="an-pane-eval">Evaluasi Model</option>
+          <option value="an-pane-sus">Skor SUS</option>
         </select>
         <!-- Desktop: tab bar (flex-wrap, tanpa scrollbar) -->
         <div id="analytics-tabs" class="hidden sm:flex flex-wrap gap-1 border-b border-hairline mb-5">
@@ -57,6 +58,7 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
           <button type="button" class="an-tab-btn whitespace-nowrap px-4 py-3 -mb-px border-b-2 border-transparent text-[14px] text-muted hover:text-ink transition-colors" data-target="an-pane-efficiency"><i class="fa-solid fa-bolt text-[#6f8f6a] mr-1.5"></i> Efisiensi Jawaban</button>
           <button type="button" class="an-tab-btn whitespace-nowrap px-4 py-3 -mb-px border-b-2 border-transparent text-[14px] text-muted hover:text-ink transition-colors" data-target="an-pane-topics"><i class="fa-solid fa-fire text-[#c08472] mr-1.5"></i> Topik Sering Ditanya</button>
           <button type="button" class="an-tab-btn whitespace-nowrap px-4 py-3 -mb-px border-b-2 border-transparent text-[14px] text-muted hover:text-ink transition-colors" data-target="an-pane-eval"><i class="fa-solid fa-flask text-[#8f82a6] mr-1.5"></i> Evaluasi Model</button>
+          <button type="button" class="an-tab-btn whitespace-nowrap px-4 py-3 -mb-px border-b-2 border-transparent text-[14px] text-muted hover:text-ink transition-colors" data-target="an-pane-sus"><i class="fa-solid fa-star-half-stroke text-[#c08472] mr-1.5"></i> Skor SUS</button>
         </div>
 
         <div id="an-pane-confusing" class="an-pane">
@@ -89,6 +91,20 @@ import DashboardLayout from '../../layouts/DashboardLayout.astro';
             <span id="eval-status" class="text-[12px] text-muted"></span>
           </div>
           <div id="eval-results"></div>
+        </div>
+
+        <div id="an-pane-sus" class="an-pane hidden">
+          <p class="text-[12px] text-muted mb-4 leading-relaxed">
+            Rekap skor <b>SUS</b> (System Usability Scale) dari siswa yang menyelesaikan uji coba terpandu.
+            Skor 0–100 — <b>&gt;68</b> di atas rata-rata, <b>&gt;80</b> sangat baik. Pilih <b>project spesifik</b> di atas.
+          </p>
+          <div class="flex flex-wrap items-center gap-3 mb-4">
+            <button id="btn-export-sus" class="bg-ink text-white rounded-[8px] px-4 py-2.5 text-[13px] font-semibold hover:opacity-90"><i class="fa-solid fa-download mr-1"></i> Unduh Hasil SUS (CSV)</button>
+            <button id="btn-refresh-sus" class="border border-hairline rounded-[8px] px-4 py-2.5 text-[13px] font-semibold text-ink hover:bg-surface-strong"><i class="fa-solid fa-rotate mr-1"></i> Muat ulang</button>
+            <span id="sus-status" class="text-[12px] text-muted"></span>
+          </div>
+          <div id="sus-summary" class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4"></div>
+          <div id="sus-table"></div>
         </div>
       </section>
     </div>

@@ -15,6 +15,20 @@ const featureToggles = [
 ];
 ---
 
+<!-- [v0.9.74] Switch fitur workspace: pakai CSS sibling selector biasa (:checked + .track),
+     BUKAN varian Tailwind `peer-checked:*` — di Tailwind v4 varian itu ter-apply tanpa syarat
+     sehingga switch selalu tampak ON & klik tak berefek visual. -->
+<style is:global>
+  .alb-switch-track { background-color: #d6d3d1; transition: background-color .2s ease; }
+  .alb-switch-track::after {
+    content: ''; position: absolute; top: 2px; left: 2px; width: 20px; height: 20px;
+    border-radius: 9999px; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.15);
+    transition: translate .2s ease;
+  }
+  .alb-switch-input:checked + .alb-switch-track { background-color: var(--color-primary, #292524); }
+  .alb-switch-input:checked + .alb-switch-track::after { translate: 20px 0; }
+</style>
+
 <!-- 1. SCRIPT & LINK INTEGRASI -->
 <div class="bg-surface-card border border-hairline rounded-[16px] p-6 md:p-8 mb-8 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4">
   <div class="text-center md:text-left">
@@ -73,8 +87,8 @@ const featureToggles = [
             <span class="block text-[15px] font-medium text-ink">{feature.label}</span>
             <span class="block text-[13px] text-muted-soft mt-0.5">{feature.desc}</span>
           </span>
-          <input type="checkbox" id={`feature-${feature.id}`} class="sr-only peer" checked />
-          <span class="relative shrink-0 mt-1 w-11 h-6 rounded-full bg-hairline-strong transition-colors peer-checked:bg-primary after:content-[''] after:absolute after:top-0.5 after:left-0.5 after:w-5 after:h-5 after:rounded-full after:bg-white after:shadow-sm after:transition-transform peer-checked:after:translate-x-5"></span>
+          <input type="checkbox" id={`feature-${feature.id}`} class="sr-only alb-switch-input" checked />
+          <span class="alb-switch-track relative shrink-0 mt-1 w-11 h-6 rounded-full"></span>
         </label>
       ))}
     </div>

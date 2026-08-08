@@ -129,6 +129,36 @@ export function hydrateReusableSessionIfAvailable(context) {
 }
 
 
+// [config] Dua aksi "bersihkan percakapan" dipakai dari 2 tempat: modal lama
+// (#alb-delete-session-modal) dan menu Hapus Percakapan di modal Konfigurasi.
+export function clearChatOnly(context) {
+  try {
+    if (context.$chatArea?.length) context.$chatArea.empty();
+    context._lastBotMessageWaitsForFeedback = false;
+    if (context.$inputArea?.length) context.$inputArea.prop('disabled', false).attr('placeholder', 'Tanya sesuatu atau pilih elemen...');
+    if (context.$btnSend?.length) context.$btnSend.prop('disabled', false);
+  } catch (_) {}
+  Toast.show('Tampilan chat dibersihkan. Riwayat tetap tersimpan.', 'success');
+}
+
+export async function deleteSessionHard(context) {
+  const oldSessionId = context.sessionId;
+  removeReusableStudentSession(context);
+
+  if (oldSessionId) {
+    await ApiService.delete(`/student-sessions/session/${oldSessionId}`).catch(() => null);
+    await ApiService.delete(`/chat/session/${oldSessionId}`).catch(() => null);
+  }
+
+  // Sesi lokal ikut dibuang supaya reload benar-benar memulai sesi baru.
+  try { sessionStorage.removeItem('alb_ai_session_' + context.projectKey); } catch (_) {}
+
+  Toast.show('Session sudah dihapus. Silakan mulai sesi ulang.', 'success');
+  setTimeout(() => {
+    window.location.href = `/buddy?projectKey=${encodeURIComponent(context.projectKey || '')}`;
+  }, 450);
+}
+
 function ensureDeleteSessionModal(context) {
   if ($('#alb-delete-session-modal').length) return;
 
@@ -170,14 +200,8 @@ function ensureDeleteSessionModal(context) {
 
   // Hapus Chat = bersihkan tampilan saja (sesi & riwayat DB tetap → reload saat dibuka lagi).
   $('#alb-clear-chat-only').on('click', () => {
-    try {
-      if (context.$chatArea?.length) context.$chatArea.empty();
-      context._lastBotMessageWaitsForFeedback = false;
-      if (context.$inputArea?.length) context.$inputArea.prop('disabled', false).attr('placeholder', 'Tanya sesuatu atau pilih elemen...');
-      if (context.$btnSend?.length) context.$btnSend.prop('disabled', false);
-    } catch (_) {}
+    clearChatOnly(context);
     $('#alb-delete-session-modal').addClass('hidden');
-    Toast.show('Tampilan chat dibersihkan. Riwayat tetap tersimpan.', 'success');
   });
 
   $('#alb-confirm-delete-session').on('click', async function () {
@@ -185,19 +209,9 @@ function ensureDeleteSessionModal(context) {
     const oldText = $btn.html();
     $btn.prop('disabled', true).addClass('opacity-70 cursor-not-allowed').html('<i class="fa-solid fa-spinner fa-spin mr-1"></i> Menghapus...');
 
-    const oldSessionId = context.sessionId;
-    removeReusableStudentSession(context);
-
     try {
-      if (oldSessionId) {
-        await ApiService.delete(`/student-sessions/session/${oldSessionId}`).catch(() => null);
-        await ApiService.delete(`/chat/session/${oldSessionId}`).catch(() => null);
-      }
-      Toast.show('Session sudah dihapus. Silakan mulai sesi ulang.', 'success');
+      await deleteSessionHard(context);
       $('#alb-delete-session-modal').addClass('hidden');
-      setTimeout(() => {
-        window.location.href = `/buddy?projectKey=${encodeURIComponent(context.projectKey || '')}`;
-      }, 450);
     } catch (error) {
       console.error('[Delete Session] gagal:', error);
       Toast.show('Gagal menghapus session.', 'error');

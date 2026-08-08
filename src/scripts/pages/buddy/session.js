@@ -107,7 +107,7 @@ export async function loadExternalSessionContext(sessionId) {
       await this.loadSessionState();
       await this.loadChatHistory();
       if (typeof this.ensureLmsStudentIdentity === 'function') {
-        await this.ensureLmsStudentIdentity({ silent: true });
+        await this.ensureLmsStudentIdentity({ noPrompt: true });
       }
     }
   } catch (e) {
@@ -670,6 +670,18 @@ export function showStudentIdentityModal(defaultEmail = '', reason = '') {
   });
 }
 
+// [config] Apakah identitas siswa sudah terverifikasi ke Moodle? Dipakai sebagai gate
+// fitur "@materi" (drawer materi hanya memuat data kalau email sudah tervalidasi).
+export function hasVerifiedStudentIdentity() {
+  const meta = (this.contextData && this.contextData.session_meta) || {};
+  if (meta.moodle_verified && meta.email) return true;
+  const stored = this.safeParseJson?.(sessionStorage.getItem('alb_student_lms_identity'), null) || null;
+  return Boolean(stored?.found && stored?.email);
+}
+
+// options.noPrompt = jangan pernah memunculkan modal email sendiri. Dipakai saat entry
+// (widget/PWA) supaya siswa langsung masuk; modal email baru dibuka on-demand dari
+// drawer materi ("@") lewat showStudentIdentityModal().
 export async function ensureLmsStudentIdentity(options = {}) {
   if (this.studentIdentityChecked) return true;
   if (!this.projectKey || !this.sessionId) return false;
@@ -684,20 +696,20 @@ export async function ensureLmsStudentIdentity(options = {}) {
   const candidateEmail = this.getCandidateStudentEmail?.() || '';
   const candidateClassCode = this.getCandidateClassCode?.() || '';
 
-  if (candidateEmail && candidateClassCode) {
+  // [config] Email yang ikut dari halaman Moodle (widget) dipakai langsung — tak perlu
+  // kelas, BE mengembalikan enrolled_courses-nya sendiri. Ini yang membuat "@" bisa
+  // dipakai tanpa siswa mengetik email lagi.
+  if (candidateEmail) {
     const identity = await this.resolveStudentIdentityByEmail(candidateEmail, candidateClassCode);
     if (identity?.found) {
       this.studentIdentityChecked = true;
       return true;
     }
-    if (options.silent) {
-      this.studentIdentityChecked = true;
-      await this.showStudentIdentityModal?.(candidateEmail, identity?.message || 'Email dari sesi belum cocok dengan daftar user Moodle.');
-      return false;
-    }
   }
 
   this.studentIdentityChecked = true;
+  if (options.noPrompt) return false;
+
   await this.showStudentIdentityModal?.(candidateEmail, 'Agar jawaban deadline/tugas lebih akurat, verifikasi email Moodle kamu terlebih dahulu.');
   return false;
 }

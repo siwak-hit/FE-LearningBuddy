@@ -64,7 +64,35 @@ const DashboardPage = {
     $('#btn-open-create-modal').on('click', () => Modal.open('modal-create-project'));
     this.$form.on('submit', this.handleCreate.bind(this));
     this.$list.on('click', '.btn-delete-project', this.handleDelete.bind(this));
+    // Menu titik-3 per project: toggle + salin link uji SUS.
+    this.$list.on('click', '.btn-project-menu', function (e) {
+      e.stopPropagation();
+      const $menu = $(this).siblings('.project-menu');
+      $('.project-menu').not($menu).addClass('hidden');
+      $menu.toggleClass('hidden');
+    });
+    this.$list.on('click', '.btn-copy-sus-link', this.handleCopySusLink.bind(this));
+    $(document).on('click', () => $('.project-menu').addClass('hidden'));
     $('#dash-tabs .dash-tab-btn').on('click', (e) => this.switchTab($(e.currentTarget)));
+  },
+
+  handleCopySusLink(e) {
+    e.stopPropagation();
+    const key = String($(e.currentTarget).data('key') || '');
+    $('.project-menu').addClass('hidden');
+    if (!key) {
+      Toast.show('Project key belum tersedia. Buka Config dulu untuk membuat widget.', 'warn');
+      return;
+    }
+    const link = `${window.location.origin}/buddy?projectKey=${encodeURIComponent(key)}&new_chat=true`;
+    const done = () => Toast.show('Link Uji SUS disalin! Sebarkan ke siswa.', 'success');
+    const fallback = () => {
+      const $tmp = $('<input>').val(link).appendTo('body').select();
+      try { document.execCommand('copy'); done(); } catch (_) { Toast.show(link, 'warn'); }
+      $tmp.remove();
+    };
+    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(link).then(done).catch(fallback);
+    else fallback();
   },
 
   switchTab($btn) {
@@ -151,14 +179,24 @@ const DashboardPage = {
             </div>
           </div>
 
-          <div class="flex gap-3 mt-auto">
+          <div class="flex gap-3 mt-auto items-center">
             <a href="${widgetUrl}" class="flex-1 text-center border border-hairline-strong text-ink text-[14px] font-medium py-2.5 rounded-full hover:bg-canvas-soft transition-colors">
               <i class="fa-solid fa-sliders mr-1 text-muted"></i> Config
             </a>
 
-            <button data-id="${escapeHtml(p.id)}" class="btn-delete-project w-[42px] h-[42px] flex items-center justify-center bg-red-50 text-semantic-error rounded-full hover:bg-semantic-error hover:text-white transition-colors">
-              <i class="fa-solid fa-trash"></i>
-            </button>
+            <div class="relative shrink-0">
+              <button type="button" class="btn-project-menu w-[42px] h-[42px] flex items-center justify-center bg-canvas-soft border border-hairline-strong text-ink rounded-full hover:bg-surface-strong transition-colors" title="Opsi project">
+                <i class="fa-solid fa-ellipsis-vertical"></i>
+              </button>
+              <div class="project-menu hidden absolute right-0 bottom-[52px] z-30 w-[240px] bg-surface-card border border-hairline rounded-xl shadow-xl p-2">
+                <button type="button" class="btn-copy-sus-link w-full text-left px-3 py-2 rounded-lg text-[13px] text-ink hover:bg-surface-strong flex items-center gap-2 transition-colors" data-key="${escapeHtml(projectKey)}">
+                  <i class="fa-solid fa-link text-[12px] text-primary shrink-0"></i> Salin Link Uji SUS
+                </button>
+                <button type="button" data-id="${escapeHtml(p.id)}" class="btn-delete-project w-full text-left px-3 py-2 rounded-lg text-[13px] text-red-600 hover:bg-red-50 flex items-center gap-2 transition-colors">
+                  <i class="fa-solid fa-trash text-[12px] shrink-0"></i> Hapus Project
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       `;

@@ -10,11 +10,18 @@ export function init() {
   this.urlSessionId = urlParams.get('sessionId');
   this.mode = urlParams.get('mode');
 
+  // [v0.9.72] Link umum uji coba: /buddy?projectKey=<KEY>&new_chat=true → langsung
+  // masuk workspace dengan alur uji coba terpandu (modal email → task engine).
+  this.ujiCobaMode = urlParams.get('new_chat') === 'true' || this.isUjiCobaMode?.();
+  if (this.ujiCobaMode && !this.projectKey) {
+    try { this.projectKey = localStorage.getItem('alb:lastProjectKey') || null; } catch (_) {}
+  }
+
   if (this.mode === 'external' && this.urlSessionId) {
     $('#view-workspace').removeClass('hidden');
     $('#view-landing').addClass('hidden');
     this.initWorkspace(true);
-  } else if (view === 'ai' || this.urlSessionId) {
+  } else if (view === 'ai' || this.urlSessionId || this.ujiCobaMode) {
     $('#view-workspace').removeClass('hidden');
     $('#view-landing').addClass('hidden');
     this.initWorkspace(false);
@@ -87,8 +94,11 @@ export function initWorkspace(isExternal = false) {
       this.urlSessionId = sid;
       // Load session, verifikasi siswa LMS, baru tampilkan onboarding.
       return this.loadExternalSessionContext(sid).then(async () => {
+      // [config] Entry lewat widget TIDAK boleh memblokir dengan form email. Email yang
+      // ikut dari halaman Moodle diresolve diam-diam; kalau gagal, siswa tetap masuk dan
+      // baru diminta email saat membuka drawer materi ("@").
       if (typeof this.ensureLmsStudentIdentity === 'function') {
-        await this.ensureLmsStudentIdentity({ silent: false });
+        await this.ensureLmsStudentIdentity({ noPrompt: true });
       }
 
       // [v0.9.1] Tampilkan carousel bila belum pernah, ATAU versi flag lama (carousel di-update).
@@ -98,9 +108,9 @@ export function initWorkspace(isExternal = false) {
 
       this.toggleSuggestions?.();
 
-      // [v0.9.26 #A] Kalau nama/konteks tak terbaca dari VClass → tawarkan form fallback
-      // (dropdown nama siswa enrolled + dropdown konteks halaman).
-      try { await this.ensureIdentityFallback?.(); } catch (_) {}
+      // [config] Form fallback nama/konteks tidak lagi muncul otomatis saat masuk —
+      // cukup sediakan ikon pensil di header supaya siswa bisa membukanya sendiri.
+      try { this.showIdentityEditButton?.(this); } catch (_) {}
       });
     });
   } else {
@@ -121,10 +131,15 @@ export function initWorkspace(isExternal = false) {
         this.loadMateriMentions?.();
       }
 
-      const meta = this.contextData?.session_meta || {};
-      const hasVerifiedStudent = Boolean(meta.email && meta.class_code);
-      if (!hasVerifiedStudent && typeof this.ensureLmsStudentIdentity === 'function') {
-        await this.ensureLmsStudentIdentity({ silent: false });
+      // [v0.9.72] Mode uji coba: jalankan alur terpandu (modal email → PWA → task
+      // engine) — GANTIKAN form identitas + carousel bawaan.
+      if (this.ujiCobaMode && typeof this.startUjiCobaFlow === 'function') {
+        await this.startUjiCobaFlow();
+        return;
+      }
+
+      if (typeof this.ensureLmsStudentIdentity === 'function') {
+        await this.ensureLmsStudentIdentity({ noPrompt: true });
       }
 
       // Setelah identitas siswa terkonfirmasi, tampilkan onboarding carousel
