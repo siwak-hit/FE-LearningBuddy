@@ -204,6 +204,65 @@ export function scrollToBottom() {
   this.$chatArea.stop().animate({ scrollTop: this.$chatArea[0].scrollHeight }, 300);
 }
 
+// [v0.9.86] Tabel "Daftar Konteks" di dalam bubble: 3 baris tampil, sisanya di balik
+// gradient + tombol "Lihat detail" (buka modal berisi tabel lengkap).
+const CTX_TYPE_BADGE = {
+  Materi: 'bg-primary/10 text-primary border-primary/20',
+  FAQ: 'bg-amber-50 text-amber-700 border-amber-200',
+  Aktivitas: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+};
+export function buildContextTablePreview(rows = []) {
+  if (!Array.isArray(rows) || !rows.length) return '';
+  const esc = (s) => this.escapeHtml(String(s ?? ''));
+  const preview = rows.slice(0, 3);
+  const hasMore = rows.length > 3;
+
+  const rowHtml = (r) => {
+    const badge = CTX_TYPE_BADGE[r.type] || 'bg-slate-100 text-slate-600 border-slate-200';
+    return `
+      <tr class="border-t border-hairline align-top">
+        <td class="py-2 pr-2 text-[12px] text-muted-soft text-center w-7">${esc(r.no)}</td>
+        <td class="py-2 pr-2 text-[12.5px] font-semibold text-ink">${esc(r.name)}</td>
+        <td class="py-2 pr-2 w-[86px]"><span class="inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${badge}">${esc(r.type)}</span></td>
+        <td class="py-2 text-[12px] text-muted leading-snug">${esc(r.example)}</td>
+      </tr>`;
+  };
+
+  const encoded = encodeURIComponent(JSON.stringify(rows));
+
+  return `
+    <div class="alb-context-table mt-4 border border-hairline rounded-2xl bg-white overflow-hidden">
+      <div class="px-4 py-2.5 bg-surface-strong border-b border-hairline flex items-center gap-2">
+        <i class="fa-solid fa-table-list text-primary text-[12px]"></i>
+        <span class="text-[11px] font-black uppercase tracking-wide text-muted">Daftar Konteks</span>
+        <span class="ml-auto text-[11px] text-muted-soft">${rows.length} topik</span>
+      </div>
+      <div class="relative">
+        <table class="w-full border-collapse px-2">
+          <thead>
+            <tr class="text-left text-[10px] font-bold uppercase tracking-wide text-muted-soft">
+              <th class="py-2 pl-4 pr-2 w-7 text-center">No</th>
+              <th class="py-2 pr-2">Topik Materi</th>
+              <th class="py-2 pr-2">Jenis</th>
+              <th class="py-2 pr-4">Contoh Pertanyaan</th>
+            </tr>
+          </thead>
+          <tbody class="[&_td:first-child]:pl-4 [&_td:last-child]:pr-4">
+            ${preview.map(rowHtml).join('')}
+          </tbody>
+        </table>
+        ${hasMore ? `<div class="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-white via-white/85 to-transparent"></div>` : ''}
+      </div>
+      ${hasMore ? `
+        <div class="px-4 py-3 border-t border-hairline bg-canvas-soft flex items-center justify-between gap-2">
+          <span class="text-[11.5px] text-muted-soft">+${rows.length - 3} topik lainnya</span>
+          <button type="button" class="btn-context-detail inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-white text-[12.5px] font-bold px-3.5 py-1.5 rounded-full transition-colors" data-rows="${encoded}">
+            <i class="fa-solid fa-up-right-and-down-left-from-center text-[10px]"></i> Lihat detail
+          </button>
+        </div>` : ''}
+    </div>`;
+}
+
 // [v0.9.63] Ganti skeleton label intent dengan chip hasil deteksi (estimasi keyword).
 export function fillIntentLabel(id, scores = []) {
   const $el = $('#' + id);
@@ -415,6 +474,7 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
     const mainActions = [];
     const feedbackActions = [];
     const visualActions = [];
+    const contextTables = [];
 
     actions.forEach(act => {
       // [v0.9.30] "Tanya AI" (ask_ai) ikut kelompok KONFIRMASI (kanan) bersama "Sudah jelas",
@@ -423,11 +483,19 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         feedbackActions.push(act);
       } else if (act.type === 'inline_visual') {
         visualActions.push(act);
+      } else if (act.type === 'context_table') {
+        // [v0.9.86] Tabel "Daftar Konteks" — dirender di dalam bubble (bukan tombol).
+        contextTables.push(act);
       } else if (act.type === 'tutorial_flow') {
         // Abaikan tombol tutorial lama
       } else {
         mainActions.push(act);
       }
+    });
+
+    // [v0.9.86] Preview tabel konteks: 3 baris tampil, sisanya di balik gradient + "Lihat detail".
+    contextTables.forEach((act) => {
+      visualHtml += this.buildContextTablePreview(Array.isArray(act.rows) ? act.rows : []);
     });
 
     if (!isUser && visualActions.length > 0) {
@@ -616,6 +684,13 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           const safePayload = encodeURIComponent(JSON.stringify(act.payload || {}));
           actionsHtml += `<button type="button" class="btn-ask-ai-fallback inline-flex items-center gap-1.5 bg-amber-50 text-amber-700 border border-amber-200 hover:bg-amber-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${safePayload}"><i class="fa-solid fa-sparkles"></i> ${label}</button>`;
 
+        } else if (act.type === 'suggested_question') {
+          // [v0.9.86] Saran pertanyaan (in-context) untuk pertanyaan di luar konteks — chip klik-kirim.
+          const q = this.escapeHtml(act.prompt || act.label || '');
+          actionsHtml += `<button type="button" class="btn-suggested-q inline-flex items-center gap-1.5 bg-primary/10 text-primary border border-primary/20 hover:bg-primary/15 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-prompt="${q}"><i class="fa-solid fa-lightbulb text-[11px]"></i> ${label}</button>`;
+        } else if (act.type === 'show_context') {
+          // [v0.9.86] Buka daftar konteks lengkap (memicu intent daftar_konteks).
+          actionsHtml += `<button type="button" class="btn-show-context inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-table-list text-[12px]"></i> ${label}</button>`;
         } else if (act.type === 'verify_email') {
           // [v0.9.83] Gate identitas untuk pertanyaan data kelas/tugas → buka modal email.
           actionsHtml += `<button type="button" class="btn-verify-email inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-bold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-envelope"></i> ${label}</button>`;

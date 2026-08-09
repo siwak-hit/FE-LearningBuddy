@@ -1287,6 +1287,58 @@ export function syncLmsTablesPagination() {
 }
 
 
+// [v0.9.86] Modal berisi tabel konteks LENGKAP (semua baris) — dibuka dari tombol "Lihat detail".
+function openContextTableModal(context, rows = []) {
+  $('#alb-context-modal').remove();
+  if (!Array.isArray(rows) || !rows.length) return;
+  const esc = (s) => (context.escapeHtml ? context.escapeHtml(String(s ?? '')) : String(s ?? ''));
+  const badgeOf = (type) => ({
+    Materi: 'bg-primary/10 text-primary border-primary/20',
+    FAQ: 'bg-amber-50 text-amber-700 border-amber-200',
+    Aktivitas: 'bg-emerald-50 text-emerald-700 border-emerald-200'
+  }[type] || 'bg-slate-100 text-slate-600 border-slate-200');
+
+  const body = rows.map((r) => `
+    <tr class="border-t border-hairline align-top">
+      <td class="py-2.5 px-3 text-[12px] text-muted-soft text-center w-8">${esc(r.no)}</td>
+      <td class="py-2.5 px-3 text-[13px] font-semibold text-ink">${esc(r.name)}</td>
+      <td class="py-2.5 px-3 w-[92px]"><span class="inline-block text-[10px] font-bold uppercase tracking-wide px-2 py-0.5 rounded-full border ${badgeOf(r.type)}">${esc(r.type)}</span></td>
+      <td class="py-2.5 px-3 text-[12.5px] text-muted leading-snug">${esc(r.example)}</td>
+    </tr>`).join('');
+
+  $('body').append(`
+    <div id="alb-context-modal" class="fixed inset-0 z-[9760] bg-slate-950/60 backdrop-blur-sm flex items-center justify-center p-3 md:p-6">
+      <div class="bg-surface-card w-full max-w-[620px] rounded-2xl shadow-2xl border border-hairline flex flex-col max-h-[88vh] overflow-hidden">
+        <div class="px-5 py-4 border-b border-hairline bg-white flex items-center justify-between gap-3 shrink-0">
+          <div class="min-w-0">
+            <div class="text-[11px] font-bold uppercase tracking-[0.08em] text-muted flex items-center gap-2"><i class="fa-solid fa-table-list text-primary"></i> Daftar Konteks</div>
+            <div class="text-[12px] text-muted-soft mt-0.5">${rows.length} topik yang bisa aku bantu jawab.</div>
+          </div>
+          <button type="button" class="alb-context-modal-close w-8 h-8 rounded-full text-muted hover:text-ink hover:bg-black/5 flex items-center justify-center shrink-0"><i class="fa-solid fa-xmark"></i></button>
+        </div>
+        <div class="overflow-y-auto">
+          <table class="w-full border-collapse">
+            <thead class="sticky top-0 bg-surface-strong z-10">
+              <tr class="text-left text-[10px] font-bold uppercase tracking-wide text-muted-soft">
+                <th class="py-2.5 px-3 w-8 text-center">No</th>
+                <th class="py-2.5 px-3">Topik Materi</th>
+                <th class="py-2.5 px-3">Jenis</th>
+                <th class="py-2.5 px-3">Contoh Pertanyaan</th>
+              </tr>
+            </thead>
+            <tbody>${body}</tbody>
+          </table>
+        </div>
+        <div class="px-5 py-3 border-t border-hairline bg-canvas-soft flex justify-end shrink-0">
+          <button type="button" class="alb-context-modal-close bg-primary hover:bg-primary-active text-white rounded-full px-5 py-2 text-[13px] font-bold">Mengerti</button>
+        </div>
+      </div>
+    </div>
+  `);
+  $('#alb-context-modal').on('click', (e) => { if (e.target.id === 'alb-context-modal') $('#alb-context-modal').remove(); });
+  $('#alb-context-modal').on('click', '.alb-context-modal-close', () => $('#alb-context-modal').remove());
+}
+
 function bindChatActionButtons(context) {
   context.$chatArea
     .off('click', '.btn-static-tutorial')
@@ -1428,6 +1480,38 @@ function bindChatActionButtons(context) {
           skipIdentityGate: true
         });
       }
+    });
+
+  // [v0.9.86] Chip saran pertanyaan (in-context) pada respons "di luar konteks" → kirim langsung.
+  context.$chatArea
+    .off('click', '.btn-suggested-q')
+    .on('click', '.btn-suggested-q', (e) => {
+      e.preventDefault();
+      const $btn = $(e.currentTarget);
+      const prompt = $btn.attr('data-prompt') || '';
+      if (!prompt || context.isRequesting) return;
+      markSingleChatButtonClicked($btn);
+      sendChatMessage(context, { message: prompt });
+    });
+
+  // [v0.9.86] Tombol "Lihat konteks yang bisa ditanya" → tabel daftar konteks.
+  context.$chatArea
+    .off('click', '.btn-show-context')
+    .on('click', '.btn-show-context', (e) => {
+      e.preventDefault();
+      if (context.isRequesting) return;
+      markSingleChatButtonClicked($(e.currentTarget));
+      sendChatMessage(context, { message: 'Konteks apa saja yang bisa aku tanyakan?', intent: 'daftar_konteks', responseMode: 'system', forceAI: false });
+    });
+
+  // [v0.9.86] Tombol "Lihat detail" pada tabel konteks → modal berisi tabel lengkap.
+  context.$chatArea
+    .off('click', '.btn-context-detail')
+    .on('click', '.btn-context-detail', (e) => {
+      e.preventDefault();
+      let rows = [];
+      try { rows = JSON.parse(decodeURIComponent($(e.currentTarget).attr('data-rows') || '[]')); } catch (_) { rows = []; }
+      openContextTableModal(context, rows);
     });
 
   context.$chatArea
