@@ -11,9 +11,8 @@ import {
   isCooldownBlocking,
   applyPersistedCooldownIfNeeded,
   applyPersistedLockdownIfNeeded,
-  ensureLocalLockOverlay,
-  persistLockdown,
-  readPersistedLockdown
+  readPersistedLockdown,
+  triggerProfanityLockdown
 } from './safety-overlays.js';
 import { ensureStudentNotesMenu } from './student-notes.js';
 import {
@@ -483,8 +482,12 @@ async function sendChatMessage(context, options = {}) {
         }, 450);
       }
 
-      if (res.data.is_locked) {
-        ensureLocalLockOverlay(context, { warnings: res.data.warnings || 3, reason: res.data.lock_reason || 'profanity_limit' });
+      // [v0.9.85] Lockdown bahasa: hanya bila guru mengaktifkan switch (default OFF) DAN
+      // warnings sudah ≥3. Server tak lagi mengunci sendiri — timer & escalation di FE.
+      const warnings = Number(res.data.warnings || 0);
+      const lockdownOn = context.featureFlags?.profanity_lockdown === true;
+      if (res.data.moderation_type && lockdownOn && warnings >= 3) {
+        triggerProfanityLockdown(context, warnings);
       }
     } else {
       // [v0.9.63] Respons gagal → buang skeleton label supaya tak berkedip selamanya.

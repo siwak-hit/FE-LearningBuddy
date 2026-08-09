@@ -240,9 +240,11 @@ const { API_BASE } = Astro.props;
           id="btn-workspace-config"
           type="button"
           title="Konfigurasi tampilan"
-          class="w-10 h-10 rounded-full bg-surface-card border border-hairline text-ink hover:bg-surface-strong transition-colors flex items-center justify-center shrink-0"
+          class="relative w-10 h-10 rounded-full bg-surface-card border border-hairline text-ink hover:bg-surface-strong transition-colors flex items-center justify-center shrink-0"
         >
           <i class="fa-solid fa-gear"></i>
+          <!-- [v0.9.85] Titik merah indikator: muncul saat AI sedang cooldown. -->
+          <span id="alb-cfg-gear-dot" class="hidden absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-red-500 border-2 border-surface-card animate-pulse"></span>
         </button>
       </div>
     </header>

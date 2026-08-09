@@ -116,6 +116,10 @@ export function showOnboardingCarousel() {
 
   $overlay.removeClass('hidden');
 
+  // [v0.9.85] Carousel diselaraskan dengan UI baru: mode jawaban 2 pilihan (Sistem & AI),
+  // tombol gear Konfigurasi (kuota sesi AI + hapus percakapan + atur tampilan), lockdown
+  // bahasa berbasis timer (tanpa key). Slide fitur yang kini disembunyikan default
+  // (bar kuota, chip sesi, tombol salin) tidak lagi disorot supaya tak menunjuk elemen kosong.
   const steps = [
     {
       title: "Video Cara Pakai AI Buddy",
@@ -145,12 +149,12 @@ export function showOnboardingCarousel() {
       placement: "center"
     },
     {
-      title: "Panel Konteks Halaman",
+      title: "Panduan Cepat di Sidebar",
       icon: "fa-list",
       desc: `
-        Panel di sebelah kiri membaca bagian penting dari halaman VClass yang sedang kamu buka.
+        Panel di sebelah kiri berisi <b>Panduan Cepat</b> — kumpulan tutorial VClass (cara buat forum, kumpulkan tugas, kerjakan kuis, dan lainnya).
         <br><br>
-        Kamu bisa memilih salah satu elemen di panel tersebut agar AI tahu persis bagian mana yang ingin kamu tanyakan.
+        Tinggal klik salah satu, kamu <b>tidak perlu mengetik</b>. AI langsung menjelaskan dengan panduan bergambar.
       `,
       target: "#context-sidebar",
       placement: "center",
@@ -165,9 +169,9 @@ export function showOnboardingCarousel() {
       title: "Mode Jawaban",
       icon: "fa-sliders",
       desc: `
-        Kamu bisa mengatur cara AI menjawab:<br><br>
-        <span class="tour-label tour-label-success">Jawaban Sistem</span> untuk teknis VClass (tugas, kuis, forum) dan <b>tidak memotong kuota</b>.<br><br>
-        <span class="tour-label tour-label-primary">AI Singkat</span> & <span class="tour-label tour-label-primary">AI Detail</span> untuk penjelasan materi, ini akan <b>memakai kuota AI</b>.
+        Di samping kolom chat ada pilihan cara AI menjawab:<br><br>
+        <span class="tour-label tour-label-success">Jawaban Sistem</span> untuk teknis VClass (tugas, kuis, forum) dan <b>tidak memakai kuota AI</b>.<br><br>
+        <span class="tour-label tour-label-primary">Jawaban AI</span> untuk penjelasan materi — ini <b>memakai kuota AI</b>.
       `,
       target: "#response-mode-dropdown",
       placement: "center",
@@ -176,6 +180,36 @@ export function showOnboardingCarousel() {
           $('#btn-close-context').click();
         }
       }
+    },
+    {
+      title: "Tanya Materi Tertentu dengan \"@\"",
+      icon: "fa-at",
+      desc: `
+        Ketik tanda <span class="tour-label tour-label-primary">@</span> di kolom chat untuk memilih <b>materi tertentu</b> dari kelasmu.
+        <br><br>
+        Setelah memilih materi, muncul <b>daftar pilihan</b>:
+        <br>
+        <span class="tour-label tour-label-success"><i class="fa-solid fa-wand-magic-sparkles"></i> Rangkum materi ini</span>
+        <span class="tour-label tour-label-success"><i class="fa-solid fa-list-ul"></i> Poin penting</span>
+        <br><br>
+        Kalau kamu belum memasukkan email Moodle, akan muncul tombol untuk mengisinya dulu ya. 😊
+      `,
+      target: "#chat-form",
+      placement: "center"
+    },
+    {
+      title: "Tombol Pengaturan (⚙️)",
+      icon: "fa-gear",
+      desc: `
+        Di pojok kanan atas ada tombol <span class="tour-label tour-label-primary"><i class="fa-solid fa-gear"></i> Konfigurasi</span>. Di dalamnya kamu bisa:
+        <br><br>
+        • Melihat <b>Kuota Sesi AI</b> (progress bar 0/3),<br>
+        • <b>Hapus percakapan</b> (bersihkan chat / mulai sesi baru),<br>
+        • Mengatur menu apa saja yang tampil.
+      `,
+      target: "#btn-workspace-config",
+      placement: "center",
+      cloneTarget: true
     },
     {
       title: "Batas Topik Pertanyaan",
@@ -190,39 +224,14 @@ export function showOnboardingCarousel() {
       placement: "center"
     },
     {
-      title: "Saran Pertanyaan Otomatis",
-      icon: "fa-wand-magic-sparkles",
+      title: "Kuota Jawaban AI",
+      icon: "fa-bolt",
       desc: `
-        Saat kamu mengetik, sistem akan otomatis memunculkan <span class="tour-label tour-label-primary">chip saran pertanyaan</span>.
+        Kamu bisa minta <span class="tour-label tour-label-primary"><i class="fa-solid fa-bolt"></i> Jawaban AI 3×</span> beruntun. Hitungannya <b>reset otomatis</b> kalau kamu berhenti bertanya AI selama <b>1 menit</b>.
         <br><br>
-        Klik saran tersebut agar pertanyaanmu lebih rapi dan AI bisa menjawab dengan lebih akurat!
-      `,
-      target: "#chat-form",
-      placement: "center"
-    },
-    {
-      title: "Tanya Materi Tertentu dengan \"@\"",
-      icon: "fa-at",
-      desc: `
-        Ketik tanda <span class="tour-label tour-label-primary">@</span> di kolom chat untuk memilih <b>materi tertentu</b> dari kelasmu.
+        Kalau melebihi, AI <span class="tour-label tour-label-warning"><i class="fa-solid fa-hourglass-half"></i> cooldown</span> sebentar (ada hitungan mundur). Progress-nya bisa kamu lihat di tombol <b>⚙️ Konfigurasi</b>.
         <br><br>
-        Setelah memilih (misal <span class="tour-label tour-label-primary">@materi-1</span>), akan muncul <b>daftar pilihan</b>:
-        <br>
-        <span class="tour-label tour-label-success"><i class="fa-solid fa-wand-magic-sparkles"></i> Rangkum materi ini</span>
-        <span class="tour-label tour-label-success"><i class="fa-solid fa-list-ul"></i> Poin penting</span>
-        <br><br>
-        Tinggal klik salah satu — AI akan merangkum atau menjawab dari isi materi itu. 😊
-      `,
-      target: "#chat-form",
-      placement: "center"
-    },
-    {
-      title: "Tombol Salin Jawaban",
-      icon: "fa-copy",
-      desc: `
-        Di bawah setiap jawaban ada tombol <span class="tour-label tour-label-primary"><i class="fa-regular fa-copy"></i> Salin</span>.
-        <br><br>
-        Klik untuk menyalin <b>teks jawaban saja</b> (tanpa tombol) — bisa kamu tempel ke catatan atau tugas.
+        <span class="tour-label tour-label-success">Tips</span> Gunakan <b>Jawaban Sistem</b> yang tidak memakai kuota AI.
       `,
       target: null,
       placement: "center"
@@ -239,69 +248,13 @@ export function showOnboardingCarousel() {
       placement: "center"
     },
     {
-      title: "Kuota AI Dipakai Bersama",
-      icon: "fa-bolt",
-      desc: `
-        AI ini gratis dan <b>dipakai bersama semua siswa</b>. Ada
-        <span class="tour-label tour-label-primary"><i class="fa-solid fa-bolt"></i> Bar Kuota AI</span>
-        kecil di atas kolom chat.
-        <br><br>
-        Kalau barnya hampir penuh / merah, artinya AI sedang
-        <span class="tour-label tour-label-warning"><i class="fa-solid fa-hourglass-half"></i> sibuk</span>
-        dipakai banyak orang. Kuota di-<b>reset tiap hari (tengah malam)</b>.
-        <br><br>
-        <span class="tour-label tour-label-success">Tips</span> Saat penuh, gunakan <b>Jawaban Sistem</b> yang tidak butuh kuota AI.
-      `,
-      target: null,
-      placement: "center"
-    },
-    {
-      title: "Batas Sesi & Cooldown",
-      icon: "fa-battery-three-quarters",
-      desc: `
-        Untuk per-kamu, mode AI Singkat/Detail dibatasi
-        <span class="tour-label tour-label-warning">
-          <i class="fa-solid fa-bolt"></i> 3/3 Sesi
-        </span>
-        beruntun.
-        <br><br>
-        Jika habis dan kamu mencoba pakai AI lagi, sistem akan masuk
-        <span class="tour-label tour-label-danger">
-          <i class="fa-solid fa-hourglass-half"></i> cooldown 3 menit
-        </span>.
-        <br><br>
-        <span class="tour-label tour-label-success">Tips</span> Gunakan Jawaban Sistem untuk menghemat kuota!
-      `,
-      target: "#btn-session-info",
-      placement: "center",
-      cloneTarget: true
-    },
-    {
-      title: "Aturan & Bantuan Guru",
+      title: "Bahasa Sopan & Bantuan Guru",
       icon: "fa-shield-halved",
       desc: `
-        Gunakan bahasa yang sopan. Melanggar aturan bisa membuat chat dikunci dan butuh <span class="tour-label tour-label-warning"><i class="fa-solid fa-key"></i> Unlock Key</span> dari guru.
+        Gunakan bahasa yang sopan ya. Kata kasar akan <b>otomatis disensor</b>. Jika sekolahmu mengaktifkannya, terlalu sering berkata kasar bisa membuat chat <span class="tour-label tour-label-warning"><i class="fa-solid fa-lock"></i> terkunci sementara</span> — cukup <b>tunggu hitungan mundurnya</b>, tanpa perlu key.
         <br><br>
-        Kalau benar-benar kesulitan atau butuh bantuan lanjutan, sistem menyediakan tombol untuk menghubungi
+        Kalau butuh bantuan lanjutan, ada tombol untuk menghubungi
         <span class="tour-label tour-label-success"><i class="fa-brands fa-whatsapp"></i> WhatsApp Guru</span>.
-      `,
-      target: null,
-      placement: "center"
-    },
-    {
-      title: "Tugas Wajib: Isi To-do!",
-      icon: "fa-list-check",
-      desc: `
-        Sebelum selesai, jangan lupa membuka <b class="text-ink">Tugas Wajib (To-do)</b> dan menyelesaikan semua langkah saat memakai AI ini.
-        <br><br>
-        Tombolnya ada di <b class="text-ink">pojok kiri bawah sidebar</b>, pada bagian <b>Menu Catatan &amp; Tugas</b> — tampilannya seperti ini:
-        <span class="pointer-events-none select-none mt-3 mb-1 flex w-full text-left bg-white border border-hairline rounded-xl px-3 py-3 items-center gap-3 shadow-sm">
-          <i class="fa-solid fa-list-check text-primary"></i>
-          <span><b class="block text-[13px] text-ink">Tugas Wajib (To-do)</b><small class="text-[11px] text-muted-soft">Checklist yang harus kamu lakukan</small></span>
-        </span>
-        <br>
-        <span class="tour-label tour-label-warning"><i class="fa-solid fa-circle-exclamation"></i> Wajib</span>
-        Setelah semua tugas tercentang, akan muncul tombol formulir singkat untuk kamu isi.
       `,
       target: null,
       placement: "center"
@@ -446,7 +399,7 @@ export function showOnboardingCarousel() {
 
   const finishTour = () => {
     // [v0.9.1] Versi flag dinaikkan agar carousel yang sudah di-update muncul lagi sekali.
-    localStorage.setItem('alb_external_onboarding_seen', 'v0.9.8');
+    localStorage.setItem('alb_external_onboarding_seen', 'v0.9.85');
     clearHighlight();
 
     $overlay.addClass('hidden');

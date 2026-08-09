@@ -104,6 +104,70 @@ function switchRowHtml(item) {
     </button>`;
 }
 
+// ============================================================
+// [v0.9.85] Section "Sesi AI" di dalam modal gear — progress bar 0/3 + status cooldown.
+// Sumber angka = context.aiUsage (dari server, disinkronkan updateAiUsageUI di dom-ui.js).
+// ============================================================
+function aiSessionSnapshot(context) {
+  const u = context?.aiUsage || {};
+  const max = Number(u.max || 3);
+  const cooldown = Boolean(u.cooldown_active) || Number(u.cooldown_remaining_seconds || 0) > 0;
+  // Saat cooldown, bar ditampilkan PENUH & merah (max/max).
+  const used = cooldown ? max : Math.min(max, Number(u.used || 0));
+  return { used, max, cooldown, remain: Number(u.cooldown_remaining_seconds || 0) };
+}
+
+function aiSessionSectionHtml() {
+  return `
+    <div class="rounded-xl border border-hairline bg-white p-3" id="alb-cfg-ai-session">
+      <div class="px-0.5 pb-2 text-[10px] font-bold uppercase tracking-[0.1em] text-muted-soft">Sesi AI</div>
+      <div class="flex items-center justify-between gap-2 mb-1.5">
+        <span class="text-[13px] font-medium text-ink">Kuota jawaban AI</span>
+        <span id="alb-cfg-ai-count" class="text-[12px] font-black text-ink">0/3</span>
+      </div>
+      <div class="h-2.5 w-full rounded-full bg-hairline overflow-hidden">
+        <div id="alb-cfg-ai-fill" class="h-full rounded-full bg-primary transition-all duration-300" style="width:0%"></div>
+      </div>
+      <div id="alb-cfg-ai-note" class="text-[11px] leading-snug text-muted-soft mt-2">
+        Kamu bisa minta jawaban AI <b>3×</b> beruntun. Hitungan ini <b>reset otomatis</b> kalau kamu berhenti bertanya AI selama <b>1 menit</b>.
+      </div>
+    </div>`;
+}
+
+// Perbarui tampilan bar + titik merah gear. Aman dipanggil walau modal belum dibuka.
+export function updateAiSessionIndicator(context) {
+  const ctx = context || {};
+  const snap = aiSessionSnapshot(ctx);
+  const pct = snap.max > 0 ? Math.round((snap.used / snap.max) * 100) : 0;
+
+  // Titik merah di gear (hanya saat cooldown).
+  $('#alb-cfg-gear-dot').toggleClass('hidden', !snap.cooldown);
+
+  // Isi bar bila section-nya sedang ada di DOM (modal terbuka).
+  const $fill = $('#alb-cfg-ai-fill');
+  if ($fill.length) {
+    $fill.css('width', `${pct}%`)
+      .removeClass('bg-primary bg-red-500')
+      .addClass(snap.cooldown ? 'bg-red-500' : 'bg-primary');
+    $('#alb-cfg-ai-count')
+      .text(`${snap.used}/${snap.max}`)
+      .toggleClass('text-red-600', snap.cooldown)
+      .toggleClass('text-ink', !snap.cooldown);
+
+    if (snap.cooldown) {
+      const mm = Math.floor(snap.remain / 60).toString().padStart(2, '0');
+      const ss = (snap.remain % 60).toString().padStart(2, '0');
+      $('#alb-cfg-ai-note')
+        .removeClass('text-muted-soft').addClass('text-red-600')
+        .html(`<i class="fa-solid fa-hourglass-half mr-1"></i> Kuota AI habis. Tunggu <b>${mm}:${ss}</b> — chat AI dibuka lagi otomatis.`);
+    } else {
+      $('#alb-cfg-ai-note')
+        .removeClass('text-red-600').addClass('text-muted-soft')
+        .html('Kamu bisa minta jawaban AI <b>3×</b> beruntun. Hitungan ini <b>reset otomatis</b> kalau kamu berhenti bertanya AI selama <b>1 menit</b>.');
+    }
+  }
+}
+
 function buildModal(context) {
   if ($('#alb-cfg-overlay').length) return;
 
@@ -125,6 +189,7 @@ function buildModal(context) {
         </div>
 
         <div class="p-4 space-y-3 overflow-y-auto bg-canvas-soft">
+          ${aiSessionSectionHtml()}
           ${groupsHtml}
 
           <details id="alb-cfg-delete" class="rounded-xl border border-hairline bg-white overflow-hidden">
@@ -196,6 +261,10 @@ export function initWorkspaceConfig(context) {
     buildModal(ctx);
     const cfg = readConfig(ctx);
     paintSwitches(cfg);
+    updateAiSessionIndicator(ctx);
     $('#alb-cfg-overlay').removeClass('hidden');
   });
+
+  // Sinkron awal (mis. reload saat cooldown → titik merah langsung tampil).
+  updateAiSessionIndicator(ctx);
 }

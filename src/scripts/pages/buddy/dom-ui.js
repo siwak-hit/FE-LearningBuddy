@@ -2,6 +2,23 @@ import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
 import Toast from '../../components/toast.js';
 import { buildElementsForPage, resolvePageKeyFromContext, PAGE_ELEMENTS } from './pageElements.js';
+import { updateAiSessionIndicator } from './workspace-config.js';
+
+// [v0.9.85] Sliding-window sesi AI: setelah 60 dtk tanpa request AI baru, tampilan
+// hitungan direset ke 0/3 (mengikuti reset server). Timer di-restart tiap ada request AI.
+const AI_WINDOW_MS = 60000;
+function scheduleAiWindowReset(context) {
+  if (window.__albAiWindowTimer) clearTimeout(window.__albAiWindowTimer);
+  window.__albAiWindowTimer = setTimeout(() => {
+    if (!context?.aiUsage) return;
+    if (context.aiUsage.cooldown_active) return; // cooldown punya timernya sendiri
+    context.aiUsage.used = 0;
+    context.aiUsage.remaining = Number(context.aiUsage.max || 3);
+    context.aiUsage.limit_reached = false;
+    context.$chatCountDisplay?.text('0');
+    updateAiSessionIndicator(context);
+  }, AI_WINDOW_MS);
+}
 
 function formatCooldownTime(seconds = 0) {
   const safeSeconds = Math.max(0, Number(seconds) || 0);
@@ -122,7 +139,7 @@ export function handleLockdown(isLocked) {
   // dibuat & dihapus sendiri oleh safety-overlays.js — tidak lagi ada overlay statik bertumpuk.
   this.isLocked = isLocked;
   if (isLocked) {
-    this.$inputArea.prop('disabled', true).attr('placeholder', 'Chat dikunci. Silakan hubungi instruktur.');
+    this.$inputArea.prop('disabled', true).attr('placeholder', 'Chat dikunci sementara. Tunggu hitungan mundur selesai ya.');
     this.$btnSend.prop('disabled', true);
   } else {
     this.$inputArea.prop('disabled', false).attr('placeholder', 'Tanya sesuatu atau pilih elemen...');
@@ -172,9 +189,14 @@ export function updateAiUsageUI(usage = {}) {
   }
 
   if (isCooldownActive) {
+    updateAiSessionIndicator(this);
     this.triggerCooldown();
     return;
   }
+
+  // Ada pemakaian AI tapi belum cooldown → jadwalkan reset tampilan 1 menit (sliding window).
+  if (used > 0) scheduleAiWindowReset(this);
+  updateAiSessionIndicator(this);
 
   clearStoredCooldown(this.sessionId);
   this._cooldownToastShown = false;
@@ -213,12 +235,13 @@ export function triggerCooldown() {
   timeLeft = Math.max(timeLeft, storedRemaining);
 
   if (!timeLeft || timeLeft <= 0) {
-    timeLeft = 180;
+    timeLeft = 60; // [v0.9.85] fallback disamakan dengan cooldown server (60 dtk)
   }
 
   saveCooldownEnd(this.sessionId, timeLeft);
 
   this.$timerDisplay.text(formatCooldownTime(timeLeft));
+  updateAiSessionIndicator(this);
 
   clearInterval(this.cooldownInterval);
 
@@ -232,6 +255,7 @@ export function triggerCooldown() {
     }
 
     this.$timerDisplay.text(formatCooldownTime(timeLeft));
+    updateAiSessionIndicator(this);
 
     if (timeLeft <= 0) {
       clearInterval(this.cooldownInterval);
@@ -265,6 +289,7 @@ export function triggerCooldown() {
 
       this._cooldownToastShown = false;
       this._limitToastShown = false;
+      updateAiSessionIndicator(this);
 
       Toast.show('Cooldown selesai. AI Buddy bisa digunakan lagi.', 'success');
     }

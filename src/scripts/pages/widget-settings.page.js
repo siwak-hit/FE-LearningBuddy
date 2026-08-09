@@ -42,6 +42,8 @@ function getInitialProject(projects = []) {
 // Key fitur workspace AI (harus sama dgn id switch di WidgetConfigForm.astro).
 // Disimpan di theme.features supaya tak perlu kolom DB baru.
 const FEATURE_KEYS = ['complaint', 'contact_teacher', 'notes', 'guide', 'class_data'];
+// [v0.9.85] Fitur yang DEFAULT-NONAKTIF (kebalikan dari FEATURE_KEYS yang default aktif).
+const OPT_IN_FEATURE_KEYS = ['profanity_lockdown'];
 
 function showIntegrationCard(show = true) {
   const $card = $('#btn-reveal-integration').closest('.bg-surface-card');
@@ -260,6 +262,10 @@ const WidgetSettingsPage = {
     FEATURE_KEYS.forEach((key) => {
       $(`#feature-${key}`).prop('checked', features[key] !== false);
     });
+    // Fitur opt-in: default OFF → hanya checked bila eksplisit true.
+    OPT_IN_FEATURE_KEYS.forEach((key) => {
+      $(`#feature-${key}`).prop('checked', features[key] === true);
+    });
 
     if (config.active_from) $('#active_from').val(new Date(config.active_from).toISOString().slice(0, 16));
     if (config.active_until) $('#active_until').val(new Date(config.active_until).toISOString().slice(0, 16));
@@ -325,7 +331,7 @@ const WidgetSettingsPage = {
         subtitle: $('#subtitle').val(),
         primaryColor: $('#primaryColor').val(),
         features: Object.fromEntries(
-          FEATURE_KEYS.map((key) => [key, $(`#feature-${key}`).is(':checked')])
+          [...FEATURE_KEYS, ...OPT_IN_FEATURE_KEYS].map((key) => [key, $(`#feature-${key}`).is(':checked')])
         )
       },
       allowed_origin: origins,
