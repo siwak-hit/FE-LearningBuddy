@@ -691,10 +691,10 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         } else if (act.type === 'show_context') {
           // [v0.9.86] Buka daftar konteks lengkap (memicu intent daftar_konteks).
           actionsHtml += `<button type="button" class="btn-show-context inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-table-list text-[12px]"></i> ${label}</button>`;
-        } else if (act.type === 'confirm_make_quiz') {
-          // [v0.9.87] Konfirmasi buat soal latihan untuk materi (dari perintah user).
+        } else if (act.type === 'confirm_material_request') {
+          // [v0.9.88] Konfirmasi permintaan materi (buat soal / rangkum / poin penting / jelaskan).
           const p = encodeURIComponent(JSON.stringify(act.payload || {}));
-          actionsHtml += `<button type="button" class="btn-confirm-make-quiz inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-white text-[13px] font-bold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${p}"><i class="fa-solid fa-circle-check"></i> ${label}</button>`;
+          actionsHtml += `<button type="button" class="btn-confirm-material-request inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-white text-[13px] font-bold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${p}"><i class="fa-solid fa-circle-check"></i> ${label}</button>`;
         } else if (act.type === 'decline_quiz') {
           actionsHtml += `<button type="button" class="btn-decline-quiz inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm">${label}</button>`;
         } else if (act.type === 'verify_email') {

@@ -1514,11 +1514,11 @@ function bindChatActionButtons(context) {
       openContextTableModal(context, rows);
     });
 
-  // [v0.9.87] Konfirmasi "Ya, buatkan soal" → gate email (kalau belum dikenal) → generator
-  // kuis @materi (reuse alur mention: kirim pesan "buat N soal" + mention materi).
+  // [v0.9.88] Konfirmasi permintaan materi (soal/rangkum/poin penting/jelaskan) → gate email
+  // (kalau belum dikenal) → jalankan task @materi (reuse alur mention: kirim prompt + mention).
   context.$chatArea
-    .off('click', '.btn-confirm-make-quiz')
-    .on('click', '.btn-confirm-make-quiz', async (e) => {
+    .off('click', '.btn-confirm-material-request')
+    .on('click', '.btn-confirm-material-request', async (e) => {
       e.preventDefault();
       const $btn = $(e.currentTarget);
       if ($btn.prop('disabled')) return;
@@ -1526,8 +1526,9 @@ function bindChatActionButtons(context) {
       try { payload = JSON.parse(decodeURIComponent($btn.attr('data-payload') || '{}')); } catch (_) { payload = {}; }
       const material = payload.material || {};
       const count = Number(payload.count || 0);
+      const requestType = String(payload.requestType || 'explain');
 
-      // Gate identitas: generator kuis butuh siswa dikenal (email Moodle) — sama seperti "@".
+      // Gate identitas: materi Moodle butuh siswa dikenal (email) — sama seperti fitur "@".
       if (!context.hasVerifiedStudentIdentity?.()) {
         $btn.prop('disabled', true).addClass('opacity-60 cursor-wait');
         const ok = await context.showStudentIdentityModal?.(context.getCandidateStudentEmail?.() || '');
@@ -1544,7 +1545,14 @@ function bindChatActionButtons(context) {
         url: material.url || null,
         label: material.title || 'materi'
       };
-      const ask = count ? `buatkan ${count} soal latihan` : 'buatkan soal latihan';
+      // Prompt task yang cocok dgn detectMentionTask di BE (soal/rangkum/poin/jelaskan).
+      const TASK_PROMPT = {
+        quiz: count ? `buatkan ${count} soal latihan` : 'buatkan soal latihan',
+        summary: 'rangkum materi ini',
+        keypoints: 'sebutkan poin penting materi ini',
+        explain: 'jelaskan materi ini dengan bahasa sederhana'
+      };
+      const ask = TASK_PROMPT[requestType] || TASK_PROMPT.explain;
       sendChatMessage(context, { message: ask, mention });
     });
 
