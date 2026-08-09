@@ -232,7 +232,7 @@ export function buildContextTablePreview(rows = []) {
 
   return `
     <div class="alb-context-table mt-4 border border-hairline rounded-2xl bg-white overflow-hidden">
-      <div class="px-4 py-2.5 bg-surface-strong border-b border-hairline flex items-center gap-2">
+      <div class="px-4 py-2.5 bg-canvas-soft border-b border-hairline flex items-center gap-2">
         <i class="fa-solid fa-table-list text-primary text-[12px]"></i>
         <span class="text-[11px] font-black uppercase tracking-wide text-muted">Daftar Konteks</span>
         <span class="ml-auto text-[11px] text-muted-soft">${rows.length} topik</span>
@@ -691,6 +691,12 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
         } else if (act.type === 'show_context') {
           // [v0.9.86] Buka daftar konteks lengkap (memicu intent daftar_konteks).
           actionsHtml += `<button type="button" class="btn-show-context inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-table-list text-[12px]"></i> ${label}</button>`;
+        } else if (act.type === 'confirm_make_quiz') {
+          // [v0.9.87] Konfirmasi buat soal latihan untuk materi (dari perintah user).
+          const p = encodeURIComponent(JSON.stringify(act.payload || {}));
+          actionsHtml += `<button type="button" class="btn-confirm-make-quiz inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-white text-[13px] font-bold px-4 py-2 rounded-full transition-colors shadow-sm" data-payload="${p}"><i class="fa-solid fa-circle-check"></i> ${label}</button>`;
+        } else if (act.type === 'decline_quiz') {
+          actionsHtml += `<button type="button" class="btn-decline-quiz inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm">${label}</button>`;
         } else if (act.type === 'verify_email') {
           // [v0.9.83] Gate identitas untuk pertanyaan data kelas/tugas → buka modal email.
           actionsHtml += `<button type="button" class="btn-verify-email inline-flex items-center gap-1.5 bg-primary hover:bg-primary-active text-[13px] font-bold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-envelope"></i> ${label}</button>`;

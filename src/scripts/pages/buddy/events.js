@@ -1318,12 +1318,12 @@ function openContextTableModal(context, rows = []) {
         </div>
         <div class="overflow-y-auto">
           <table class="w-full border-collapse">
-            <thead class="sticky top-0 bg-surface-strong z-10">
+            <thead>
               <tr class="text-left text-[10px] font-bold uppercase tracking-wide text-muted-soft">
-                <th class="py-2.5 px-3 w-8 text-center">No</th>
-                <th class="py-2.5 px-3">Topik Materi</th>
-                <th class="py-2.5 px-3">Jenis</th>
-                <th class="py-2.5 px-3">Contoh Pertanyaan</th>
+                <th class="sticky top-0 z-10 bg-canvas-soft border-b border-hairline py-2.5 px-3 w-8 text-center">No</th>
+                <th class="sticky top-0 z-10 bg-canvas-soft border-b border-hairline py-2.5 px-3">Topik Materi</th>
+                <th class="sticky top-0 z-10 bg-canvas-soft border-b border-hairline py-2.5 px-3">Jenis</th>
+                <th class="sticky top-0 z-10 bg-canvas-soft border-b border-hairline py-2.5 px-3">Contoh Pertanyaan</th>
               </tr>
             </thead>
             <tbody>${body}</tbody>
@@ -1512,6 +1512,47 @@ function bindChatActionButtons(context) {
       let rows = [];
       try { rows = JSON.parse(decodeURIComponent($(e.currentTarget).attr('data-rows') || '[]')); } catch (_) { rows = []; }
       openContextTableModal(context, rows);
+    });
+
+  // [v0.9.87] Konfirmasi "Ya, buatkan soal" → gate email (kalau belum dikenal) → generator
+  // kuis @materi (reuse alur mention: kirim pesan "buat N soal" + mention materi).
+  context.$chatArea
+    .off('click', '.btn-confirm-make-quiz')
+    .on('click', '.btn-confirm-make-quiz', async (e) => {
+      e.preventDefault();
+      const $btn = $(e.currentTarget);
+      if ($btn.prop('disabled')) return;
+      let payload = {};
+      try { payload = JSON.parse(decodeURIComponent($btn.attr('data-payload') || '{}')); } catch (_) { payload = {}; }
+      const material = payload.material || {};
+      const count = Number(payload.count || 0);
+
+      // Gate identitas: generator kuis butuh siswa dikenal (email Moodle) — sama seperti "@".
+      if (!context.hasVerifiedStudentIdentity?.()) {
+        $btn.prop('disabled', true).addClass('opacity-60 cursor-wait');
+        const ok = await context.showStudentIdentityModal?.(context.getCandidateStudentEmail?.() || '');
+        $btn.prop('disabled', false).removeClass('opacity-60 cursor-wait');
+        if (!ok) return;
+        context.loadMateriMentions?.();
+      }
+
+      markSingleChatButtonClicked($btn);
+      const mention = {
+        type: 'materi',
+        token: material.token || 'materi',
+        documentId: material.documentId || null,
+        url: material.url || null,
+        label: material.title || 'materi'
+      };
+      const ask = count ? `buatkan ${count} soal latihan` : 'buatkan soal latihan';
+      sendChatMessage(context, { message: ask, mention });
+    });
+
+  context.$chatArea
+    .off('click', '.btn-decline-quiz')
+    .on('click', '.btn-decline-quiz', (e) => {
+      e.preventDefault();
+      markSingleChatButtonClicked($(e.currentTarget));
     });
 
   context.$chatArea
