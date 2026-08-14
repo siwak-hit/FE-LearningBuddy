@@ -96,7 +96,23 @@ const { API_BASE } = Astro.props;
         <span class="text-[12px] font-semibold text-muted uppercase tracking-[0.96px]">Panduan Penggunaan</span>
         <i class="fa-solid fa-chevron-down guide-sec-chev text-[11px] text-muted-soft transition-transform"></i>
       </summary>
+      <!-- [v0.9.90] Urutan mengikuti alur nyata siswa: login → jelajah → kerjakan → logout. -->
       <div class="guide-section-list space-y-2">
+        <button type="button" class="guide-btn btn-fast-guide w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200" data-intent="bantuan_login" data-msg="Cara login ke VClass">
+          <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-right-to-bracket text-[13px]"></i></span>
+          <span class="flex-1 text-left truncate">Cara Login</span>
+          <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
+        </button>
+        <button type="button" class="guide-btn btn-fast-guide w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200" data-intent="tutorial_lihat_aktivitas" data-msg="Cara melihat aktivitas di VClass">
+          <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-list-check text-[13px]"></i></span>
+          <span class="flex-1 text-left truncate">Cara Melihat Aktivitas</span>
+          <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
+        </button>
+        <button type="button" class="guide-btn btn-fast-guide w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200" data-intent="tutorial_lihat_nilai" data-msg="Cara melihat nilai di VClass">
+          <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-chart-simple text-[13px]"></i></span>
+          <span class="flex-1 text-left truncate">Cara Melihat Nilai</span>
+          <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
+        </button>
         <button type="button" class="guide-btn btn-fast-guide w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200" data-intent="tutorial_buat_forum" data-msg="Cara membuat forum diskusi di VClass">
           <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-pen-to-square text-[13px]"></i></span>
           <span class="flex-1 text-left truncate">Cara Buat Forum Diskusi</span>
@@ -120,16 +136,6 @@ const { API_BASE } = Astro.props;
         <button type="button" class="guide-btn btn-fast-guide w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200" data-intent="tutorial_logout" data-msg="Cara logout dari VClass">
           <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-right-from-bracket text-[13px]"></i></span>
           <span class="flex-1 text-left truncate">Cara Logout</span>
-          <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
-        </button>
-        <button type="button" class="guide-btn btn-fast-guide w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200" data-intent="tutorial_lihat_aktivitas" data-msg="Cara melihat aktivitas di VClass">
-          <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-list-check text-[13px]"></i></span>
-          <span class="flex-1 text-left truncate">Cara Melihat Aktivitas</span>
-          <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
-        </button>
-        <button type="button" class="guide-btn btn-fast-guide w-full flex items-center gap-3 bg-surface-card border border-hairline rounded-xl px-3 py-2.5 text-[13px] font-medium text-ink transition-all duration-200" data-intent="tutorial_lihat_nilai" data-msg="Cara melihat nilai di VClass">
-          <span class="w-8 h-8 rounded-lg bg-ink text-white flex items-center justify-center shrink-0"><i class="fa-solid fa-chart-simple text-[13px]"></i></span>
-          <span class="flex-1 text-left truncate">Cara Melihat Nilai</span>
           <i class="fa-solid fa-chevron-right text-muted-soft text-[11px] shrink-0"></i>
         </button>
       </div>

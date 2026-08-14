@@ -251,6 +251,7 @@ const WidgetSettingsPage = {
     $('#title').val(theme.title || '');
     $('#subtitle').val(theme.subtitle || '');
     $('#primaryColor').val(theme.primaryColor || '#292524');
+    $('#icon_only').prop('checked', theme.iconOnly === true);
     $('#access_mode').val(config.access_mode || 'both');
     $('#mode').val(config.mode || 'floating');
     $('#allowed_origin').val(allowedOrigins);
@@ -330,6 +331,7 @@ const WidgetSettingsPage = {
         title: $('#title').val(),
         subtitle: $('#subtitle').val(),
         primaryColor: $('#primaryColor').val(),
+        iconOnly: $('#icon_only').is(':checked'),
         features: Object.fromEntries(
           [...FEATURE_KEYS, ...OPT_IN_FEATURE_KEYS].map((key) => [key, $(`#feature-${key}`).is(':checked')])
         )

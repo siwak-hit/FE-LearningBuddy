@@ -2,6 +2,37 @@ import $ from 'jquery';
 import { ApiService } from '../../fetch/api.js';
 import { SourceViewer } from '../../components/source-viewer.js';
 import { getPageElementOptions, resolvePageKeyFromContext } from './pageElements.js';
+import { prefetchTutorialAssets } from './tutorial-assets.js';
+
+// [v0.9.85] Pemicu sinkron Moodle 2-jalur — NON-BLOCKING. Workspace tetap kebuka instan;
+// pill "Menyinkronkan…" cuma muncul kalau request >800ms (artinya ada yang benar-benar disync).
+// Kalau data masih segar, request cepat → pill tak pernah tampil → tak menambah waktu respons.
+function albShowSyncPill() {
+  if (document.getElementById('alb-sync-pill')) return;
+  const el = document.createElement('div');
+  el.id = 'alb-sync-pill';
+  el.textContent = '🔄 Menyinkronkan data kelas…';
+  el.style.cssText = 'position:fixed;top:12px;left:50%;transform:translateX(-50%);z-index:9999;background:#1e293b;color:#fff;padding:6px 14px;border-radius:9999px;font-size:12px;font-weight:500;box-shadow:0 2px 10px rgba(0,0,0,.25);';
+  document.body.appendChild(el);
+}
+function albHideSyncPill(ran) {
+  const el = document.getElementById('alb-sync-pill');
+  if (!el) return;
+  if (ran) {
+    el.textContent = '✓ Data kelas terbaru';
+    el.style.background = '#166534';
+    setTimeout(() => el.remove(), 1400);
+  } else {
+    el.remove();
+  }
+}
+function albTriggerMoodleSync(sessionId) {
+  if (!sessionId) return;
+  const timer = setTimeout(albShowSyncPill, 800);
+  ApiService.post('/chat/ensure-moodle-sync', { sessionId })
+    .then((res) => { clearTimeout(timer); albHideSyncPill(Boolean(res?.data?.global?.ran || res?.data?.personal?.ran)); })
+    .catch(() => { clearTimeout(timer); albHideSyncPill(false); });
+}
 
 export function init() {
   const urlParams = new URLSearchParams(window.location.search);
@@ -79,6 +110,10 @@ export function initWorkspace(isExternal = false) {
 
   SourceViewer.init();
 
+  // [v0.9.90] Panaskan gambar + video panduan di latar supaya modal panduan langsung
+  // tampil tanpa loading/buffer. Sengaja tidak di-await: bukan syarat workspace siap.
+  prefetchTutorialAssets();
+
   this.cacheWorkspaceDOM();
   this.bindWorkspaceEvents();
   if (typeof this.renderPersistentManualContextSelector === 'function') {
@@ -111,6 +146,9 @@ export function initWorkspace(isExternal = false) {
       // [config] Form fallback nama/konteks tidak lagi muncul otomatis saat masuk —
       // cukup sediakan ikon pensil di header supaya siswa bisa membukanya sendiri.
       try { this.showIdentityEditButton?.(this); } catch (_) {}
+
+      // [v0.9.85] Sinkron Moodle 2-jalur dipicu saat klik widget (bukan cuma guru).
+      albTriggerMoodleSync(this.sessionId);
       });
     });
   } else {
@@ -141,6 +179,9 @@ export function initWorkspace(isExternal = false) {
       if (typeof this.ensureLmsStudentIdentity === 'function') {
         await this.ensureLmsStudentIdentity({ noPrompt: true });
       }
+
+      // [v0.9.85] Sinkron Moodle 2-jalur dipicu saat masuk workspace (lihat jalur external).
+      albTriggerMoodleSync(this.sessionId);
 
       // Setelah identitas siswa terkonfirmasi, tampilkan onboarding carousel
       // bila belum pernah dilihat (sama dengan jalur external).

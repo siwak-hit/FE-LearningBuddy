@@ -676,6 +676,8 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           `;
 
         } else if (act.type === 'video_tutorial') {
+          // [v0.9.90] Backend tak lagi mengirim aksi ini (video kini jadi switch di dalam
+          // modal panduan). Renderer dipertahankan agar riwayat chat LAMA tetap tampil benar.
           const safeUrl = this.escapeHtml(act.url || '');
           const safeTitle = this.escapeHtml(act.title || 'Video Tutorial');
           actionsHtml += `<button type="button" class="btn-video-tutorial inline-flex items-center gap-1.5 bg-rose-50 text-rose-600 border border-rose-200 hover:bg-rose-100 text-[13px] font-semibold px-4 py-2 rounded-full transition-colors shadow-sm" data-url="${safeUrl}" data-title="${safeTitle}"><i class="fa-solid fa-circle-play"></i> ${label}</button>`;

@@ -5,6 +5,7 @@
 // ============================================================
 import $ from 'jquery';
 import Toast from '../../components/toast.js';
+import { isTutorialVideoAvailable } from './tutorial-assets.js';
 
 // ============================================================
 // [v0.9.13] Modal VIDEO tutorial. Mendukung YouTube (watch/youtu.be/embed) & file video langsung.
@@ -84,6 +85,7 @@ export function openVideoTutorialModal(payload = {}) {
 
 let albActiveStaticTutorial = null;
 let albActiveStaticTutorialIndex = 0;
+let albActiveStaticTutorialMode = 'image';
 
 function normalizeStaticAssetUrl(url = '') {
   const raw = String(url || '').trim();
@@ -114,6 +116,11 @@ function ensureStaticTutorialModal() {
       }
       .alb-tut-nav-btn { transition: opacity 0.15s, background 0.15s, transform 0.1s; }
       .alb-tut-nav-btn:not(:disabled):active { transform: scale(0.96); }
+      /* [v0.9.90] Switch gambar/video: hanya tombol aktif yang berlatar putih. */
+      #alb-static-tutorial-modeswitch .alb-tut-mode-btn { color: #64748b; }
+      #alb-static-tutorial-modeswitch .alb-tut-mode-btn.alb-tut-mode-active {
+        background: #fff; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+      }
       @media (prefers-reduced-motion: reduce) {
         #alb-static-tutorial-modal .alb-tut-slide { animation: none; }
       }
@@ -140,8 +147,28 @@ function ensureStaticTutorialModal() {
           </button>
         </div>
 
-        <!-- Gambar: ~60% tinggi -->
-        <div class="alb-tut-image-wrap relative flex-[3] min-h-0 flex items-center justify-center p-3 sm:p-4">
+        <!-- [v0.9.90] Switch mode panduan: gambar (carousel langkah) atau video. -->
+        <div id="alb-static-tutorial-modeswitch" class="hidden shrink-0 border-b border-slate-100 bg-white px-4 py-2.5">
+          <div class="flex items-center gap-1 rounded-full bg-slate-100 p-1">
+            <button type="button" class="alb-tut-mode-btn flex-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors" data-mode="image">
+              <i class="fa-solid fa-images text-[11px] mr-1.5"></i>Panduan Gambar
+            </button>
+            <button type="button" class="alb-tut-mode-btn flex-1 rounded-full px-3 py-1.5 text-[13px] font-bold transition-colors" data-mode="video">
+              <i class="fa-solid fa-circle-play text-[11px] mr-1.5"></i>Panduan Video
+            </button>
+          </div>
+        </div>
+
+        <!-- Mode VIDEO: satu pemutar penuh, tanpa langkah/navigasi. -->
+        <div id="alb-static-tutorial-video-mode" class="hidden flex-1 min-h-0 flex flex-col items-center justify-center bg-black p-0">
+          <video id="alb-static-tutorial-video" class="max-h-full max-w-full" controls playsinline preload="auto"></video>
+          <p id="alb-static-tutorial-video-error" class="hidden px-6 text-center text-[14px] text-slate-300 leading-relaxed">
+            Video panduan untuk topik ini belum tersedia. Silakan pakai <b>Panduan Gambar</b> ya.
+          </p>
+        </div>
+
+        <!-- Mode GAMBAR — Gambar: ~60% tinggi -->
+        <div class="alb-tut-image-wrap alb-tut-image-mode relative flex-[3] min-h-0 flex items-center justify-center p-3 sm:p-4">
           <img id="alb-static-tutorial-image" src="" alt=""
             class="alb-tut-slide max-h-full w-auto max-w-full object-contain rounded-xl shadow-sm cursor-zoom-in select-none"
             loading="lazy" draggable="false" />
@@ -151,7 +178,7 @@ function ensureStaticTutorialModal() {
         </div>
 
         <!-- Teks: ~40% tinggi, satu langkah saja -->
-        <div class="flex-[2] min-h-0 overflow-y-auto border-t border-slate-100 bg-white px-5 py-4">
+        <div class="alb-tut-image-mode flex-[2] min-h-0 overflow-y-auto border-t border-slate-100 bg-white px-5 py-4">
           <div class="alb-tut-slide">
             <span id="alb-static-tutorial-counter" class="inline-flex items-center gap-1.5 text-[11px] font-black text-primary bg-primary/10 px-2.5 py-1 rounded-full mb-2.5">Langkah 1/1</span>
             <h4 id="alb-static-tutorial-step-title" class="text-[17px] sm:text-[19px] font-black text-slate-900 leading-snug mb-2"></h4>
@@ -162,7 +189,7 @@ function ensureStaticTutorialModal() {
         </div>
 
         <!-- Navigasi linear: Sebelumnya · indikator titik · Lanjut -->
-        <div class="shrink-0 flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-3">
+        <div class="alb-tut-image-mode shrink-0 flex items-center justify-between gap-3 border-t border-slate-100 bg-white px-4 py-3">
           <button type="button" id="alb-static-tutorial-prev"
             class="alb-tut-nav-btn inline-flex items-center gap-1.5 rounded-full border border-slate-200 bg-white px-4 py-2 text-[13px] font-bold text-slate-700 hover:bg-slate-50 disabled:opacity-30 disabled:cursor-not-allowed">
             <i class="fa-solid fa-chevron-left text-[11px]"></i> Sebelumnya
@@ -186,6 +213,13 @@ function ensureStaticTutorialModal() {
   `);
 
   $('#alb-static-tutorial-close').on('click', closeStaticTutorialModal);
+  $('#alb-static-tutorial-modeswitch').on('click', '.alb-tut-mode-btn', (e) => {
+    setStaticTutorialMode($(e.currentTarget).attr('data-mode'));
+  });
+  $('#alb-static-tutorial-video').on('error', () => {
+    $('#alb-static-tutorial-video').addClass('hidden');
+    $('#alb-static-tutorial-video-error').removeClass('hidden');
+  });
   $('#alb-static-tutorial-prev').on('click', () => showStaticTutorialStep(albActiveStaticTutorialIndex - 1));
   $('#alb-static-tutorial-next').on('click', function () {
     if ($(this).attr('data-last') === '1') { closeStaticTutorialModal(); return; }
@@ -206,15 +240,46 @@ function ensureStaticTutorialModal() {
 
   $(document).off('keydown.albStaticTutorial').on('keydown.albStaticTutorial', (e) => {
     if ($('#alb-static-tutorial-modal').hasClass('hidden')) return;
-    if (e.key === 'Escape') closeStaticTutorialModal();
+    if (e.key === 'Escape') { closeStaticTutorialModal(); return; }
+    // Panah kiri/kanan hanya untuk carousel gambar; di mode video biarkan browser
+    // memakainya untuk maju/mundur pemutaran.
+    if (albActiveStaticTutorialMode !== 'image') return;
     if (e.key === 'ArrowLeft') showStaticTutorialStep(albActiveStaticTutorialIndex - 1);
     if (e.key === 'ArrowRight') showStaticTutorialStep(albActiveStaticTutorialIndex + 1);
   });
 }
 
+// [v0.9.90] Ganti mode panduan. Sumber video baru dipasang saat mode video dipilih —
+// filenya sudah dipanaskan `tutorial-assets.js` saat workspace dibuka, jadi ini cache hit.
+function setStaticTutorialMode(mode = 'image') {
+  const isVideo = mode === 'video';
+  albActiveStaticTutorialMode = isVideo ? 'video' : 'image';
+
+  $('#alb-static-tutorial-modal .alb-tut-image-mode').toggleClass('hidden', isVideo);
+  $('#alb-static-tutorial-video-mode').toggleClass('hidden', !isVideo);
+  $('#alb-static-tutorial-modeswitch .alb-tut-mode-btn').each((_, el) => {
+    $(el).toggleClass('alb-tut-mode-active', $(el).attr('data-mode') === albActiveStaticTutorialMode);
+  });
+
+  const $video = $('#alb-static-tutorial-video');
+  const videoUrl = String(albActiveStaticTutorial?.video || '');
+
+  if (!isVideo) {
+    $video[0]?.pause();
+    return;
+  }
+
+  $video.removeClass('hidden');
+  $('#alb-static-tutorial-video-error').addClass('hidden');
+  if ($video.attr('src') !== videoUrl) $video.attr('src', videoUrl);
+}
+
 function closeStaticTutorialModal() {
   $('#alb-static-tutorial-modal').addClass('hidden');
   $('body').css('overflow', '');
+  // Lepas sumber video supaya audionya mati & unduhan berhenti saat modal ditutup.
+  const video = $('#alb-static-tutorial-video')[0];
+  if (video) { video.pause(); video.removeAttribute('src'); video.load(); }
 }
 
 function showStaticTutorialStep(index = 0) {
@@ -280,6 +345,13 @@ export function openStaticTutorialModal(payload = {}) {
   ensureStaticTutorialModal();
   albActiveStaticTutorial = tutorial;
   albActiveStaticTutorialIndex = 0;
+
+  // Switch gambar/video hanya muncul kalau videonya memang ada. Prefetch di
+  // `tutorial-assets.js` sudah memprobe file mana yang tersedia; kalau probe-nya belum
+  // selesai (`undefined`), switch tetap ditampilkan dan pane video punya pesan fallback.
+  const hasVideo = Boolean(tutorial.video) && isTutorialVideoAvailable(tutorial.video) !== false;
+  $('#alb-static-tutorial-modeswitch').toggleClass('hidden', !hasVideo);
+  setStaticTutorialMode('image');
 
   $('#alb-static-tutorial-title').text(tutorial.title || 'Panduan VClass');
   $('#alb-static-tutorial-note').text(tutorial.note || 'Isi teks pada gambar hanya contoh. Ikuti instruksi guru dan data akunmu sendiri.');

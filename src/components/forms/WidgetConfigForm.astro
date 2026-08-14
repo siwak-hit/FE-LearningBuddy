@@ -55,6 +55,14 @@ const featureToggles = [
         <input type="text" id="title" class={inputClass} placeholder="Contoh: Tanya AI">
         <p class="text-[13px] text-muted-soft mt-1">Tulisan pada tombol chat yang dilihat siswa. Default: “Tanya AI”.</p>
       </div>
+      <label class="flex items-start justify-between gap-4 bg-canvas-soft border border-hairline rounded-[12px] px-4 py-3 cursor-pointer hover:border-hairline-strong transition-colors">
+        <span class="min-w-0">
+          <span class="block text-[15px] font-medium text-ink">Tampilkan ikon saja</span>
+          <span class="block text-[13px] text-muted-soft mt-0.5">Jika aktif, tombol di VClass jadi <b>bundar tanpa tulisan</b> (hanya ikon) supaya lebih ringkas. <b>Default: nonaktif.</b></span>
+        </span>
+        <input type="checkbox" id="icon_only" class="sr-only alb-switch-input" />
+        <span class="alb-switch-track relative shrink-0 mt-1 w-11 h-6 rounded-full"></span>
+      </label>
       <div>
         <label class={labelClass}>Warna Tombol</label>
         <div class="flex items-center gap-3">
