@@ -46,6 +46,23 @@ const { API_BASE } = Astro.props;
   body.alb-cfg-popup-off #alb-reminder-toast-host { display: none !important; }
   body.alb-cfg-suggest-off #suggestion-wrapper { display: none !important; }
 
+  /* [v0.9.91] MOBILE: header ikut menyembunyikan diri saat siswa menggulung chat ke bawah,
+     dan muncul lagi begitu menggulung ke atas. Dianimasikan lewat TINGGI (bukan posisi
+     absolut) supaya #chat-area yang flex-1 otomatis memakai ruangnya — tanpa layout shift
+     dan tanpa mengubah struktur flex header/chat/input yang sudah ada. */
+  @media (max-width: 767px) {
+    #alb-workspace-header {
+      height: 5rem;
+      overflow: hidden;
+      transition: height 0.25s ease, opacity 0.2s ease;
+    }
+    #alb-workspace-header.alb-header-hidden {
+      height: 0;
+      opacity: 0;
+      border-bottom-width: 0;
+    }
+  }
+
   body:not(.alb-cfg-guide) #tab-content-guide [data-alb-feature="guide"],
   body:not(.alb-cfg-class-data) #tab-content-guide [data-alb-feature="class_data"],
   body:not(.alb-cfg-notes) #tab-content-guide [data-alb-notes-menu="1"],
@@ -54,20 +71,13 @@ const { API_BASE } = Astro.props;
 
 <div class="h-screen flex bg-canvas overflow-hidden font-sans relative w-full">
 
+  <!-- [v0.9.91] Tombol tutup sidebar mobile dipindah KE LUAR sidebar (menempel di overlay
+       hitam), supaya baris header setinggi h-20 di dalam sidebar bisa dibuang dan isinya
+       naik ke atas persis seperti tampilan desktop. -->
   <div
     id="context-backdrop"
     class="hidden md:hidden fixed inset-0 bg-black/40 backdrop-blur-sm z-30 opacity-0 transition-opacity duration-300"
-  ></div>
-
-  <aside
-    id="context-sidebar"
-    class="fixed md:relative inset-y-0 left-0 z-40 w-[86%] max-w-[380px] md:w-[320px] lg:w-[380px] shrink-0 h-full bg-canvas-soft border-r border-hairline flex flex-col transform -translate-x-full md:translate-x-0 transition-all duration-300 ease-out overflow-hidden"
   >
-
-  <!-- [config] Baris header sidebar tinggal berisi tombol tutup (mobile) karena tombol
-       "Kembali ke VClass" di-hide — di desktop barisnya ikut dibuang supaya konten
-       sidebar naik ke atas, tidak menyisakan area kosong setinggi h-20. -->
-  <div class="md:hidden h-20 px-6 border-b border-hairline shrink-0 flex items-center justify-end w-full">
     <button id="btn-back" class="hidden text-muted hover:text-ink items-center text-[15px] font-medium transition-colors">
       <i class="fa-solid fa-arrow-left mr-2"></i> Kembali ke VClass
     </button>
@@ -75,11 +85,20 @@ const { API_BASE } = Astro.props;
     <button
       id="btn-close-context"
       type="button"
-      class="md:hidden w-9 h-9 rounded-full bg-surface-card border border-hairline flex items-center justify-center text-muted hover:text-ink transition-colors"
+      aria-label="Tutup panduan"
+      class="absolute top-3 right-3 w-10 h-10 rounded-full bg-white/90 border border-white/40 shadow-lg flex items-center justify-center text-slate-700 hover:bg-white transition-colors"
     >
       <i class="fa-solid fa-xmark"></i>
     </button>
   </div>
+
+  <aside
+    id="context-sidebar"
+    class="fixed md:relative inset-y-0 left-0 z-40 w-[80%] max-w-[380px] md:w-[320px] lg:w-[380px] shrink-0 h-full bg-canvas-soft border-r border-hairline flex flex-col transform -translate-x-full md:translate-x-0 transition-all duration-300 ease-out overflow-hidden"
+  >
+
+  <!-- [v0.9.91] Baris header h-20 di dalam sidebar DIHAPUS (tombol tutupnya sudah pindah
+       ke overlay), jadi di mobile isinya langsung mulai dari atas seperti di desktop. -->
 
   <!-- Switch button (segmented), lebih mencolok dari tab underline -->
   <div id="sidebar-tabs" class="px-5 md:px-6 py-3 shrink-0">
@@ -222,7 +241,7 @@ const { API_BASE } = Astro.props;
         </div>
     </div>
 
-    <header class="h-20 border-b border-hairline flex items-center justify-between px-4 md:px-8 shrink-0 bg-surface-card z-10">
+    <header id="alb-workspace-header" class="h-20 border-b border-hairline flex items-center justify-between px-4 md:px-8 shrink-0 bg-surface-card z-10">
       <div class="flex items-center gap-3 min-w-0">
         <button
           id="btn-open-context"
@@ -389,10 +408,15 @@ const { API_BASE } = Astro.props;
 
 <div id="source-viewer-overlay" class="fixed inset-0 bg-black/40 backdrop-blur-sm z-[9999] invisible opacity-0 pointer-events-none transition-all duration-300"></div>
 
+<!-- [v0.9.91] Di mobile drawer disembunyikan pakai translate + invisible, BUKAN
+     `bottom:-100%`. Persentase itu relatif tinggi elemen (90vh), jadi di browser mobile
+     yang bilah alamatnya menyusut/melebar (Safari iOS) drawer masih menyisakan pita
+     "Materi Referensi" menempel di dasar layar walau sedang tertutup. -->
 <div id="source-viewer-drawer" class="fixed z-[10000] bg-white shadow-2xl transition-all duration-300 flex flex-col
   top-0 right-[-100%] h-full w-[450px] lg:w-[500px]
-  max-sm:right-0 max-sm:bottom-[-100%] max-sm:top-auto max-sm:w-full max-sm:h-[90vh] max-sm:rounded-t-2xl
-  [&.is-open]:right-0 max-sm:[&.is-open]:bottom-0 max-sm:[&.is-open]:top-auto">
+  max-sm:right-0 max-sm:bottom-0 max-sm:top-auto max-sm:w-full max-sm:h-[90dvh] max-sm:rounded-t-2xl
+  max-sm:translate-y-full max-sm:invisible max-sm:pointer-events-none
+  [&.is-open]:right-0 max-sm:[&.is-open]:translate-y-0 max-sm:[&.is-open]:visible max-sm:[&.is-open]:pointer-events-auto">
 
   <div class="px-5 py-4 border-b border-hairline flex justify-between items-center bg-surface-card shrink-0 max-sm:rounded-t-2xl">
     <div class="min-w-0">

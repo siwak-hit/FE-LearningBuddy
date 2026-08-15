@@ -121,6 +121,11 @@ function ensureStaticTutorialModal() {
       #alb-static-tutorial-modeswitch .alb-tut-mode-btn.alb-tut-mode-active {
         background: #fff; color: #0f172a; box-shadow: 0 1px 3px rgba(0,0,0,0.12);
       }
+      /* Video belum diunggah: tetap bisa diklik, tapi jelas terlihat belum siap. */
+      #alb-static-tutorial-modeswitch .alb-tut-mode-btn.alb-tut-mode-missing { opacity: 0.55; }
+      #alb-static-tutorial-modeswitch .alb-tut-mode-btn.alb-tut-mode-missing::after {
+        content: ' (belum ada)'; font-size: 10px; font-weight: 700;
+      }
       @media (prefers-reduced-motion: reduce) {
         #alb-static-tutorial-modal .alb-tut-slide { animation: none; }
       }
@@ -269,6 +274,14 @@ function setStaticTutorialMode(mode = 'image') {
     return;
   }
 
+  // Sudah ketahuan filenya tidak ada saat prefetch → langsung tampilkan pesan,
+  // jangan biarkan siswa menunggu pemutar yang pasti gagal.
+  if (!videoUrl || isTutorialVideoAvailable(videoUrl) === false) {
+    $video.addClass('hidden').removeAttr('src');
+    $('#alb-static-tutorial-video-error').removeClass('hidden');
+    return;
+  }
+
   $video.removeClass('hidden');
   $('#alb-static-tutorial-video-error').addClass('hidden');
   if ($video.attr('src') !== videoUrl) $video.attr('src', videoUrl);
@@ -346,11 +359,14 @@ export function openStaticTutorialModal(payload = {}) {
   albActiveStaticTutorial = tutorial;
   albActiveStaticTutorialIndex = 0;
 
-  // Switch gambar/video hanya muncul kalau videonya memang ada. Prefetch di
-  // `tutorial-assets.js` sudah memprobe file mana yang tersedia; kalau probe-nya belum
-  // selesai (`undefined`), switch tetap ditampilkan dan pane video punya pesan fallback.
-  const hasVideo = Boolean(tutorial.video) && isTutorialVideoAvailable(tutorial.video) !== false;
-  $('#alb-static-tutorial-modeswitch').toggleClass('hidden', !hasVideo);
+  // Switch gambar/video SELALU tampil selama panduan punya URL video, supaya siswa tahu
+  // opsinya ada. Kalau file videonya belum diunggah guru, tombolnya ditandai "belum ada"
+  // dan pane video menampilkan pesan, bukan layar hitam kosong.
+  const videoMissing = isTutorialVideoAvailable(tutorial.video) === false;
+  $('#alb-static-tutorial-modeswitch').toggleClass('hidden', !tutorial.video);
+  $('#alb-static-tutorial-modeswitch .alb-tut-mode-btn[data-mode="video"]')
+    .toggleClass('alb-tut-mode-missing', videoMissing)
+    .attr('title', videoMissing ? 'Video panduan belum diunggah guru' : 'Tonton panduan dalam bentuk video');
   setStaticTutorialMode('image');
 
   $('#alb-static-tutorial-title').text(tutorial.title || 'Panduan VClass');

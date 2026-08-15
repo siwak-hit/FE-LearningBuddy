@@ -172,6 +172,14 @@ const AI_ACTION_SELECTOR = '.btn-ask-ai-fallback, .btn-system-feedback-ai, .btn-
 function collapseSupersededActions(context) {
   const $area = context?.$chatArea;
   if (!$area || !$area.length) return;
+
+  // [v0.9.91] Kartu konfirmasi "alihkan ke AI" TIDAK berada di dalam .alb-action-group,
+  // jadi dulu ia lolos dari pembersihan ini dan tetap menempel di layar. Tombol "Ya"-nya
+  // membawa pertanyaan LAMA dan mengirimnya dengan suppressUserBubble — kalau diklik
+  // setelah siswa bertanya hal lain, AI menjawab pertanyaan lama tanpa jejak bubble baru
+  // (kasus "Invalid login maksudnya apa?" dibalas soal login HP & laptop). Kartu yang
+  // belum dijawab kini ikut dibuang saat siswa mengirim pertanyaan berikutnya.
+  $('.alb-ai-confirm').remove();
   $area.find('.alb-action-group').not('.alb-superseded').each(function () {
     const $grp = $(this);
     const $btns = $grp.find('button');
