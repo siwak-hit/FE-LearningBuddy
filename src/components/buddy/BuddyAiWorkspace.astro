@@ -46,23 +46,6 @@ const { API_BASE } = Astro.props;
   body.alb-cfg-popup-off #alb-reminder-toast-host { display: none !important; }
   body.alb-cfg-suggest-off #suggestion-wrapper { display: none !important; }
 
-  /* [v0.9.91] MOBILE: header ikut menyembunyikan diri saat siswa menggulung chat ke bawah,
-     dan muncul lagi begitu menggulung ke atas. Dianimasikan lewat TINGGI (bukan posisi
-     absolut) supaya #chat-area yang flex-1 otomatis memakai ruangnya — tanpa layout shift
-     dan tanpa mengubah struktur flex header/chat/input yang sudah ada. */
-  @media (max-width: 767px) {
-    #alb-workspace-header {
-      height: 5rem;
-      overflow: hidden;
-      transition: height 0.25s ease, opacity 0.2s ease;
-    }
-    #alb-workspace-header.alb-header-hidden {
-      height: 0;
-      opacity: 0;
-      border-bottom-width: 0;
-    }
-  }
-
   body:not(.alb-cfg-guide) #tab-content-guide [data-alb-feature="guide"],
   body:not(.alb-cfg-class-data) #tab-content-guide [data-alb-feature="class_data"],
   body:not(.alb-cfg-notes) #tab-content-guide [data-alb-notes-menu="1"],

@@ -828,35 +828,10 @@ function bindScrollToBottomButton(context) {
   update();
 }
 
-// [v0.9.91] MOBILE: sembunyikan header saat menggulung chat ke bawah, tampilkan lagi saat
-// menggulung ke atas — layar HP jadi lega tanpa mengorbankan akses tombol sidebar/gear.
-// Desktop tak tersentuh (CSS-nya dibatasi media query, JS-nya cukup melepas class).
-function bindHeaderAutoHide(context) {
-  const $area = context.$chatArea?.length ? context.$chatArea : $('#chat-area');
-  const $header = $('#alb-workspace-header');
-  if (!$area.length || !$header.length) return;
-
-  const HIDE_AFTER_PX = 80;   // jangan sembunyi saat masih di pucuk percakapan
-  const DELTA_PX = 8;         // ambang supaya getaran scroll kecil tak memicu apa pun
-  let lastY = $area[0].scrollTop;
-
-  $area.off('scroll.albHeaderHide').on('scroll.albHeaderHide', () => {
-    if (window.innerWidth >= 768) { $header.removeClass('alb-header-hidden'); return; }
-
-    const y = $area[0].scrollTop;
-    const delta = y - lastY;
-    if (Math.abs(delta) < DELTA_PX) return;
-    lastY = y;
-
-    // Scroll ke bawah & sudah cukup jauh → sembunyi. Scroll ke atas → tampil lagi.
-    $header.toggleClass('alb-header-hidden', delta > 0 && y > HIDE_AFTER_PX);
-  });
-
-  // Kembali ke desktop lewat rotasi/resize: pastikan header tak tertinggal tersembunyi.
-  $(window).off('resize.albHeaderHide').on('resize.albHeaderHide', () => {
-    if (window.innerWidth >= 768) $header.removeClass('alb-header-hidden');
-  });
-}
+// [v0.9.92] Header auto-hide saat scroll DIHAPUS. Menyembunyikan header mengubah tinggi
+// #chat-area, yang menggeser scrollTop, yang memicu event scroll berikutnya — di Android
+// jadi berkedip muncul-hilang terus, dan di iOS (momentum scroll) header nyaris tak bisa
+// dipanggil kembali. Header sekarang tetap terlihat seperti di desktop.
 
 export function bindWorkspaceEvents() {
   let suggestionTimer = null;
@@ -873,7 +848,6 @@ export function bindWorkspaceEvents() {
   bindSidebarTabs(this);
   bindContextDrawer(this);
   bindScrollToBottomButton(this);
-  bindHeaderAutoHide(this);
   bindInputEvents(this, () => suggestionTimer, (timer) => { suggestionTimer = timer; });
   bindFormSubmit(this);
   bindFastGuideButtons(this);

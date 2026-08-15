@@ -86,6 +86,7 @@ export function openVideoTutorialModal(payload = {}) {
 let albActiveStaticTutorial = null;
 let albActiveStaticTutorialIndex = 0;
 let albActiveStaticTutorialMode = 'image';
+let albStaticTutorialImageToken = 0;
 
 function normalizeStaticAssetUrl(url = '') {
   const raw = String(url || '').trim();
@@ -107,7 +108,17 @@ function ensureStaticTutorialModal() {
       #alb-static-tutorial-modal .alb-tut-image-wrap {
         background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
       }
-      #alb-static-tutorial-image { transition: opacity 0.2s ease; }
+      /* [v0.9.92] Gambar TIDAK ikut animasi keyframe lagi — lihat catatan di markup.
+         backface-visibility + translateZ memaksa Safari iOS memakai satu layer tetap
+         untuk <img> ini, supaya ganti src benar-benar mengganti isinya alih-alih
+         melukis gambar baru di atas gambar lama. */
+      #alb-static-tutorial-image {
+        transition: opacity 0.2s ease;
+        -webkit-backface-visibility: hidden;
+        backface-visibility: hidden;
+        transform: translateZ(0);
+        will-change: opacity;
+      }
       #alb-static-tutorial-image.loading { opacity: 0; }
       #alb-static-tutorial-modal .alb-tut-slide { animation: alb-tut-slide-in 0.22s ease-out; }
       @keyframes alb-tut-slide-in {
@@ -174,8 +185,12 @@ function ensureStaticTutorialModal() {
 
         <!-- Mode GAMBAR — Gambar: ~60% tinggi -->
         <div class="alb-tut-image-wrap alb-tut-image-mode relative flex-[3] min-h-0 flex items-center justify-center p-3 sm:p-4">
+          <!-- [v0.9.92] Class alb-tut-slide SENGAJA dilepas dari img. Animasi keyframe
+               yang di-restart tiap pindah langkah membuat Safari iOS menyisakan layer
+               gambar lama, sehingga gambar langkah berikutnya tampak menumpuk di atas
+               gambar sebelumnya. Perpindahan gambar cukup pakai transisi opacity. -->
           <img id="alb-static-tutorial-image" src="" alt=""
-            class="alb-tut-slide max-h-full w-auto max-w-full object-contain rounded-xl shadow-sm cursor-zoom-in select-none"
+            class="max-h-full w-auto max-w-full object-contain rounded-xl shadow-sm cursor-zoom-in select-none"
             loading="lazy" draggable="false" />
           <span class="absolute bottom-3 right-4 text-[10px] text-slate-400 pointer-events-none select-none hidden sm:block">
             <i class="fa-solid fa-magnifying-glass-plus mr-1"></i>klik gambar untuk perbesar
@@ -311,13 +326,19 @@ function showStaticTutorialStep(index = 0) {
   $('#alb-static-tutorial-counter').text(`Langkah ${albActiveStaticTutorialIndex + 1}/${steps.length}`);
 
   // Ganti gambar dengan fade supaya perpindahan langkah tidak "kedip".
+  // Praunduh bisa selesai TIDAK berurutan kalau siswa menekan Lanjut cepat-cepat, jadi
+  // hasil yang datang terlambat diabaikan lewat token langkah — kalau tidak, gambar
+  // langkah lama bisa mendarat di langkah yang sedang dilihat.
+  const token = ++albStaticTutorialImageToken;
   const $img = $('#alb-static-tutorial-image');
   $img.addClass('loading');
-  const newImg = new Image();
-  newImg.onload = () => {
+  const applyImage = () => {
+    if (token !== albStaticTutorialImageToken) return;
     $img.attr('src', imageUrl).attr('alt', step.alt || stepTitle || 'Gambar panduan VClass').removeClass('loading');
   };
-  newImg.onerror = () => $img.attr('src', imageUrl).removeClass('loading');
+  const newImg = new Image();
+  newImg.onload = applyImage;
+  newImg.onerror = applyImage;
   newImg.src = imageUrl;
 
   // Satu slide = satu langkah. Teks langkah lain TIDAK ditampilkan.

@@ -588,7 +588,10 @@ export function appendBubble(rawText, isUser = false, source = 'ai', actions = [
           const safePageType = this.escapeHtml(pageType);
           actionsHtml += `<button type="button" class="btn-return-source inline-flex items-center gap-1.5 bg-surface-card border border-hairline hover:bg-surface-strong text-[13px] font-medium text-ink px-4 py-2 rounded-full transition-colors shadow-sm" data-url="${url}" data-page-type="${safePageType}"><i class="fa-solid fa-arrow-right"></i> ${label}</button>`;
         } else if (act.type === 'wa_teacher') {
-          actionsHtml += `<button type="button" class="btn-wa-action inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-[13px] font-medium text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-brands fa-whatsapp"></i> ${label}</button>`;
+          // [v0.9.92] `note` opsional: dipakai jawaban AI untuk menjelaskan KENAPA tombol
+          // ini ditawarkan ("belum puas dengan jawabannya?"), bukan sekadar tombol polos.
+          const note = act.note ? `<div class="w-full text-[12px] text-muted-soft mb-1.5">${this.escapeHtml(act.note)}</div>` : '';
+          actionsHtml += `${note}<button type="button" class="btn-wa-action inline-flex items-center gap-1.5 bg-green-500 hover:bg-green-600 text-[13px] font-medium text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-brands fa-whatsapp"></i> ${label}</button>`;
         } else if (act.type === 'open_complaint') {
           // [v0.9.17] Buka modal form komplain terpandu.
           actionsHtml += `<button type="button" class="btn-open-complaint inline-flex items-center gap-1.5 bg-amber-500 hover:bg-amber-600 text-[13px] font-semibold text-white px-4 py-2 rounded-full transition-colors shadow-sm"><i class="fa-solid fa-flag"></i> ${label}</button>`;
