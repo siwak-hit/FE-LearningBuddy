@@ -90,26 +90,24 @@ function getModeConfig(mode = 'system') {
 // [v0.9.83] Pertanyaan yang jawabannya diambil dari DATA Moodle siswa (tugas, deadline,
 // kuis, forum, nilai, pengajar) tidak bisa dijawab tanpa tahu siswa ini siapa. Sama seperti
 // gate fitur "@materi": tampilkan info + tombol email, jangan kirim ke server.
+// [v0.9.93] HANYA untuk intent EKSPLISIT (tombol sidebar / tombol pilihan disambiguasi).
+// Pesan yang DIKETIK siswa tidak lagi ditebak di sini: tebakan kata kunci sering salah
+// ("aku telat ngumpulin tugas, harus apa?" cuma butuh panduan statis, bukan data Moodle)
+// sehingga siswa diminta email padahal jawabannya sama saja. Gate untuk pesan ketikan
+// pindah ke BE (chat.service.js), setelah intent aslinya benar-benar diketahui.
 const LMS_DATA_INTENTS = new Set([
   'cek_tugas_belum_selesai', 'cek_deadline_hari_ini', 'cek_quiz_belum_dikerjakan',
   'cek_forum_belum_dijawab', 'cek_pengajar_course', 'cek_nilai', 'lihat_nilai',
   'detail_tugas', 'detail_kuis'
 ]);
-const LMS_DATA_RE = /\b(tugas|pr|deadline|tenggat|batas waktu|dikumpul\w*|pengumpulan|nilai|rapor|kuis|quiz|ulangan|forum|diskusi|absen|presensi|jadwal|aktivitas|pengajar|wali kelas)\b/i;
-// Pertanyaan "cara ...", "apa itu ..." dijawab dari panduan/materi umum — tidak butuh identitas
-// walau menyebut kata "tugas"/"kuis". Tanpa pengecualian ini, "cara mengumpulkan tugas" ikut kena gate.
-const LMS_GENERIC_RE = /\b(cara|gimana|bagaimana|panduan|tutorial|langkah|apa itu|pengertian|definisi|maksud)\b/i;
 
-function needsMoodleIdentity(context, messageText = '', options = {}) {
+function needsMoodleIdentity(context, options = {}) {
   if (options.skipIdentityGate) return false;
   if (context.hasVerifiedStudentIdentity?.()) return false;
   // Tombol sidebar mengirim intent eksplisit → paling akurat. Semua intent `cek_*`
   // memang membaca data Moodle siswa (lihat `isLmsCheck` di bindFastGuideButtons).
   const intent = String(options.intent || '');
-  if (intent.startsWith('cek_') || LMS_DATA_INTENTS.has(intent)) return true;
-  if (options.mention) return false;                                   // @materi punya gate sendiri
-  if (LMS_GENERIC_RE.test(messageText)) return false;
-  return LMS_DATA_RE.test(messageText);
+  return intent.startsWith('cek_') || LMS_DATA_INTENTS.has(intent);
 }
 
 function normalizePageType(pageType = '') {
@@ -312,7 +310,7 @@ async function sendChatMessage(context, options = {}) {
   // [v0.9.83] Butuh data kelas/tugas tapi email Moodle belum diverifikasi → jangan kirim
   // ke server (jawabannya pasti kosong/keliru). Tampilkan bubble info + tombol email;
   // pertanyaannya disimpan dan dikirim ulang otomatis setelah verifikasi berhasil.
-  if (needsMoodleIdentity(context, messageText, options)) {
+  if (needsMoodleIdentity(context, options)) {
     if (!options.suppressUserBubble) {
       context.appendBubble(messageText, true, 'user', [], { image: pendingUserImage });
     }
@@ -421,6 +419,13 @@ async function sendChatMessage(context, options = {}) {
 
       const botMessage = res.data.botMessage || res.data;
       const cooldownSecondsFromText = Number(String(botMessage?.message || '').match(/Tunggu\s+(\d+)\s+detik/i)?.[1] || 0);
+
+      // [v0.9.93] BE menahan jawaban karena identitas siswa belum ada (gate intent LMS).
+      // Simpan pertanyaannya supaya tombol "Masukkan Email Moodle" bisa mengirim ulang
+      // otomatis setelah verifikasi — sama seperti perilaku gate lama di FE.
+      if ((botMessage?.actions || []).some((a) => a.type === 'verify_email')) {
+        context._pendingIdentityRequest = { message: messageText, options: { ...options, skipIdentityGate: true } };
+      }
 
       if (res.data.ai_usage && typeof context.updateAiUsageUI === 'function') {
         context.updateAiUsageUI(res.data.ai_usage);
