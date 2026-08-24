@@ -108,6 +108,11 @@ function switchRowHtml(item) {
 // [v0.9.85] Section "Sesi AI" di dalam modal gear — progress bar 0/3 + status cooldown.
 // Sumber angka = context.aiUsage (dari server, disinkronkan updateAiUsageUI di dom-ui.js).
 // ============================================================
+// [v0.9.94] Guru mematikan cooldown → tak ada kuota untuk ditampilkan, section ini dibuang.
+function isAiSessionHidden(context) {
+  return context?.featureFlags?.disable_cooldown === true;
+}
+
 function aiSessionSnapshot(context) {
   const u = context?.aiUsage || {};
   const max = Number(u.max || 3);
@@ -137,6 +142,13 @@ function aiSessionSectionHtml() {
 // Perbarui tampilan bar + titik merah gear. Aman dipanggil walau modal belum dibuka.
 export function updateAiSessionIndicator(context) {
   const ctx = context || {};
+
+  if (isAiSessionHidden(ctx)) {
+    $('#alb-cfg-gear-dot').addClass('hidden');
+    $('#alb-cfg-ai-session').remove();
+    return;
+  }
+
   const snap = aiSessionSnapshot(ctx);
   const pct = snap.max > 0 ? Math.round((snap.used / snap.max) * 100) : 0;
 
@@ -189,7 +201,7 @@ function buildModal(context) {
         </div>
 
         <div class="p-4 space-y-3 overflow-y-auto bg-canvas-soft">
-          ${aiSessionSectionHtml()}
+          ${isAiSessionHidden(context) ? '' : aiSessionSectionHtml()}
           ${groupsHtml}
 
           <details id="alb-cfg-delete" class="rounded-xl border border-hairline bg-white overflow-hidden">

@@ -12,7 +12,8 @@ import {
   applyPersistedCooldownIfNeeded,
   applyPersistedLockdownIfNeeded,
   readPersistedLockdown,
-  triggerProfanityLockdown
+  triggerProfanityLockdown,
+  clearSafetyArtifacts
 } from './safety-overlays.js';
 import { ensureStudentNotesMenu } from './student-notes.js';
 import {
@@ -885,6 +886,10 @@ async function applyFeatureFlags(context) {
 
   context.featureFlags = flags;
   const isOn = (key) => flags[key] !== false;
+
+  // [v0.9.94] Flags datang setelah applyPersisted*IfNeeded jalan → buang sisa overlay
+  // cooldown/lockdown yang sempat tampil dari localStorage.
+  clearSafetyArtifacts(context);
 
   if (isOn('notes')) ensureStudentNotesMenu(context);
   if (isOn('complaint')) context.ensureComplaintMenu?.(context);

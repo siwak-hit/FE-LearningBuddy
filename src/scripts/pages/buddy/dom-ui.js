@@ -3,6 +3,7 @@ import { ApiService } from '../../fetch/api.js';
 import Toast from '../../components/toast.js';
 import { buildElementsForPage, resolvePageKeyFromContext, PAGE_ELEMENTS } from './pageElements.js';
 import { updateAiSessionIndicator } from './workspace-config.js';
+import { isCooldownDisabled } from './safety-overlays.js';
 
 // [v0.9.85] Sliding-window sesi AI: setelah 60 dtk tanpa request AI baru, tampilan
 // hitungan direset ke 0/3 (mengikuti reset server). Timer di-restart tiap ada request AI.
@@ -150,6 +151,22 @@ export function handleLockdown(isLocked) {
 export function updateAiUsageUI(usage = {}) {
   const max = Number(usage.max || 3);
   const used = Number(usage.used || 0);
+
+  // [v0.9.94] Guru mematikan cooldown → tak ada chip merah, toast, maupun overlay.
+  if (isCooldownDisabled(this)) {
+    clearStoredCooldown(this.sessionId);
+    clearInterval(this.cooldownInterval);
+    this.aiUsage = { ...usage, used: 0, max, remaining: max, limit_reached: false, cooldown_active: false, cooldown_remaining_seconds: 0, canUseAI: true };
+    this.$chatCountDisplay.text('0');
+    getUsageChip(this.$chatCountDisplay).removeClass('border-red-300 bg-red-50 text-red-700 ring-2 ring-red-100');
+    this.$chatCountDisplay.removeClass('text-red-600 font-black');
+    this.$cooldownOverlay.addClass('hidden');
+    if (!this.isLocked) {
+      this.$inputArea.prop('disabled', false).attr('placeholder', 'Tanya sesuatu atau pilih elemen...');
+      this.$btnSend.prop('disabled', false);
+    }
+    return;
+  }
 
   let remainingSeconds = Number(usage.cooldown_remaining_seconds || 0);
 

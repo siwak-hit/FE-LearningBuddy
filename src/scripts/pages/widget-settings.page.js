@@ -43,7 +43,7 @@ function getInitialProject(projects = []) {
 // Disimpan di theme.features supaya tak perlu kolom DB baru.
 const FEATURE_KEYS = ['complaint', 'contact_teacher', 'notes', 'guide', 'class_data'];
 // [v0.9.85] Fitur yang DEFAULT-NONAKTIF (kebalikan dari FEATURE_KEYS yang default aktif).
-const OPT_IN_FEATURE_KEYS = ['profanity_lockdown'];
+const OPT_IN_FEATURE_KEYS = ['profanity_lockdown', 'disable_cooldown', 'disable_profanity'];
 
 function showIntegrationCard(show = true) {
   const $card = $('#btn-reveal-integration').closest('.bg-surface-card');

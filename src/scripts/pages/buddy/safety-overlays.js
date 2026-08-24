@@ -14,6 +14,35 @@ function getLocalScopeKey(context, suffix) {
   return `alb:${host}:${projectKey}:${suffix}`;
 }
 
+// [v0.9.94] Switch guru "Nonaktifkan cooldown kuota AI". ponytail: satu predikat dipakai
+// semua jalur cooldown (toast, overlay, persist) — tak ada pemanggil yang perlu tahu detailnya.
+export function isCooldownDisabled(context) {
+  return context?.featureFlags?.disable_cooldown === true;
+}
+
+// Bersihkan sisa cooldown/lockdown saat guru baru saja mematikan fiturnya
+// (overlay dari localStorage bisa keburu tampil sebelum flag selesai dimuat).
+export function clearSafetyArtifacts(context) {
+  if (isCooldownDisabled(context)) {
+    if (window.__albGlobalCooldownTimer) clearInterval(window.__albGlobalCooldownTimer);
+    window.__albGlobalCooldownTimer = null;
+    localStorage.removeItem(getLocalScopeKey(context, 'cooldown'));
+    localStorage.removeItem(`alb_ai_cooldown_until_${context?.sessionId || 'default'}`);
+    $('#alb-global-cooldown-overlay').remove();
+    $('#cooldown-overlay').addClass('hidden');
+    context.aiUsage = { used: 0, max: 3, remaining: 3, limit_reached: false, cooldown_active: false, cooldown_remaining_seconds: 0, canUseAI: true };
+    context.updateAiUsageUI?.(context.aiUsage);
+  }
+
+  if (context?.featureFlags?.disable_profanity === true) {
+    if (window.__albLockTimer) clearInterval(window.__albLockTimer);
+    window.__albLockTimer = null;
+    persistLockdown(context, false);
+    $('#alb-global-lock-overlay').remove();
+    context.handleLockdown?.(false);
+  }
+}
+
 // [v0.9.85] Lockdown bahasa kini BERBASIS TIMER (tanpa key guru) & disimpan di localStorage.
 // State: { lockEndAt, minutes, warnings }. Lock aktif selama Date.now() < lockEndAt.
 export function persistLockdown(context, locked = true, extra = {}) {
@@ -120,6 +149,8 @@ function ensureFullScreenCooldownOverlay(context, remainingOverride = null) {
 }
 
 export function showCooldownToast(context, remainingOverride = null) {
+  if (isCooldownDisabled(context)) return;
+
   const remainingSeconds = Number(
     remainingOverride || context.aiUsage?.cooldown_remaining_seconds || AI_COOLDOWN_FALLBACK_SECONDS
   );
@@ -151,10 +182,13 @@ export function showCooldownToast(context, remainingOverride = null) {
 }
 
 export function isCooldownBlocking(context) {
+  if (isCooldownDisabled(context)) return false;
   return Boolean(context.aiUsage?.cooldown_active) || Number(context.aiUsage?.cooldown_remaining_seconds || 0) > 0;
 }
 
 export function applyPersistedCooldownIfNeeded(context) {
+  if (isCooldownDisabled(context)) return;
+
   try {
     const raw = localStorage.getItem(getLocalScopeKey(context, 'cooldown'));
     if (!raw) return;
@@ -214,6 +248,8 @@ export function ensureLocalLockOverlay(context, persisted = {}) {
 }
 
 export function applyPersistedLockdownIfNeeded(context) {
+  if (context?.featureFlags?.disable_profanity === true) return;
+
   const persisted = readPersistedLockdown(context);
   if (persisted) ensureLocalLockOverlay(context, persisted);
 }

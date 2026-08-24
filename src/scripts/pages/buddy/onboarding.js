@@ -261,6 +261,12 @@ export function showOnboardingCarousel() {
     }
   ];
 
+  // [v0.9.94] Guru mematikan cooldown → slide kuota AI menjelaskan aturan yang sudah tak berlaku.
+  if (this?.featureFlags?.disable_cooldown === true) {
+    const quotaIndex = steps.findIndex((s) => s.title === 'Kuota Jawaban AI');
+    if (quotaIndex >= 0) steps.splice(quotaIndex, 1);
+  }
+
   let currentStep = 0;
 
   const clearHighlight = () => {
