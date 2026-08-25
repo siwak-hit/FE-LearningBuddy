@@ -13,7 +13,10 @@ import {
   applyPersistedLockdownIfNeeded,
   readPersistedLockdown,
   triggerProfanityLockdown,
-  clearSafetyArtifacts
+  clearSafetyArtifacts,
+  isCooldownDisabled,
+  isProfanityDisabled,
+  isProfanityLockEnabled
 } from './safety-overlays.js';
 import { ensureStudentNotesMenu } from './student-notes.js';
 import {
@@ -396,7 +399,11 @@ async function sendChatMessage(context, options = {}) {
     forceAI: selectedForceAI,
     intent: options.intent || null,
     mention: options.mention || null,
-    freshMention: options.freshMention === true // [v0.9.8] minta hasil @materi baru (bypass cache)
+    freshMention: options.freshMention === true, // [v0.9.8] minta hasil @materi baru (bypass cache)
+    // [v0.9.94] Switch pembatas milik siswa (modal gear). Dikirim tiap pesan karena
+    // penyimpanannya di localStorage — server tak punya salinannya.
+    disableCooldown: isCooldownDisabled(context),
+    disableProfanity: isProfanityDisabled(context)
   };
 
   try {
@@ -488,11 +495,11 @@ async function sendChatMessage(context, options = {}) {
         }, 450);
       }
 
-      // [v0.9.85] Lockdown bahasa: hanya bila guru mengaktifkan switch (default OFF) DAN
-      // warnings sudah ≥3. Server tak lagi mengunci sendiri — timer & escalation di FE.
+      // [v0.9.94] Lockdown bahasa: hanya bila SISWA menyalakan switch "Kunci chat saat bahasa
+      // kasar terdeteksi" (default OFF) DAN warnings sudah ≥3. Server tak mengunci sendiri —
+      // timer & escalation di FE.
       const warnings = Number(res.data.warnings || 0);
-      const lockdownOn = context.featureFlags?.profanity_lockdown === true;
-      if (res.data.moderation_type && lockdownOn && warnings >= 3) {
+      if (res.data.moderation_type && isProfanityLockEnabled(context) && warnings >= 3) {
         triggerProfanityLockdown(context, warnings);
       }
     } else {
@@ -842,6 +849,10 @@ function bindScrollToBottomButton(context) {
 export function bindWorkspaceEvents() {
   let suggestionTimer = null;
 
+  // [v0.9.94] Dipakai modal Konfigurasi saat siswa mematikan pembatas di tengah sesi.
+  // Lewat context supaya workspace-config.js tak perlu impor balik ke safety-overlays.js.
+  this.clearSafetyArtifacts = clearSafetyArtifacts;
+
   initWorkspaceConfig(this); // body-class tampilan dipasang paling awal (hindari kedip)
   hydrateReusableSessionIfAvailable(this);
   decorateAiUsageAutoReset(this);
@@ -886,10 +897,6 @@ async function applyFeatureFlags(context) {
 
   context.featureFlags = flags;
   const isOn = (key) => flags[key] !== false;
-
-  // [v0.9.94] Flags datang setelah applyPersisted*IfNeeded jalan → buang sisa overlay
-  // cooldown/lockdown yang sempat tampil dari localStorage.
-  clearSafetyArtifacts(context);
 
   if (isOn('notes')) ensureStudentNotesMenu(context);
   if (isOn('complaint')) context.ensureComplaintMenu?.(context);

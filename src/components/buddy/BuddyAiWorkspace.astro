@@ -44,6 +44,9 @@ const { API_BASE } = Astro.props;
   #alb-delete-session-btn { display: none !important; }
 
   body.alb-cfg-popup-off #alb-reminder-toast-host { display: none !important; }
+  /* [v0.9.94] Cooldown dimatikan siswa → section "Sesi AI" (bar kuota 0/3) tak relevan.
+     Lewat body-class supaya ikut hilang/muncul seketika saat switch-nya diklik. */
+  body.alb-cfg-no-cooldown #alb-cfg-ai-session { display: none !important; }
   body.alb-cfg-suggest-off #suggestion-wrapper { display: none !important; }
 
   body:not(.alb-cfg-guide) #tab-content-guide [data-alb-feature="guide"],

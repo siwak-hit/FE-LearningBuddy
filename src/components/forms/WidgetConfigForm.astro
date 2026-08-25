@@ -102,46 +102,8 @@ const featureToggles = [
     </div>
   </div>
 
-  <!-- MODERASI BAHASA -->
-  <div class="pt-8 border-t border-hairline">
-    <h3 class="text-[18px] font-medium text-ink mb-1"><i class="fa-solid fa-shield-halved mr-2"></i> Moderasi Bahasa</h3>
-    <p class="text-[13px] text-muted-soft mb-5">Kata kasar selalu otomatis disensor pada chat siswa. Opsi di bawah menambah <b>penguncian sementara</b>.</p>
-
-    <label class="flex items-start justify-between gap-4 bg-canvas-soft border border-hairline rounded-[12px] px-4 py-3 cursor-pointer hover:border-hairline-strong transition-colors">
-      <span class="min-w-0">
-        <span class="block text-[15px] font-medium text-ink">Kunci chat saat bahasa tidak pantas</span>
-        <span class="block text-[13px] text-muted-soft mt-0.5">Jika aktif, setelah <b>3× terdeteksi</b> chat siswa dikunci <b>1 menit</b> (bertambah 1 menit tiap pelanggaran berikutnya). Tanpa perlu key guru. <b>Default: nonaktif.</b></span>
-      </span>
-      <input type="checkbox" id="feature-profanity_lockdown" class="sr-only alb-switch-input" />
-      <span class="alb-switch-track relative shrink-0 mt-1 w-11 h-6 rounded-full"></span>
-    </label>
-  </div>
-
-  <!-- [v0.9.94] MODE FOKUS UJI COBA: matikan pembatas supaya siswa bebas tanya-jawab. -->
-  <div class="pt-8 border-t border-hairline">
-    <h3 class="text-[18px] font-medium text-ink mb-1"><i class="fa-solid fa-sliders mr-2"></i> Mode Fokus / Uji Coba</h3>
-    <p class="text-[13px] text-muted-soft mb-5">Nyalakan saat sesi uji coba supaya siswa tidak terhalang pembatas. <b>Semua default: nonaktif</b> (pembatas tetap berjalan).</p>
-
-    <div class="space-y-3">
-      <label class="flex items-start justify-between gap-4 bg-canvas-soft border border-hairline rounded-[12px] px-4 py-3 cursor-pointer hover:border-hairline-strong transition-colors">
-        <span class="min-w-0">
-          <span class="block text-[15px] font-medium text-ink">Nonaktifkan cooldown kuota AI</span>
-          <span class="block text-[13px] text-muted-soft mt-0.5">Jika aktif, siswa bisa bertanya AI <b>tanpa batas 3×</b>, tanpa jeda 1 menit. Overlay cooldown, chip "Sesi 0/3", toast peringatan, dan section <b>Sesi AI</b> di menu Konfigurasi siswa ikut disembunyikan.</span>
-        </span>
-        <input type="checkbox" id="feature-disable_cooldown" class="sr-only alb-switch-input" />
-        <span class="alb-switch-track relative shrink-0 mt-1 w-11 h-6 rounded-full"></span>
-      </label>
-
-      <label class="flex items-start justify-between gap-4 bg-canvas-soft border border-hairline rounded-[12px] px-4 py-3 cursor-pointer hover:border-hairline-strong transition-colors">
-        <span class="min-w-0">
-          <span class="block text-[15px] font-medium text-ink">Nonaktifkan deteksi kata kasar</span>
-          <span class="block text-[13px] text-muted-soft mt-0.5">Jika aktif, pesan siswa <b>tidak disensor</b> dan tidak memicu peringatan/penguncian. Switch "Kunci chat saat bahasa tidak pantas" di atas jadi tidak berpengaruh.</span>
-        </span>
-        <input type="checkbox" id="feature-disable_profanity" class="sr-only alb-switch-input" />
-        <span class="alb-switch-track relative shrink-0 mt-1 w-11 h-6 rounded-full"></span>
-      </label>
-    </div>
-  </div>
+  <!-- [v0.9.94] Section "Moderasi Bahasa" DIPINDAH ke modal Konfigurasi (gear) milik siswa
+       di workspace AI — lihat workspace-config.js. Guru tak lagi mengaturnya dari sini. -->
 
   <!-- Nilai default sistem (tidak perlu diubah admin): posisi pojok kanan bawah, aktif, scan halaman on. -->
   <input type="text" id="subtitle" class="hidden" value="" />

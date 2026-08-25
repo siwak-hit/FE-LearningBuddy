@@ -5,6 +5,7 @@
 // ============================================================
 import $ from 'jquery';
 import Toast from '../../components/toast.js';
+import { readWorkspaceConfig } from './workspace-config.js';
 
 const AI_COOLDOWN_FALLBACK_SECONDS = 180;
 
@@ -14,10 +15,22 @@ function getLocalScopeKey(context, suffix) {
   return `alb:${host}:${projectKey}:${suffix}`;
 }
 
-// [v0.9.94] Switch guru "Nonaktifkan cooldown kuota AI". ponytail: satu predikat dipakai
-// semua jalur cooldown (toast, overlay, persist) — tak ada pemanggil yang perlu tahu detailnya.
+// [v0.9.94] Switch siswa "Nonaktifkan cooldown" (modal gear Konfigurasi, default ON).
+// ponytail: satu predikat dipakai semua jalur cooldown (toast, overlay, persist) — tak ada
+// pemanggil yang perlu tahu detail penyimpanannya.
 export function isCooldownDisabled(context) {
-  return context?.featureFlags?.disable_cooldown === true;
+  return readWorkspaceConfig(context).disable_cooldown === true;
+}
+
+// Switch siswa "Nonaktifkan deteksi kata kasar" (default ON).
+export function isProfanityDisabled(context) {
+  return readWorkspaceConfig(context).disable_profanity === true;
+}
+
+// Switch siswa "Kunci chat saat bahasa kasar terdeteksi" (default OFF).
+export function isProfanityLockEnabled(context) {
+  const cfg = readWorkspaceConfig(context);
+  return cfg.lock_profanity === true && cfg.disable_profanity !== true;
 }
 
 // Bersihkan sisa cooldown/lockdown saat guru baru saja mematikan fiturnya
@@ -34,7 +47,7 @@ export function clearSafetyArtifacts(context) {
     context.updateAiUsageUI?.(context.aiUsage);
   }
 
-  if (context?.featureFlags?.disable_profanity === true) {
+  if (isProfanityDisabled(context) || !isProfanityLockEnabled(context)) {
     if (window.__albLockTimer) clearInterval(window.__albLockTimer);
     window.__albLockTimer = null;
     persistLockdown(context, false);
@@ -248,7 +261,7 @@ export function ensureLocalLockOverlay(context, persisted = {}) {
 }
 
 export function applyPersistedLockdownIfNeeded(context) {
-  if (context?.featureFlags?.disable_profanity === true) return;
+  if (!isProfanityLockEnabled(context)) return;
 
   const persisted = readPersistedLockdown(context);
   if (persisted) ensureLocalLockOverlay(context, persisted);

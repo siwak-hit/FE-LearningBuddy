@@ -36,6 +36,16 @@ const CFG_GROUPS = [
       { key: 'hide_suggest', cls: 'alb-cfg-suggest-off', def: false, label: 'Sembunyikan chip saran', hint: 'Tombol saran pertanyaan tepat di atas kolom input.' }
     ]
   },
+  // [v0.9.94] Pembatas chat — dulu switch guru di dashboard, kini dipegang siswa sendiri.
+  // Nilainya dibaca modul lain lewat readWorkspaceConfig() + dikirim ke BE tiap /chat/send.
+  {
+    title: 'Pembatas & Moderasi',
+    items: [
+      { key: 'lock_profanity', cls: 'alb-cfg-lock-profanity', def: false, label: 'Kunci chat saat bahasa kasar terdeteksi', hint: 'Setelah 3× terdeteksi, chat dikunci 1 menit (bertambah tiap pelanggaran berikutnya).' },
+      { key: 'disable_cooldown', cls: 'alb-cfg-no-cooldown', def: true, label: 'Nonaktifkan cooldown', hint: 'Bebas minta jawaban AI tanpa batas 3× dan tanpa jeda 1 menit. Section "Sesi AI" di atas ikut disembunyikan.' },
+      { key: 'disable_profanity', cls: 'alb-cfg-no-profanity', def: true, label: 'Nonaktifkan deteksi kata kasar', hint: 'Pesan tidak disensor dan tidak memicu peringatan. Switch kunci chat di atas jadi tak berpengaruh.' }
+    ]
+  },
   {
     title: 'Konten Panduan Cepat',
     items: [
@@ -108,9 +118,10 @@ function switchRowHtml(item) {
 // [v0.9.85] Section "Sesi AI" di dalam modal gear — progress bar 0/3 + status cooldown.
 // Sumber angka = context.aiUsage (dari server, disinkronkan updateAiUsageUI di dom-ui.js).
 // ============================================================
-// [v0.9.94] Guru mematikan cooldown → tak ada kuota untuk ditampilkan, section ini dibuang.
-function isAiSessionHidden(context) {
-  return context?.featureFlags?.disable_cooldown === true;
+// [v0.9.94] Satu-satunya sumber kebenaran switch siswa. Dipakai safety-overlays.js,
+// dom-ui.js, events.js, onboarding.js — sekaligus dikirim ke BE tiap /chat/send.
+export function readWorkspaceConfig(context) {
+  return readConfig(context);
 }
 
 function aiSessionSnapshot(context) {
@@ -143,9 +154,11 @@ function aiSessionSectionHtml() {
 export function updateAiSessionIndicator(context) {
   const ctx = context || {};
 
-  if (isAiSessionHidden(ctx)) {
+  // Cooldown dimatikan → tak ada kuota untuk dilaporkan. Section-nya sendiri disembunyikan
+  // lewat body-class `alb-cfg-no-cooldown` (CSS di BuddyAiWorkspace.astro) supaya ikut
+  // muncul/hilang seketika saat switch-nya diklik, tanpa perlu tutup-buka modal.
+  if (readConfig(ctx).disable_cooldown === true) {
     $('#alb-cfg-gear-dot').addClass('hidden');
-    $('#alb-cfg-ai-session').remove();
     return;
   }
 
@@ -201,7 +214,7 @@ function buildModal(context) {
         </div>
 
         <div class="p-4 space-y-3 overflow-y-auto bg-canvas-soft">
-          ${isAiSessionHidden(context) ? '' : aiSessionSectionHtml()}
+          ${aiSessionSectionHtml()}
           ${groupsHtml}
 
           <details id="alb-cfg-delete" class="rounded-xl border border-hairline bg-white overflow-hidden">
@@ -242,6 +255,13 @@ function buildModal(context) {
     writeConfig(context, cfg);
     applyConfig(cfg);
     paintSwitches(cfg);
+
+    // Mematikan pembatas di tengah sesi harus langsung membuang overlay/timer yang
+    // sedang jalan — kalau tidak, siswa tetap terkunci walau switch-nya sudah dimatikan.
+    // Lewat context, bukan import langsung — safety-overlays.js sudah mengimpor modul ini
+    // (readWorkspaceConfig), jadi impor balik akan bikin lingkaran.
+    if (key === 'disable_cooldown' || key === 'disable_profanity') context.clearSafetyArtifacts?.(context);
+    updateAiSessionIndicator(context);
   });
 
   $('#alb-cfg-clear-chat').on('click', () => {
