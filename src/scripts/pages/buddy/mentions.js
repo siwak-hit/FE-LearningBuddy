@@ -17,36 +17,44 @@ function esc(s = '') {
 
 // [v0.7.1] Ambil daftar MATERI dari VClass (materi yang sudah diselesaikan siswa).
 // [v0.7.5] Pakai flag loading agar dropdown "@" bisa menampilkan spinner saat memuat.
-export async function loadMateriMentions() {
+export function loadMateriMentions(opts = {}) {
   this.materiList = this.materiList || [];
-  if (!this.sessionId) return;
-  // [config] Materi hanya dimuat setelah email Moodle tervalidasi. Sebelum itu drawer
-  // "@" menampilkan ajakan memasukkan email, bukan daftar kosong yang membingungkan.
-  if (!this.hasVerifiedStudentIdentity?.()) { this._materiLoaded = false; return; }
+  if (!this.sessionId) return Promise.resolve();
+  // [config] Materi hanya dimuat setelah email Moodle tervalidasi.
+  if (!this.hasVerifiedStudentIdentity?.()) { this._materiLoaded = false; return Promise.resolve(); }
+  if (this._materiLoading && this._materiPromise) return this._materiPromise;   // dedupe
+  if (!opts.fresh && this._materiLoaded && this._materiLoadedSid === this.sessionId
+      && Date.now() - (this._materiLoadedAt || 0) < 60000) return Promise.resolve();
 
   this._materiLoading = true;
-  // Kalau dropdown sedang terbuka, segarkan agar spinner langsung muncul.
   if (this._mentionOpen) this.renderMentionDropdown(currentMentionQuery(this));
 
-  try {
-    const res = await ApiService.get(`/chat/session-materials/${this.sessionId}`);
-    if (res?.status === 'success' && Array.isArray(res.data)) {
-      this.materiList = res.data.map((m, i) => ({
-        index: i + 1,
-        title: m.title || `Materi ${i + 1}`,
-        url: m.url || '',
-        locked: m.locked === true,
-        documentId: m.document_id || null
-      }));
+  this._materiPromise = (async () => {
+    try {
+      const url = `/chat/session-materials/${this.sessionId}${opts.fresh ? '?fresh=1' : ''}`;
+      const res = await ApiService.get(url);
+      if (res?.status === 'success' && Array.isArray(res.data)) {
+        this.materiList = res.data.map((m, i) => ({
+          index: i + 1,
+          title: m.title || `Materi ${i + 1}`,
+          url: m.url || '',
+          locked: m.locked === true,
+          documentId: m.document_id || null
+        }));
+        this._materiOffline = res.data.some((m) => m.source === 'snapshot');
+        this._materiLoadedSid = this.sessionId;
+        this._materiLoadedAt = Date.now();
+      }
+    } catch (_) {
+      /* biarkan list lama */
+    } finally {
+      this._materiLoading = false;
+      this._materiPromise = null;
+      this._materiLoaded = true;
+      if (this._mentionOpen) this.renderMentionDropdown(currentMentionQuery(this));
     }
-  } catch (_) {
-    /* biarkan list lama */
-  } finally {
-    this._materiLoading = false;
-    this._materiLoaded = true;
-    // Setelah selesai, refresh dropdown bila masih terbuka.
-    if (this._mentionOpen) this.renderMentionDropdown(currentMentionQuery(this));
-  }
+  })();
+  return this._materiPromise;
 }
 
 // Ambil token "@..." yang sedang diketik di akhir input (untuk refresh dropdown).
@@ -156,7 +164,7 @@ export function renderMentionDropdown(query = '') {
   } else if (groups.materi.length) {
     body = groups.materi.map((it, idx) => renderItem(it, idx)).join('');
   } else {
-    body = `<div class="px-3 py-3 text-[12px] text-muted-soft leading-snug">Belum ada materi yang tersedia/terbaca${query ? ' cocok pencarian' : ''}.<br>Kalau kamu yakin ada, klik <b>Muat ulang</b> di atas ya (kadang koneksi VClass lambat).</div>`;
+        body = `<div class="px-3 py-3 text-[12px] text-muted-soft leading-snug">Belum ada materi yang tersedia/terbaca${query ? ' cocok pencarian' : ''}.${this._materiOffline ? '' : '<br>Kalau kamu yakin ada, klik <b>Muat ulang</b> di atas ya (kadang koneksi VClass lambat).'}</div>`;
   }
 
   if (mountMentionDrawer(`${header}<div class="overflow-y-auto">${body}</div>`)) {

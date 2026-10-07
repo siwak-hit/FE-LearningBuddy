@@ -884,16 +884,24 @@ export function bindWorkspaceEvents() {
 async function applyFeatureFlags(context) {
   let flags = {};
 
-  if (context.projectKey) {
     try {
-      const res = await ApiService.get(`/widget/config/${context.projectKey}`);
+      const ck = `alb_widgetcfg:${context.projectKey}`;
+      let res = null;
+      try {
+        const c = JSON.parse(sessionStorage.getItem(ck) || 'null');
+        if (c && Date.now() - c.t < 300000) res = c.v;
+      } catch (_) {}
+      if (!res) {
+        res = await ApiService.get(`/widget/config/${context.projectKey}`);
+        try { if (res?.status === 'success') sessionStorage.setItem(ck, JSON.stringify({ t: Date.now(), v: res })); } catch (_) {}
+      }
       let theme = res?.data?.theme;
       if (typeof theme === 'string') theme = JSON.parse(theme);
       flags = theme?.features || {};
     } catch (e) {
       console.warn('[Buddy] gagal memuat feature flags, semua fitur ditampilkan:', e);
     }
-  }
+
 
   context.featureFlags = flags;
   const isOn = (key) => flags[key] !== false;

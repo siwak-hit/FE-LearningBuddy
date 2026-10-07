@@ -1,93 +1,97 @@
 // ============================================================
-// tutorial-assets.js — [v0.9.90] Prefetch aset panduan VClass saat workspace dibuka.
+// tutorial-assets.js — [v0.9.91] VERSI RINGAN.
 //
-// Tujuannya: modal panduan (gambar & video) tidak loading lagi saat siswa mengkliknya.
-//  • Gambar (~36 PNG kecil) diunduh SEGERA. Service worker (public/sw.js) sudah memakai
-//    strategi stale-while-revalidate untuk PNG, jadi sekalian masuk Cache Storage.
-//  • Video diunduh menyusul saat browser idle, satu per satu, dan DILEWATI pada koneksi
-//    lambat / mode hemat data — jaringan sekolah tidak ideal untuk 8 file mp4 sekaligus.
+// Sebelumnya (v0.9.90) saat workspace dibuka: 36 gambar diunduh langsung + 8 video diunduh
+// lewat <video preload="auto"> tersembunyi. Itu penyebab puluhan MB di halaman /buddy.
 //
-// Pemanasan video sekaligus jadi PROBE ketersediaan file: video panduan mengikuti
-// konvensi nama `/VIDEOS/<key>.mp4` dan belum semuanya diunggah guru. Modal memakai
-// `isTutorialVideoAvailable()` untuk menyembunyikan switch "Video" pada panduan yang
-// filenya belum ada, alih-alih menampilkan tab yang pasti gagal.
+// Sekarang:
+//  • TIDAK ada video yang diunduh di awal. Ketersediaan file dicek lewat HEAD (beberapa
+//    byte), dan baru dilakukan saat modal panduan dibuka (probeTutorialVideo).
+//  • Gambar: hanya gambar LANGKAH PERTAMA tiap panduan, dan hanya saat browser idle &
+//    koneksi tidak hemat-data. Sisa gambar dimuat normal saat siswa membuka modal
+//    (service worker sudah meng-cache PNG).
+//  • API yang diekspor tetap sama: prefetchTutorialAssets, isTutorialVideoAvailable.
+//    Tambahan: probeTutorialVideo.
 // ============================================================
 import { ApiService } from '../../fetch/api.js';
 
-// url video → true (siap dipakai) | false (file tidak ada) | undefined (belum diprobe)
+// url video → true (ada) | false (tidak ada) | undefined (belum diprobe)
 const videoStatus = new Map();
+const probing = new Map();
 let started = false;
 
 export function isTutorialVideoAvailable(url) {
   return videoStatus.get(String(url || ''));
 }
 
-// Koneksi lemot / hemat data → cukup gambar saja, video biar streaming normal.
-function shouldSkipVideo() {
+function isSavingData() {
   const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
   if (!conn) return false;
-  return conn.saveData === true || ['slow-2g', '2g'].includes(conn.effectiveType);
+  return conn.saveData === true || ['slow-2g', '2g', '3g'].includes(conn.effectiveType);
 }
 
 function whenIdle(fn) {
-  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(fn, { timeout: 5000 });
-  else setTimeout(fn, 1500);
+  if (typeof window.requestIdleCallback === 'function') window.requestIdleCallback(fn, { timeout: 8000 });
+  else setTimeout(fn, 3000);
 }
 
-// `<video preload="auto">` tersembunyi mengisi cache media browser tanpa perlu bantuan
-// service worker (request video memakai header Range yang tidak cocok dengan Cache API).
-function warmVideo(url) {
-  return new Promise((resolve) => {
-    const video = document.createElement('video');
-    video.preload = 'auto';
-    video.muted = true;
-    video.setAttribute('playsinline', '');
-    video.style.cssText = 'position:absolute;left:-9999px;width:1px;height:1px;opacity:0;pointer-events:none;';
+// Cek apakah file video benar-benar ada TANPA mengunduhnya.
+// Beberapa host mengembalikan 200 + index.html untuk file yang tidak ada → periksa content-type.
+export function probeTutorialVideo(url) {
+  const key = String(url || '');
+  if (!key) return Promise.resolve(false);
+  if (videoStatus.has(key)) return Promise.resolve(videoStatus.get(key));
+  if (probing.has(key)) return probing.get(key);
 
-    let settled = false;
-    const finish = (ok) => {
-      if (settled) return;
-      settled = true;
-      videoStatus.set(url, ok);
-      video.removeAttribute('src');
-      video.remove();
-      resolve();
-    };
+  const looksLikeVideo = (res) => {
+    if (!res || !res.ok) return false;
+    const type = String(res.headers.get('content-type') || '').toLowerCase();
+    return type.startsWith('video/') || type.includes('octet-stream');
+  };
 
-    video.addEventListener('canplaythrough', () => finish(true), { once: true });
-    video.addEventListener('error', () => finish(false), { once: true });
-    // Video panjang mungkin tak pernah `canplaythrough`; metadata terbaca sudah cukup
-    // membuktikan filenya ada, dan unduhannya dibiarkan lanjut sampai batas waktu.
-    video.addEventListener('loadedmetadata', () => videoStatus.set(url, true), { once: true });
-    setTimeout(() => finish(videoStatus.get(url) === true), 20000);
+  const p = (async () => {
+    let ok = false;
+    try {
+      let res = await fetch(key, { method: 'HEAD' });
+      if (res.status === 405 || res.status === 501) {
+        // Server tak mendukung HEAD → minta 1 byte saja.
+        res = await fetch(key, { method: 'GET', headers: { Range: 'bytes=0-0' } });
+      }
+      ok = looksLikeVideo(res);
+    } catch (_) {
+      ok = false;
+    }
+    videoStatus.set(key, ok);
+    probing.delete(key);
+    return ok;
+  })();
 
-    video.src = url;
-    document.body.appendChild(video);
-  });
+  probing.set(key, p);
+  return p;
 }
 
 export async function prefetchTutorialAssets() {
   if (started) return;
   started = true;
 
-  let tutorials = [];
-  try {
-    const res = await ApiService.get('/chat/tutorial-assets');
-    if (res?.status !== 'success' || !Array.isArray(res.data)) return;
-    tutorials = res.data;
-  } catch (err) {
-    console.warn('[Buddy] Gagal memuat daftar aset panduan:', err);
-    return;
-  }
-
-  tutorials.forEach((tut) => {
-    (tut.images || []).forEach((url) => { new Image().src = url; });
-  });
-
-  if (shouldSkipVideo()) return;
-
-  const videos = tutorials.map((tut) => tut.video).filter(Boolean);
+  // Tunda sampai browser idle supaya tidak bersaing dengan render awal & request penting.
   whenIdle(async () => {
-    for (const url of videos) await warmVideo(url);
+    if (isSavingData()) return; // koneksi lemot / hemat data → biarkan lazy saat modal dibuka
+
+    let tutorials = [];
+    try {
+      const res = await ApiService.get('/chat/tutorial-assets');
+      if (res?.status !== 'success' || !Array.isArray(res.data)) return;
+      tutorials = res.data;
+    } catch (err) {
+      console.warn('[Buddy] Gagal memuat daftar aset panduan:', err);
+      return;
+    }
+
+    // Hanya gambar langkah pertama tiap panduan (kecil), bukan semua gambar & bukan video.
+    tutorials.forEach((tut) => {
+      const first = (tut.images || [])[0];
+      if (first) { const img = new Image(); img.decoding = 'async'; img.src = first; }
+    });
   });
 }

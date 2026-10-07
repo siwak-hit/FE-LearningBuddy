@@ -5,7 +5,7 @@
 // ============================================================
 import $ from 'jquery';
 import Toast from '../../components/toast.js';
-import { isTutorialVideoAvailable } from './tutorial-assets.js';
+import { isTutorialVideoAvailable, probeTutorialVideo } from './tutorial-assets.js';
 
 // ============================================================
 // [v0.9.13] Modal VIDEO tutorial. Mendukung YouTube (watch/youtu.be/embed) & file video langsung.
@@ -388,6 +388,14 @@ export function openStaticTutorialModal(payload = {}) {
   $('#alb-static-tutorial-modeswitch .alb-tut-mode-btn[data-mode="video"]')
     .toggleClass('alb-tut-mode-missing', videoMissing)
     .attr('title', videoMissing ? 'Video panduan belum diunggah guru' : 'Tonton panduan dalam bentuk video');
+  if (tutorial.video && isTutorialVideoAvailable(tutorial.video) === undefined) {
+    probeTutorialVideo(tutorial.video).then((ok) => {
+      if (albActiveStaticTutorial !== tutorial) return;
+      $('#alb-static-tutorial-modeswitch .alb-tut-mode-btn[data-mode="video"]')
+        .toggleClass('alb-tut-mode-missing', ok === false)
+        .attr('title', ok === false ? 'Video panduan belum diunggah guru' : 'Tonton panduan dalam bentuk video');
+    });
+  }
   setStaticTutorialMode('image');
 
   $('#alb-static-tutorial-title').text(tutorial.title || 'Panduan VClass');
